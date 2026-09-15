@@ -259,7 +259,8 @@ def rebuild_vector_index(verbose=True):
 
 def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=30,
                   rerank_w=0.4, rerank_model='bge',
-                  adaptive=True, adaptive_thr=0.6):
+                  adaptive=True, adaptive_thr=0.6,
+                  decay=True):
     """混合检索：质量门禁 + 向量 + ASCII精确 + RRF 融合 + cross-encoder 精排。
 
     use_rerank : 是否启用 cross-encoder 精排（agentmemory V4 的核心增益项）
@@ -379,6 +380,7 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=30,
         out.append({'uid': uid, 'content': f['content'], 'type': f['type'],
                     'source': f['source'], 'score': round(sc, 5),
                     'semantic': vec_sim.get(uid, 0.0),
+                    'updated_at': f.get('updated_at') or '',
                     'reason': reason})
     # ★4.5) 自指降权：把"关于这个查询的元讨论"压到"这个查询的答案"之下。
     #    （详见 _is_self_referential 的注释。字面路给了它们满额加分，这里收回来。）
@@ -426,6 +428,22 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=30,
                 search_hybrid._warned_rr = True
                 print('[warn] 精排失败，退回 RRF（排序质量下降）:', str(e)[:80], file=sys.stderr)
                 print('[warn] 正确解释器: %s' % VENV_PY, file=sys.stderr)
+
+    # 6) ★时间衰减（2026-09-15 接入）：越老的记忆 score 越低。
+    #    动机：实测「过时记忆未退役」是继 RRF 之后的下一个瓶颈——
+    #      查"deepseek key 失效"时，09-11 那条"已充值10元可用"（错误答案）
+    #      会压过 09-15 的"401 已失效"（正确答案）。
+    #    ★重要认知：衰减**不是矛盾的解药**，只是弱的辅助（那对只差 2 天，×0.96 无感）。
+    #      真正解矛盾靠 `governance.retire()`；衰减治的是"老记忆长期霸榜"。
+    #    ★只在排序后做，不改数据库；每条的 decay_factor / age_days 都留痕可审计。
+    if decay and out:
+        try:
+            import governance as _gov
+            _gov.apply_decay(out, lookup_db=False)   # out 已带 updated_at
+        except Exception as e:
+            if not getattr(search_hybrid, '_warned_dc', False):
+                search_hybrid._warned_dc = True
+                print('[warn] 时间衰减失败（排序退化为纯相关性）:', str(e)[:80], file=sys.stderr)
 
     return {'query': q, 'results': out[:limit]}
 

@@ -779,6 +779,15 @@ def rebuild():
         _tail.extend(_prio)
         _room = _BUDGET - sum(len(x) + 1 for x in mem_lines) - sum(len(x) + 1 for x in _tail) - 90
 
+        # ★2026-09-15 五修：实测投影 4020 字符 / 预算 4000 → **超 20 字符**。
+        #   根因：页脚那行（"导航版：已列 N 条…"）是在**预算检查之后**才 append 的，
+        #   它没有被任何 _room 约束覆盖；同时 _room 可能被前两项算成负数。
+        #   而超预算的后果很严重：官方注入时**整体截断**，不是截掉末尾。
+        #   修法：① 页脚预留固定额度；② 所有 _room 取值加 max(0, ...)；
+        #        ③ 收尾做一次**硬裁**，确保 len(mem_text) <= _BUDGET。
+        _FOOTER_RESERVE = 110
+        _room = max(0, _room - _FOOTER_RESERVE)
+
         _kept = 0
         for _ts, _typ, _r in _picked:
             _d = (_r['updated_at'] or _r['created_at'] or '')[:10] or '????-??-??'
@@ -806,6 +815,18 @@ def rebuild():
                         '写多会被整体截断）；其余全文用 mem.py search 取。'
                         % (_kept, sum(len(v) for v in sink.values())))
         mem_text = '\n'.join(mem_lines)
+
+        # ★硬裁保险：无论上游怎么算，最终产物绝不超过 _BUDGET。
+        #   超了就从**事实区**末尾往回删整行（保留页脚，因为它告知读者"还有更多"）。
+        if len(mem_text) > _BUDGET:
+            _foot = mem_lines[-2:]
+            _body = mem_lines[:-2]
+            while _body and len('\n'.join(_body + _foot)) > _BUDGET:
+                _body.pop()
+            mem_text = '\n'.join(_body + _foot)
+            if len(mem_text) > _BUDGET:      # 极端情况：连页脚都放不下，砍到纯粹硬上限
+                mem_text = mem_text[:_BUDGET]
+
         wb = os.path.expanduser(r'~\.workbuddy\MEMORY.md')
         os.makedirs(os.path.dirname(wb), exist_ok=True)
         with open(wb, 'w', encoding='utf-8') as f:
@@ -893,6 +914,14 @@ def main():
     sub.add_parser('assetverify')
     sub.add_parser('assetbench')
 
+    # ★治理层（见 governance.py）：冲突检测 / 时间衰减 / 退役
+    sub.add_parser('govern')                       # 治理层体检（只读）
+    gc = sub.add_parser('conflicts')               # 候选冲突（启发式，供人工复核）
+    gc.add_argument('--days', type=int, default=30)
+    sub.add_parser('conflicts_exact')              # ★精确冲突（显式状态断言，可放心自动化）
+    sc = sub.add_parser('selfcheck'); sc.add_argument('--days', type=int, default=30)
+    sub.add_parser('stale')                        # 过期候选（只读）
+
     a = ap.parse_args()
     if not a.cmd:
         ap.print_help()
@@ -957,6 +986,37 @@ def main():
         asset_bench.run(verbose=False)
         print("\n【留出集】")
         asset_bench_holdout.run(verbose=False)
+    elif a.cmd == 'govern':
+        import governance
+        governance.audit()
+    elif a.cmd == 'conflicts':
+        import governance
+        r = governance.find_conflicts(days_window=a.days)
+        print(json.dumps({'ok': True, 'count': len(r), 'candidates': [
+            {'a': x['a']['uid'], 'b': x['b']['uid'], 'shared': x['shared'],
+             'a_text': x['a']['text'][:120], 'b_text': x['b']['text'][:120]}
+            for x in r[:20]]}, ensure_ascii=False, indent=2))
+    elif a.cmd == 'conflicts_exact':
+        import governance
+        r = governance.detect_explicit_conflicts()
+        print(json.dumps({'ok': True, 'count': len(r), 'conflicts': [
+            {'entity': x['entity'], 'newer': x['newer'],
+             'suggest_retire': x['suggest_retire'], 'keep': x['keep'],
+             'pos_text': x['pos']['sent'][:150], 'pos_ts': x['pos']['ts'],
+             'neg_text': x['neg']['sent'][:150], 'neg_ts': x['neg']['ts']}
+            for x in r]}, ensure_ascii=False, indent=2))
+    elif a.cmd == 'selfcheck':
+        import governance
+        r = governance.find_self_contradictions()
+        print(json.dumps({'ok': True, 'count': len(r), 'items': [
+            {'uid': x['uid'], 'entity': x.get('entity'), 'shared': x['shared'],
+             'pos': x['pos']['text'][:120], 'neg': x['neg']['text'][:120]}
+            for x in r[:20]]}, ensure_ascii=False, indent=2))
+    elif a.cmd == 'stale':
+        import governance
+        r = governance.find_stale(days=30)
+        print(json.dumps({'ok': True, 'count': len(r), 'items': r[:20]},
+                         ensure_ascii=False, indent=2))
 
 
 if __name__ == '__main__':
