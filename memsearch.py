@@ -486,7 +486,7 @@ def rebuild_vector_index(verbose=True, reclaim=True):
 
 
 def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=30,
-                  rerank_w=0.4, rerank_model='bge',
+                  rerank_w=0.4, rerank_model=None,
                   adaptive=True, adaptive_thr=0.6,
                   decay=True):
     """混合检索：质量门禁 + 向量 + ASCII精确 + RRF 融合 + cross-encoder 精排。
@@ -494,7 +494,10 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=30,
     use_rerank : 是否启用 cross-encoder 精排（agentmemory V4 的核心增益项）
     rerank_k   : 对 RRF 前多少条做精排（精排是 O(n) 全注意力，太慢就调小）
     rerank_w   : 精排分在最终融合中的权重，1-rerank_w 给 RRF 排名分
-    rerank_model: 'bge'（BAAI/bge-reranker-base，中文）或 'msmarco'（英文，实测有害不要用）
+    rerank_model: 默认读环境变量 MEM_RERANK_MODEL，再退回 'bge'。
+                 'bge'=BAAI/bge-reranker-base fp32(1.06GB)；
+                 'bge-int8'=同模型量化版（体积约 1/4，冷启动更快）；
+                 'msmarco'=英文模型，**中文实测有害，别用**。
 
     ★2026-09-15 实测选型依据（40 例自评测，直白集/改写集各 20）：
       基线(RRF)        直白 80%/95%   改写 35%/45%    → 合计 Top1 57.5% Top3 70%
@@ -508,6 +511,9 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=30,
     q = (query or '').strip()
     if not q:
         return {'query': q, 'results': []}
+
+    # ★精排模型：显式传入 > 环境变量 MEM_RERANK_MODEL > 'bge'
+    rerank_model = rerank_model or os.environ.get('MEM_RERANK_MODEL') or 'bge'
 
     conn = sqlite3.connect(DB)
     conn.row_factory = sqlite3.Row

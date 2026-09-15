@@ -17,30 +17,67 @@ import os
 import numpy as np
 
 HUB = r'E:\RUANJIAN\memory_hub'
+# 每条：目录 / ONNX 相对路径 / 备注
 MODELS = {
-    'msmarco': os.path.join(HUB, 'models', 'cross_encoder'),
-    'bge': os.path.join(HUB, 'models', 'bge_reranker'),
+    'msmarco': dict(dir='cross_encoder', onnx='model.onnx',
+                    note='英文 MS MARCO，中文实测更差（Top1 73%→53%），别用'),
+    'bge': dict(dir='bge_reranker', onnx='model.onnx',
+                note='BAAI/bge-reranker-base fp32，中文佳，1.11GB，冷启动约 6.3s'),
+    'bge-int8': dict(dir='bge_reranker_int8', onnx='onnx/model_quantized.onnx',
+                     note='同上的 int8 量化版，266MB（小 4 倍），加载 1.34s，实测 60/62'),
 }
-DEFAULT_MODEL = 'msmarco'
+# ★2026-09-15 实测：冷启动总成本里**精排反而比 embedding 大** ——
+#   精排 1061MB vs embedding 543MB，而两者每个短进程都要重载一次。
+#   hard_bench 62 题实测（逐模型，同一份卷子）：
+#     bge      fp32  1061MB  加载 2.35s  59/62 = 95.2%
+#     bge-int8 int8   266MB  加载 1.34s  60/62 = 96.8%   ← 选它
+#   打分几乎一致（[2.35,-7.23,-3.76] vs [2.38,-7.56,-3.67]）。
+#   ★60 vs 59 只差 1 题、远在噪声内 → 采用 int8 的**真正理由是体积 1/4、
+#     加载快 1.75 倍**，不是"它更准"。别把噪声讲成结论（同 embedding 那次）。
+DEFAULT_MODEL = os.environ.get('MEM_RERANK_MODEL') or 'bge-int8'
 
 _cache = {}
+_load_sec = {}
+
+
+def _paths(model):
+    m = MODELS[model]
+    d = os.path.join(HUB, 'models', m['dir'])
+    return d, os.path.join(d, m['onnx'])
 
 
 def _load(model=None):
     model = model or DEFAULT_MODEL
     if model in _cache:
         return _cache[model]
+    import time
     import onnxruntime as ort
     from tokenizers import Tokenizer
-    d = MODELS[model]
+    t0 = time.time()
+    d, onnx_path = _paths(model)
     tok = Tokenizer.from_file(os.path.join(d, 'tokenizer.json'))
+    # ★沿用原写法：精排输入本来就被截断到 128 token，固定 pad 到 128 影响不大
+    #   （与 embedding 那边的坑不同——那边是 2-token 短句被撑到 512，才慢 73 倍）。
     tok.enable_padding(length=128, pad_id=0, pad_token='[PAD]')
     tok.enable_truncation(max_length=128)
-    sess = ort.InferenceSession(os.path.join(d, 'model.onnx'),
-                                providers=['CPUExecutionProvider'])
+    sess = ort.InferenceSession(onnx_path, providers=['CPUExecutionProvider'])
     names = {i.name for i in sess.get_inputs()}
     _cache[model] = (tok, sess, names)
+    _load_sec[model] = time.time() - t0
     return _cache[model]
+
+
+def info(model=None):
+    """自检：模型路径、文件大小、本次加载耗时（供评分卡/诊断使用）。"""
+    model = model or DEFAULT_MODEL
+    d, onnx_path = _paths(model)
+    ok = os.path.exists(onnx_path) and os.path.exists(os.path.join(d, 'tokenizer.json'))
+    r = {'model': model, 'dir': d, 'available': ok,
+         'size_mb': round(os.path.getsize(onnx_path) / 1048576, 1) if os.path.exists(onnx_path) else None,
+         'loaded': model in _cache,
+         'load_sec': round(_load_sec.get(model, 0.0), 2),
+         'note': MODELS[model]['note']}
+    return r
 
 
 def available(model=None):
