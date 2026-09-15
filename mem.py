@@ -452,28 +452,41 @@ def cmd_list(a) -> None:
 
 
 def cmd_search(a) -> None:
-    """检索记忆。主路走 gateway 混合检索（向量+ASCII+字面），失败退回关键词匹配。"""
+    """检索记忆。主路走 gateway 混合检索（向量+ASCII+字面），失败退回关键词匹配。
+
+    ★支持一次问多个问题：`mem.py search "q1" "q2" "q3"`。
+      动机（2026-09-15 实测）：本地 embedding 模型的**冷启动约 2.3 秒**，
+      但模型加载后**单次查询只要 0.04 秒**（差 50~100 倍）。
+      而短进程模式下每个查询都要重新加载模型 —— 于是"一次问 5 件事"
+      从 5×4.2 秒变成 1 次加载 + 5 次查询。
+      这是**不做常驻服务**的替代方案：既不长期占 ~930MB 内存，又不为每个问题重复付冷启动。
+    """
+    kws = a.kw if isinstance(a.kw, list) else [a.kw]
     try:
         gw = _gw()
-        r = gw.search(a.kw, limit=a.limit)
-        res = r.get('results', [])
-        print('命中 %d 条（engine=%s, 查询 %r）' % (len(res), r.get('engine', '?'), a.kw))
-        for item in res:
-            print('  [%s|%s] %.3f %s' % (item.get('type', 'fact'), item.get('source', '?'),
-                                          item.get('score', 0), str(item.get('content', ''))[:200]))
+        for qi, kw in enumerate(kws):
+            if len(kws) > 1:
+                print('─' * 60)
+            r = gw.search(kw, limit=a.limit)
+            res = r.get('results', [])
+            print('命中 %d 条（engine=%s, 查询 %r）' % (len(res), r.get('engine', '?'), kw))
+            for item in res:
+                print('  [%s|%s] %.3f %s' % (item.get('type', 'fact'), item.get('source', '?'),
+                                              item.get('score', 0), str(item.get('content', ''))[:200]))
         return
     except Exception as e:
         sys.stderr.write('[warn] gateway 检索失败，退回关键词匹配: %s\n' % e)
-    kw = (a.kw or '').lower()
-    hits = []
-    for t, e in all_entries():
-        hay = (str(e.get('text', '')) + ' ' + str(e.get('tag', '')) + ' ' + str(e.get('ref', ''))).lower()
-        if kw in hay:
-            hits.append((t, e))
-    hits.sort(key=lambda x: int(x[1].get('seq') or 0), reverse=True)
-    print('命中 %d 条（关键词 %r）' % (len(hits), a.kw))
-    for t, e in hits[:a.limit]:
-        print('  ' + _fmt(t, e))
+    for kw in kws:
+        kw = (kw or '').lower()
+        hits = []
+        for t, e in all_entries():
+            hay = (str(e.get('text', '')) + ' ' + str(e.get('tag', '')) + ' ' + str(e.get('ref', ''))).lower()
+            if kw in hay:
+                hits.append((t, e))
+        hits.sort(key=lambda x: int(x[1].get('seq') or 0), reverse=True)
+        print('命中 %d 条（关键词 %r）' % (len(hits), kw))
+        for t, e in hits[:a.limit]:
+            print('  ' + _fmt(t, e))
 
 
 def cmd_since(a) -> None:
@@ -823,7 +836,9 @@ def main() -> None:
     l.add_argument('--tag', default='')
     l.add_argument('--by-source', action='store_true')
 
-    s = sub.add_parser('search'); s.add_argument('kw'); s.add_argument('--limit', type=int, default=20)
+    s = sub.add_parser('search'); s.add_argument('kw', nargs='+',
+                                                 help='一个或多个查询（多个时共用一次模型加载）')
+    s.add_argument('--limit', type=int, default=20)
 
     sc = sub.add_parser('since'); sc.add_argument('ts'); sc.add_argument('--source')
 

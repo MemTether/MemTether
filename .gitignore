@@ -19,3 +19,15 @@ backup/
 
 # 轨道A基准数据集（体积大，可重新下载）
 bench_data/
+
+# 本地模型（共约 2.4GB）
+# ★2026-09-15：这些是**二进制大文件**，早先误提交过一次，把 .git 撑到 1.0GB。
+#   现已全部取消跟踪（`git rm --cached`，磁盘文件保留）。
+#   历史提交里仍有旧副本，未改写历史（rewrite 风险大）——
+#   但从此不再增长。
+# 换机器时按下列来源从 hf-mirror 重新下载（hf.co 直连不通，实测 000）：
+#   Xenova/bge-m3            -> models/bge_m3/         int8 543MB / fp16 1081MB   (embedding 主力)
+#   Xenova/bge-small-zh-v1.5 -> models/bge_small_zh/   fp16 45MB                  (对比用)
+#   BAAI/bge-reranker-base   -> models/bge_reranker/   1.11GB                     (cross-encoder 精排)
+#   另见 rerank.py 头部注释里 cross_encoder 的导出方式。
+models/

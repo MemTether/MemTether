@@ -149,6 +149,28 @@ def _govern():
     return val, detail
 
 
+def _embed_state():
+    """报告当前 embedding 后端与索引一致性（不给分，只作事实陈述）。
+
+    ★为什么要有这一行：②③ 的分数是**检索**出来的。若 embedding 后端与索引维度
+      不一致（本地 1024 / 智谱 2048），检索会静默变差或硬报错，而分数看不出来。
+      把运行态摆在分数旁边，是为了让"分数多可信"这件事一眼可见。
+    """
+    try:
+        import memsearch as _ms
+        be = (os.environ.get('MEM_EMBED_BACKEND') or _ms.EMBED_BACKEND_DEFAULT).lower()
+        want = _ms.expected_dim()
+        col = _ms._client().get_collection(_ms.COLLECTION)
+        md = col.metadata or {}
+        got, idx_model = md.get('embed_dim'), md.get('embed_model')
+        ok = (got is None) or (int(got) == int(want))
+        return ('embedding=%s(%d维)  索引=%d条/%s维/%s  %s'
+                % (be, want, col.count(), got, idx_model,
+                   '一致 ✓' if ok else '★不一致，检索会降级或报错'))
+    except Exception as e:
+        return 'embedding 状态读取失败: %s' % str(e)[:70]
+
+
 def score():
     lines = []
     lines.append("=" * 72)
@@ -182,6 +204,8 @@ def score():
     total = (c_cov + c_fresh + c_acc + c_gov) / 4
     lines.append("-" * 72)
     lines.append("  综合 %.1f%%（四维等权）" % (total * 100))
+    lines.append("-" * 72)
+    lines.append("  运行态：%s" % _embed_state())
     lines.append("=" * 72)
     lines.append("  ★诚信声明：主集 %d 题含本次刚修资产，有'自出卷'偏差；" % t1)
     lines.append("   故并列留出集 %d 题（本次未修资产 + 反向不瞎编 + C盘资产）作为校准。" % t2)
@@ -206,12 +230,15 @@ def score():
     lines.append("       规则法做 NL 矛盾检测的天花板就在这里。它只作人工复核候选。")
     lines.append("    ④ 通用能力（长程推理、时序、知识更新、跨会话指代）本卡仍不测——")
     lines.append("       那需要 LoCoMo/LongMemEval/BEAM，属另一条轨道，尚未跑。")
-    lines.append("    ⑤ ★运行态告警（2026-09-15 22:15 实测）：本卡①②③的满分是在")
-    lines.append("       **语义检索路降级**的状态下取得的 —— 智谱 embedding 返回")
-    lines.append("       429 code=1113『余额不足』，查询侧无法 embed，每次检索都退回")
-    lines.append("       纯关键词（RRF）兜底。向量索引本身完好（323 条），但召回变差。")
-    lines.append("       这意味着：本卡的分数**高估了当前的实际检索能力**。")
-    lines.append("       重启语义路：给智谱充值，或接一个本地 embedding 做兜底。")
+    lines.append("    ⑤ ★运行态（2026-09-15 23:5x 更新）：语义检索路**已从降级中恢复**——")
+    lines.append("       本地 embedding（bge-m3 int8, 1024 维）已接入并成为默认后端，")
+    lines.append("       不再依赖外部付费通道。此前 22:15 的告警（智谱 429 欠费 →")
+    lines.append("       查询侧无法 embed → 每次退回纯关键词）**已作废**。")
+    lines.append("       这意味着：本卡的分数现在是在**语义路真正工作**的状态下取得的，")
+    lines.append("       不再高估也不再低估。")
+    lines.append("       注：智谱链路仍保留为可选后端（MEM_EMBED_BACKEND=zhipu），")
+    lines.append("       但它与本地后端**维度不同**（2048 vs 1024），切换必须重建索引；")
+    lines.append("       索引里记了 embed_dim，不匹配会硬报错而不是静默给错结果。")
     lines.append("=" * 72)
 
     text = "\n".join(lines)

@@ -16,6 +16,7 @@ import json
 import math
 import time
 import sqlite3
+import datetime
 import urllib.request
 
 HUB = r'E:\RUANJIAN\memory_hub'
@@ -131,20 +132,73 @@ def asset_text(row):
 _SELFREF_TELL = ('结论：', '实测', '之前', '此前', '已修', '缺', '坑',
                  '教训', '写法', '不要', '必须', '规矩', '自指')
 
+# ★2026-09-15 补：**近似**引用也要拦。
+#   实测：修好上面那条之后，查「微信 装在哪」Top1 **仍然是**那条复盘笔记，
+#   因为笔记里引用的是「微信 在哪」——少了「装」字，原样包含判据 `q in c` 失效。
+#   泛化判据：若一条记忆**在检索语境里引用了一段查询串**，且该引用串与本次查询
+#   核心词高度重叠（≥50%），则它同样是在**谈论**这个查询，而不是**回答**它。
+#   为什么必须限定"检索语境"：裸引号太常见（`用户要求「XXX」`），
+#   宽判据会误伤正常记忆。要求引号附近 24 字内出现检索类词，才认。
+_SEARCH_CTX = ('mem.py search', 'search_hybrid', '检索', '查询', '搜')
+_QUOTE_RE = re.compile(r'[「『"\']([^」』"\']{2,40})[」』"\']')
+
+
+def _quoted_query_like(content):
+    """抽出"疑似被引用的查询串"（只取检索语境附近的引号内容）。"""
+    out = []
+    for m in _QUOTE_RE.finditer(content):
+        snip = m.group(1).strip()
+        if not snip:
+            continue
+        head = content[max(0, m.start() - 24):m.start()]
+        if any(t in head for t in _SEARCH_CTX):
+            out.append(snip)
+    return out
+
 
 def _is_self_referential(content, q):
     """判断某条内容是不是"关于查询 q 的元讨论"而非"对 q 的回答"。"""
     if not content or not q or len(q) < 4:
         return False
     c = content
-    # 必须**原样**含整段查询（含空格），才可能是元讨论
-    if q not in c:
+    # 情形 1：原样含整段查询（含空格）→ 几乎必然是元讨论
+    if q in c:
+        return any(t in c for t in _SELFREF_TELL)
+    # 情形 2：引用了**近似**的查询串（见上方注释）
+    qt = _terms(q)
+    if not qt:
         return False
-    return any(t in c for t in _SELFREF_TELL)
+    for snip in _quoted_query_like(c):
+        st = _terms(snip)
+        if not st:
+            continue
+        if len(qt & st) / len(qt) >= 0.5:
+            return True
+    return False
 
 
 # ---- embedding ----
-def _embed(texts):
+# ★2026-09-15 改：embedding 从「智谱单通道」改为「本地优先 + 云端可选」。
+#
+#   动机（真实事故）：智谱 embedding-3 欠费返回 429 code=1113，Astra 欠费、
+#   DeepSeek 官方 key 失效 —— 三条外部通道同时挂掉，向量路整个停摆，
+#   每次查询都降级成纯关键词，且**没有任何本地兜底**。
+#
+#   后端选择（环境变量 MEM_EMBED_BACKEND）：
+#     local （默认）—— 只用本地 bge-m3，永不断供、免费、数据不出本机。
+#                      模型缺失时**显式报错**，不静默降级。
+#     zhipu          —— 只用智谱云端（2048 维）。
+#     auto           —— 先本地，失败再云端。
+#
+#   ★维度铁律：本地 bge-m3 是 1024 维，智谱是 2048 维，**两者不能混用一个集合**。
+#     换后端 = 必须重建索引。索引里记了 embed_dim，查询时不一致会硬报错
+#     （而不是让 chroma 给出无意义的近邻）。
+LAST_EMBED_INFO = {}          # 诊断用：记录最近一次实际走了哪条路
+
+EMBED_BACKEND_DEFAULT = os.environ.get('MEM_EMBED_BACKEND') or 'local'
+
+
+def _embed_zhipu(texts):
     sys.path.insert(0, r'E:\RUANJIAN\ai-audit')
     import cred_env
     cred_env.env()
@@ -156,6 +210,59 @@ def _embed(texts):
         headers={'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json'})
     r = urllib.request.urlopen(req, timeout=60)
     return [x['embedding'] for x in json.loads(r.read().decode())['data']]
+
+
+def _embed_local(texts):
+    """本地 bge-m3。失败时抛异常（由 _embed 决定是否回退）。"""
+    import embed_local
+    if not embed_local.available():
+        raise RuntimeError('本地 embedding 模型文件缺失：%s' % embed_local.MODEL_DIR)
+    return embed_local.encode(texts)
+
+
+def _embed(texts):
+    """统一 embedding 入口。返回 list[list[float]]。"""
+    be = (os.environ.get('MEM_EMBED_BACKEND') or EMBED_BACKEND_DEFAULT).lower()
+
+    if be == 'zhipu':
+        v = _embed_zhipu(texts)
+        LAST_EMBED_INFO.update(backend='zhipu', model=EMBED_MODEL,
+                               dim=len(v[0]) if v else 0)
+        return v
+
+    try:
+        v = _embed_local(texts)
+        try:
+            import embed_local as _el
+            _mname = _el._profile()['name']
+        except Exception:
+            _mname = 'local-onnx'
+        LAST_EMBED_INFO.update(backend='local', model=_mname, dim=len(v[0]) if v else 0)
+        return v
+    except Exception as e:
+        if be != 'auto':
+            # local：不静默降级。宁可报错，也不要偷偷换成另一条路。
+            raise RuntimeError('本地 embedding 失败（backend=local，不回退云端）：%s' % e)
+        if not getattr(_embed, '_warned_fb', False):
+            _embed._warned_fb = True
+            print('[warn] 本地 embedding 失败，回退智谱云端：%s' % str(e)[:90],
+                  file=sys.stderr)
+        v = _embed_zhipu(texts)
+        LAST_EMBED_INFO.update(backend='zhipu(fallback)', model=EMBED_MODEL,
+                               dim=len(v[0]) if v else 0)
+        return v
+
+
+def expected_dim():
+    """当前后端应产生的向量维度（不加载模型）。"""
+    be = (os.environ.get('MEM_EMBED_BACKEND') or EMBED_BACKEND_DEFAULT).lower()
+    if be == 'zhipu':
+        return 2048
+    try:
+        import embed_local
+        return embed_local.dim()
+    except Exception:
+        return 1024
 
 
 VENV_PY = os.path.join(HUB, '.venv-memory', 'Scripts', 'python.exe')
@@ -329,7 +436,24 @@ def rebuild_vector_index(verbose=True, reclaim=True):
         client.delete_collection(COLLECTION)
     except Exception:
         pass
-    col = client.create_collection(COLLECTION, metadata={'hnsw:space': 'cosine'})
+    # ★建集合时**记下向量维度与后端**。查询侧据此做一致性校验：
+    #   本地(1024) 与 智谱(2048) 混用会得到无意义的近邻，必须硬报错而不是静默出错。
+    _be = (os.environ.get('MEM_EMBED_BACKEND') or EMBED_BACKEND_DEFAULT).lower()
+    if _be == 'zhipu':
+        _mname = EMBED_MODEL
+    else:
+        try:
+            import embed_local as _el
+            _mname = _el._profile()['key']
+        except Exception:
+            _mname = 'local-onnx'
+    col = client.create_collection(COLLECTION, metadata={
+        'hnsw:space': 'cosine',
+        'embed_dim': expected_dim(),
+        'embed_backend': _be,
+        'embed_model': _mname,
+        'built_at': datetime.datetime.now().isoformat(timespec='seconds'),
+    })
 
     vecs = []
     B = 20
@@ -415,6 +539,17 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=30,
     try:
         col = _client().get_collection(COLLECTION)
         qv = _embed([q])[0]
+        # ★维度一致性校验：索引是用某个后端建的，查询向量必须同维。
+        #   不同维（本地 1024 / 智谱 2048）混用不会报错，但近邻是**无意义的**——
+        #   属于最难发现的一类静默错误。宁可在这里硬停下并给出修复命令。
+        _md = col.metadata or {}
+        _idx_dim = _md.get('embed_dim')
+        if _idx_dim and int(_idx_dim) != len(qv):
+            raise RuntimeError(
+                '向量维度不符：索引是 %s 维（后端=%s，建于 %s），'
+                '当前后端产生 %d 维。索引与查询向量不同维时近邻无意义。'
+                '修复：用当前后端重建索引 —— python memsearch.py --rebuild'
+                % (_idx_dim, _md.get('embed_backend'), _md.get('built_at'), len(qv)))
         r = col.query(query_embeddings=[qv], n_results=vec_k)
         for i, (uid, dist) in enumerate(zip(r['ids'][0], r['distances'][0])):
             if uid in active:
