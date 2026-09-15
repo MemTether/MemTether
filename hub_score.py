@@ -206,6 +206,12 @@ def score():
     lines.append("       规则法做 NL 矛盾检测的天花板就在这里。它只作人工复核候选。")
     lines.append("    ④ 通用能力（长程推理、时序、知识更新、跨会话指代）本卡仍不测——")
     lines.append("       那需要 LoCoMo/LongMemEval/BEAM，属另一条轨道，尚未跑。")
+    lines.append("    ⑤ ★运行态告警（2026-09-15 22:15 实测）：本卡①②③的满分是在")
+    lines.append("       **语义检索路降级**的状态下取得的 —— 智谱 embedding 返回")
+    lines.append("       429 code=1113『余额不足』，查询侧无法 embed，每次检索都退回")
+    lines.append("       纯关键词（RRF）兜底。向量索引本身完好（323 条），但召回变差。")
+    lines.append("       这意味着：本卡的分数**高估了当前的实际检索能力**。")
+    lines.append("       重启语义路：给智谱充值，或接一个本地 embedding 做兜底。")
     lines.append("=" * 72)
 
     text = "\n".join(lines)
