@@ -195,11 +195,106 @@ def extract_ascii_entities(text):
     return set(re.findall(r'[A-Za-z][A-Za-z0-9_.\-]{2,}', text or ''))
 
 
-def rebuild_vector_index(verbose=True):
+def reclaim_orphan_segments(dry_run=True, verbose=True):
+    """★2026-09-15 新增：回收 Chroma 的**孤儿 segment 目录**。
+
+    【为什么需要它 —— 实测踩到的真实泄漏】
+      `delete_collection(COLLECTION)` 只清 sqlite 里的登记，**不删 HNSW 的二进制目录**。
+      每次 rebuild = delete + create + add，于是每跑一次就永久多留一份 ~833KB 的
+      `data_level0.bin`（2048 维 × ~100 条向量）。
+      实测证据（2026-09-15 21:5x）：
+        · sqlite 里登记的 segments：14 个（7 个 collection × VECTOR/METADATA 两段）
+        · 磁盘上的目录：74 个
+        · **孤儿 68 个，共 54.1 MB** —— 其中 60 个是当晚跑 benchmark 的 13 分钟里新建的
+      也就是说：**跑一轮 60 题的评测，就烧掉 50MB 磁盘**，而且没有任何地方会回收。
+
+    【判定规则（保守）】
+      只删「磁盘上存在、但 sqlite 的 segments 表里没有登记」的目录。
+      不碰任何已登记的 segment，不碰 chroma.sqlite3 本体，不碰 .cache 等非 UUID 条目。
+      → 结构上不可能误删活着的索引数据。
+
+    dry_run=True 时只报告不删除（默认），确认无误再显式传 dry_run=False。
+    """
+    import shutil
+    if not os.path.isdir(CHROMA_PATH):
+        return {'ok': False, 'err': 'CHROMA_PATH 不存在: %s' % CHROMA_PATH}
+
+    sq = os.path.join(CHROMA_PATH, 'chroma.sqlite3')
+    registered = set()
+    if os.path.exists(sq):
+        conn = sqlite3.connect(sq)
+        try:
+            registered = {r[0] for r in conn.execute('SELECT id FROM segments')}
+        except Exception as e:
+            return {'ok': False, 'err': '读取 segments 失败: %s' % str(e)[:80]}
+        finally:
+            conn.close()
+
+    # 顺手把 collection 名也读出来，方便报告"这些孤儿原本属于谁"
+    coll_names = {}
+    try:
+        conn = sqlite3.connect(sq)
+        for cid, name in conn.execute('SELECT id, name FROM collections'):
+            coll_names[cid] = name
+        seg2coll = {r[0]: coll_names.get(r[1], '?')
+                    for r in conn.execute('SELECT id, collection FROM segments')}
+        conn.close()
+    except Exception:
+        seg2coll = {}
+
+    # 只认「UUID 形状」的目录名 —— 避免误碰 chroma 未来可能新增的非 segment 目录
+    _uuid_re = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+
+    orphans, kept, freed = [], 0, 0
+    for d in sorted(os.listdir(CHROMA_PATH)):
+        fp = os.path.join(CHROMA_PATH, d)
+        if not os.path.isdir(fp) or not _uuid_re.match(d):
+            continue
+        if d in registered:
+            kept += 1
+            continue
+        size = 0
+        for f in os.listdir(fp):
+            ff = os.path.join(fp, f)
+            if os.path.isfile(ff):
+                size += os.path.getsize(ff)
+        orphans.append({'seg': d, 'bytes': size, 'formerly': seg2coll.get(d, '')})
+        freed += size
+
+    if not dry_run:
+        for o in orphans:
+            try:
+                shutil.rmtree(os.path.join(CHROMA_PATH, o['seg']))
+                o['removed'] = True
+            except Exception as e:
+                o['removed'] = False
+                o['err'] = str(e)[:60]
+
+    if verbose:
+        mode = 'DRY-RUN（未删除）' if dry_run else '已删除'
+        print('[reclaim] %s  登记 segment %d 个 / 目录 %d 个 / 孤儿 %d 个 / 可回收 %.1f MB'
+              % (mode, len(registered), kept + len(orphans), len(orphans), freed / 1048576))
+        for o in orphans[:5]:
+            print('   孤儿 %s  %.0f KB  (原属 %s)'
+                  % (o['seg'][:8], o['bytes'] / 1024, o['formerly'] or '未知'))
+        if len(orphans) > 5:
+            print('   ... 其余 %d 个略' % (len(orphans) - 5))
+
+    return {'ok': True, 'dry_run': dry_run, 'registered': len(registered),
+            'orphans': len(orphans), 'freed_bytes': freed,
+            'freed_mb': round(freed / 1048576, 1), 'detail': orphans[:50]}
+
+
+def rebuild_vector_index(verbose=True, reclaim=True):
     """从 SQLite active facts **+ active tool_assets** 重建干净的向量索引（排除垃圾/测试源）。幂等。
 
     ★2026-09-15：资产（66 条）原先不在索引里，导致「微信装在哪」这类资产查询全灭。
     现在资产以 kind='tool' 入索引，uid 沿用 tool_assets.uid。
+
+    ★2026-09-15 二修（reclaim 参数）：delete_collection 会**永久泄漏 HNSW 目录**，
+    实测一次 rebuild 漏 ~833KB，跑一轮 60 题 benchmark 漏 50MB。
+    现在重建**结束前**顺手调用 reclaim_orphan_segments() 把自己刚产生的孤儿收掉，
+    让这个函数不再是"越用越胖"的。
     """
     conn = sqlite3.connect(DB)
     conn.row_factory = sqlite3.Row
@@ -253,8 +348,17 @@ def rebuild_vector_index(verbose=True):
               % (len(rows), len(assets), len(kept), len(quarantined)))
         for q in quarantined:
             print('  隔离: %s' % q['content'][:50])
+    # ★2026-09-15 二修：把自己刚产生的孤儿 segment 收掉（否则每次 rebuild 漏 833KB）
+    rec = None
+    if reclaim:
+        try:
+            rec = reclaim_orphan_segments(dry_run=False, verbose=verbose)
+        except Exception as e:
+            if verbose:
+                print('  [warn] 孤儿回收失败（不影响索引）:', str(e)[:70])
     return {'active': len(rows), 'assets': len(assets),
-            'indexed': len(kept), 'quarantined': len(quarantined)}
+            'indexed': len(kept), 'quarantined': len(quarantined),
+            'reclaimed_mb': (rec or {}).get('freed_mb', 0.0)}
 
 
 def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=30,
@@ -454,9 +558,16 @@ if __name__ == '__main__':
     ap.add_argument('--rebuild', action='store_true')
     ap.add_argument('--search', default=None)
     ap.add_argument('--gate-test', action='store_true')
+    ap.add_argument('--reclaim', action='store_true',
+                    help='回收孤儿 segment 目录（默认 DRY-RUN，只报告）')
+    ap.add_argument('--reclaim-apply', action='store_true',
+                    help='★真的删除孤儿 segment 目录')
     a = ap.parse_args()
     if a.rebuild:
         print(json.dumps(rebuild_vector_index(), ensure_ascii=False))
+    if a.reclaim or a.reclaim_apply:
+        print(json.dumps(reclaim_orphan_segments(dry_run=not a.reclaim_apply),
+                         ensure_ascii=False, indent=2))
     if a.gate_test:
         print('=== 质量门禁测试 ===')
         for t in ['记忆中枢建立，两账号共用', '入口质检功能已上线',

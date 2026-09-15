@@ -39,6 +39,7 @@ LongMemEval（ICLR 2025，xiaowu0162/longmemeval）是长期记忆评测的主�
   python bench_longmemeval.py --no-llm             # 只跑严格匹配（零模型调用）
 """
 import os
+import re
 import sys
 import json
 import random
@@ -51,6 +52,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 BENCH_DB = os.path.join(HERE, 'bench_data', 'lme_scratch.db')
 DATA = os.path.join(HERE, 'bench_data')
+# ★2026-09-15：向量库也必须独立，否则会覆盖生产索引（详见 retrieve_answer 的注释）
+BENCH_CHROMA = os.path.join(HERE, 'bench_data', 'lme_chroma')
+BENCH_COLLECTION = 'lme_bench'
 
 
 # ---------------- 1) 把 haystack 灌进临时检索库 ----------------
@@ -108,6 +112,45 @@ def build_scratch_db(item, db_path=BENCH_DB, verbose=False):
     return n
 
 
+def _assert_sandboxed(stage='pre'):
+    """★沙箱自检：确认评测不会碰到生产库。
+
+    这条检查是**事故的产物**：2026-09-15 首次跑 60 题时，只切了 SQLite 路径，
+    把生产向量索引覆盖成测试数据（facts_active 从 323 条塌成 12 条 lme-* 条目），
+    而且全程不报错。所以现在宁可硬报错，也不要静默毁数据。
+
+    stage='pre'  —— 开跑前：只校验"待切换的三件套都是独立 bench 路径"，
+                    此时模块还指着生产库是**正常的**（切换在每题内做）。
+    stage='post' —— 切换后：校验**真的切过去了**，这是最关键的一道闸。
+    """
+    import memsearch
+    prod_db = os.path.abspath(os.path.join(HERE, 'memory.db'))
+    prod_chroma = os.path.abspath(os.path.join(HERE, 'mem0_store'))
+    bad = []
+    if stage == 'pre':
+        # 只需确认"目标"是独立的，不是生产
+        if os.path.abspath(BENCH_DB) == prod_db:
+            bad.append('BENCH_DB 就是生产 memory.db')
+        if os.path.abspath(BENCH_CHROMA) == prod_chroma:
+            bad.append('BENCH_CHROMA 就是生产 mem0_store')
+        if BENCH_COLLECTION == 'facts_active':
+            bad.append('BENCH_COLLECTION 撞上生产集合名')
+    else:
+        # ★关键闸：切换之后必须**确实**指向 bench，否则拒绝检索
+        if os.path.abspath(memsearch.DB) == prod_db:
+            bad.append('切换后 DB 仍是生产 memory.db')
+        if os.path.abspath(memsearch.CHROMA_PATH) == prod_chroma:
+            bad.append('切换后 CHROMA_PATH 仍是生产 mem0_store')
+        if memsearch.COLLECTION == 'facts_active':
+            bad.append('切换后 COLLECTION 仍是生产 facts_active')
+    if bad:
+        raise RuntimeError(
+            '[%s] 评测沙箱未隔离，拒绝继续：%s\n'
+            '（生产库会被覆盖，且不会报错 —— 查 retrieve_answer 的切换逻辑）'
+            % (stage, '; '.join(bad)))
+    return True
+
+
 # ---------------- 2) 用主检索链路取答案 ----------------
 def retrieve_answer(item, k=12, variant='s'):
     """把 haystack 灌库 → 走生产检索链路 search_hybrid → 拼成给 judge 的上下文。
@@ -116,27 +159,37 @@ def retrieve_answer(item, k=12, variant='s'):
       而不是自己拼一条"更好用"的查询路径——否则测的就不是中枢的真实能力。
       但有一个必要的适配：把 question_date 一起塞进查询，
       因为本机中枢的时间衰减与时间戳相关。
+
+    ★★2026-09-15 重大修复：**沙箱隔离曾漏掉向量库，把生产索引写坏了。**
+      症状：评测跑完，生产检索的 `semantic` 全变 0.0，
+            `facts_active` 集合只剩 12 条 —— 而且内容是 `lme-*` 测试数据。
+      根因：原来只切了 `memsearch.DB`（SQLite 路径），但 `CHROMA_PATH` 是
+            **模块级常量，没有跟着切**。于是每题 rebuild_vector_index() 都在
+            **生产向量库**上执行 delete + create + add，把 323 条真实索引
+            覆盖成了当题的 12 条 haystack。
+      教训：**"换库"必须换全套（sqlite + 向量库 + 集合名），漏一个就是数据事故。**
+            而且它**不报错**——评测照常出分，只有回头看检索质量才会发现。
+      修法：把三样一起指到独立的 bench 目录，用完在 finally 里全部还原。
     """
-    import importlib
     import memsearch
     n = build_scratch_db(item)
     q = item['question']
-    # 临时把 memsearch 的 DB 指向本题库
-    orig_db = None
-    if hasattr(memsearch, 'DB'):
-        orig_db = memsearch.DB
+
+    # ★三件套一起切：SQLite、Chroma 目录、集合名
+    _saved = (memsearch.DB, memsearch.CHROMA_PATH, memsearch.COLLECTION)
     memsearch.DB = BENCH_DB
+    memsearch.CHROMA_PATH = BENCH_CHROMA
+    memsearch.COLLECTION = BENCH_COLLECTION
     try:
-        # vec 索引需要重建（指向新库）
-        if hasattr(memsearch, 'rebuild_vector_index'):
-            try:
-                memsearch.rebuild_vector_index(verbose=False)
-            except Exception:
-                pass
+        _assert_sandboxed('post')      # ★切换后硬校验，过不了就不检索
+        try:
+            memsearch.rebuild_vector_index(verbose=False)
+        except Exception:
+            pass
         res = memsearch.search_hybrid(q, limit=k, decay=False)
     finally:
-        if orig_db is not None:
-            memsearch.DB = orig_db
+        # ★务必还原全部三样 —— 只还 DB 就是这次事故的成因
+        memsearch.DB, memsearch.CHROMA_PATH, memsearch.COLLECTION = _saved
     return res.get('results', []), n
 
 
@@ -156,14 +209,68 @@ def judge_strict(pred, gold):
 
     ★这会**系统性低估**（同义改写会被判错），但对"模型是否真的找到了那段话"
       非常敏感，且**零模型调用、完全可复现**。作为下界使用。
+
+    ★★2026-09-15 实测发现的**方法论硬伤**（必须诚实标注）：
+      原实现对所有 gold 一视同仁做 AND 全词匹配，但抽查发现 LongMemEval 的
+      gold 有**两种截然不同的形态**：
+        (a) 实体型 —— "MusicTheory.net"、"GPS system not functioning correctly"
+            → 短、实词少，AND 匹配有意义
+        (b) 散文型 —— "The information provided is not enough. You mentioned getting
+            the iPhone 13 Pro and attend..."（一段说明文字）
+            → 这种 gold **原样返回都过不了**：没有哪个检索系统会把整段
+              说明文字一字不差地召回。
+      也就是说：原 strict **测的不是检索质量，而是"gold 恰好是不是短的"**。
+      对散文型 gold 打 0 分是**指标缺陷，不是系统缺陷**。
+      修法：散文型（实词 > 12 个 或 含句末标点的完整句）**不参与 strict 判分**，
+            单列 `n/a` 计数，并明确说明"该题只有 llm judge 有意义"。
+      —— 宁可承认指标不适用，也不要拿一个假装是下界的数字骗自己。
+
+    ★★2026-09-15 二次修复：**gold 不一定是字符串**。
+      全量 500 题里有 32 题 gold 是 `int`（答案是个数字，如"2"、"3"），
+      集中在 multi-session（数会话）与 temporal-reasoning（算天数）。
+      原实现直接 `gold.lower()` → AttributeError，60 题里静默崩掉 8 题（13%），
+      而 llm 分母因此变成 52 而不是 60 —— **分数被悄悄算错了**。
+      修法：先把 gold 统一成 str；数字型 gold 改成**数字出现即命中**的判定
+      （"3" 作为独立 token 出现在预测里），这比子串匹配更贴合其语义。
     """
     if not pred:
-        return False
-    p = pred.lower()
-    kt = _key_terms(gold)
+        return None
+    gold_s = '' if gold is None else str(gold).strip()
+    if not gold_s:
+        return None
+
+    # ★数字型 gold："3" 必须作为**独立数字**出现，不能是 "13" 或 "31" 里的一部分
+    if isinstance(gold, (int, float)) or re.fullmatch(r'-?\d+(\.\d+)?', gold_s):
+        return _number_hit(pred, gold_s)
+
+    kt = _key_terms(gold_s)
     if not kt:
-        return False
+        return None
+    # 散文型 gold：实词过多 或 明显是多句说明 → strict 不适用
+    if len(kt) > 12 or _looks_like_prose(gold_s):
+        return None
+    p = pred.lower()
     return all(t in p for t in kt)
+
+
+def _number_hit(pred, gold_num):
+    """数字型 gold 的命中判定：gold 数字必须以**独立 token** 形式出现。
+
+    实测动机：答案 "3" 若用朴素子串匹配，会被 "13:30"、"2023"、"31" 里的
+    数字片段误判成命中 —— 那是假阳性，会把分数虚高。
+    """
+    return re.search(r'(?<![\d.])%s(?![\d.])' % re.escape(gold_num), pred) is not None
+
+
+def _looks_like_prose(gold):
+    """判断 gold 是不是"一段说明"而不是"一个可命中的答案"。
+
+    信号：有多句（>=2 个句末标点），或长度超过 120 字符。
+    """
+    g = (gold or '').strip()
+    if len(g) > 120:
+        return True
+    return len([c for c in g if c in '.!?']) >= 2
 
 
 def _load_cred():
@@ -181,17 +288,102 @@ def _load_cred():
         pass
 
 
+# ★2026-09-15：judge 通道候选表（按优先级回退）。
+#
+# 实测动机：首轮正式评测跑到第 8 题时 Astra 通道返回
+#   `403 {"error":{"message":"insufficient balance","type":"billing_error"}}`
+# —— 不是 key 失效，是**欠费**。结果 60 题里只有 7 题判上了分，
+#   汇总行打出 `5/7 = 71.4%`，看起来像个分数，实际是 7 题的。
+#   （幸好加了分母健全性校验，否则这个数会被当成"60 题的结果"报出去。）
+# 教训：**外部通道会中途挂**（欠费/限流/超时），judge 必须有回退，
+#       而且回退失败要显式计数，不能让"没判上"伪装成"判错了"。
+JUDGE_CHANNELS = [
+    ('GPTX_ASTRA_KEY', 'https://api.gptx.cc/v1', 'gpt-6-astra'),
+    ('SILICON_KEY', 'https://api.siliconflow.cn/v1', 'Qwen/Qwen2.5-7B-Instruct'),
+    ('PACKY_BAILIAN_KEY', 'https://api.packycode.com/v1', 'qwen3.8-max'),
+]
+_JUDGE_PICK = None      # 缓存首次探活成功的通道，避免每题都试一遍
+
+
+def _pick_judge_channel():
+    """探活并选定 judge 通道（带缓存）。返回 (env_name, base, model, key) 或 None。"""
+    global _JUDGE_PICK
+    if _JUDGE_PICK is not None:
+        return _JUDGE_PICK
+    import requests
+    _load_cred()
+    for envn, base, model in JUDGE_CHANNELS:
+        key = os.environ.get(envn) or ''
+        if not key:
+            continue
+        try:
+            r = requests.post(base.rstrip('/') + '/chat/completions',
+                              headers={'Authorization': 'Bearer ' + key,
+                                       'Content-Type': 'application/json'},
+                              json={'model': model, 'max_tokens': 8, 'temperature': 0,
+                                    'messages': [{'role': 'user', 'content': 'reply OK'}]},
+                              timeout=20)
+            if r.status_code == 200:
+                _JUDGE_PICK = (envn, base, model, key)
+                return _JUDGE_PICK
+        except Exception:
+            continue
+    return None
+
+
+def generate_answer(question, evidence, model=None):
+    """★2026-09-15 新增：把**检索证据**生成成**答案**，再交给 judge 判分。
+
+    为什么必须有这一步（血泪）：
+      记忆系统（检索式）返回的是**证据片段**，不是答案。
+      首轮实测把 12 条检索原文（共约 3200 字符）直接当"预测答案"送判，
+      结果 llm 通过率只有 10%，**比 strict 子串匹配还低** —— 明显是任务定义错了。
+      judge 看到的是一大坨对话原文，只能评"原文是否切题"，无法评"答案对不对"。
+
+    这一步是**评测链路的标准动作**（LongMemEval 论文口径也是
+    「检索 → 生成 → 判分」三段），漏掉它就等于在测一个不存在的系统。
+
+    返回 (答案文本, 错误说明)；失败返回 (None, reason)。
+    """
+    import requests
+    ch = _pick_judge_channel()
+    if not ch:
+        return None, 'no available channel'
+    envn, base, mdl, key = ch
+    prompt = (
+        "Answer the QUESTION using ONLY the CONTEXT below. "
+        "Be concise — give the direct answer, no explanation.\n"
+        "If the context does not contain the answer, reply exactly: NOT ENOUGH INFO\n\n"
+        "CONTEXT:\n%s\n\nQUESTION: %s\nANSWER:" % (evidence, question)
+    )
+    try:
+        r = requests.post(base.rstrip('/') + '/chat/completions',
+                          headers={'Authorization': 'Bearer ' + key,
+                                   'Content-Type': 'application/json'},
+                          json={'model': model or mdl,
+                                'messages': [{'role': 'user', 'content': prompt}],
+                                'max_tokens': 120, 'temperature': 0},
+                          timeout=60)
+        r.raise_for_status()
+        out = (r.json()['choices'][0]['message']['content'] or '').strip()
+        return (out or None), ('' if out else 'empty generation')
+    except Exception as e:
+        return None, '[%s] %s: %s' % (envn, type(e).__name__, str(e)[:70])
+
+
 def judge_llm(question, gold, pred, model=None):
     """LLM judge：宽松判定（接近论文口径）。
 
     ★必须同时报出这条的通过率——它比 strict 高一截，差值就是"judge 有多松"。
+
+    ★返回三态：`(True/False, note)` 判分成功；`(None, 原因)` 判分失败。
+      调用方**必须**把 `None` 计入"未判上"并让分母校验报警 —— 见坑 10。
     """
     import requests
-    _load_cred()
-    key = os.environ.get('GPTX_ASTRA_KEY') or ''
-    base = os.environ.get('GPTX_ASTRA_BASE') or 'https://api.gptx.cc/v1'
-    if not key:
-        return None, 'no GPTX_ASTRA_KEY'
+    ch = _pick_judge_channel()
+    if not ch:
+        return None, 'no available judge channel（全部通道探活失败）'
+    envn, base, mdl, key = ch
     prompt = (
         "You are a strict grader. Decide if the PREDICTED answer is correct "
         "given the GOLD answer for the QUESTION.\n"
@@ -204,7 +396,7 @@ def judge_llm(question, gold, pred, model=None):
         r = requests.post(base.rstrip('/') + '/chat/completions',
                           headers={'Authorization': 'Bearer ' + key,
                                    'Content-Type': 'application/json'},
-                          json={'model': model or 'gpt-6-astra',
+                          json={'model': model or mdl,
                                 'messages': [{'role': 'user', 'content': prompt}],
                                 'max_tokens': 16, 'temperature': 0},
                           timeout=60)
@@ -213,7 +405,7 @@ def judge_llm(question, gold, pred, model=None):
         out = (j['choices'][0]['message']['content'] or '').strip().upper()
         return ('CORRECT' in out), out[:40]
     except Exception as e:
-        return None, '%s: %s' % (type(e).__name__, str(e)[:80])
+        return None, '[%s] %s: %s' % (envn, type(e).__name__, str(e)[:70])
 
 
 # ---------------- 4) 分层抽样 ----------------
@@ -241,6 +433,7 @@ def run(sample=60, variant='oracle', use_llm=True, k=12, all_items=False, verbos
         return None
     items = json.load(open(path, 'r', encoding='utf-8'))
     todo = items if all_items else stratified_sample(items, sample)
+    _assert_sandboxed()          # ★开跑前硬自检，绝不让评测碰生产库
 
     lines = []
     lines.append('=' * 72)
@@ -253,8 +446,11 @@ def run(sample=60, variant='oracle', use_llm=True, k=12, all_items=False, verbos
     lines.append('  判分方式   %s' % ('strict(严格子串) + llm(judge)' if use_llm else 'strict(仅严格子串)'))
     lines.append('-' * 72)
 
-    per_type = defaultdict(lambda: {'n': 0, 'strict': 0, 'llm': 0, 'llm_n': 0})
-    strict_hits, llm_hits, llm_total = 0, 0, 0
+    per_type = defaultdict(lambda: {'n': 0, 'strict': 0, 'strict_n': 0,
+                                    'strict_na': 0, 'llm': 0, 'llm_n': 0})
+    strict_hits, strict_total, strict_na = 0, 0, 0
+    llm_hits, llm_total = 0, 0
+    llm_skipped = 0          # ★生成阶段失败的题数（必须显式计数，见坑 10）
     errs = []
 
     for i, it in enumerate(todo, 1):
@@ -264,46 +460,81 @@ def run(sample=60, variant='oracle', use_llm=True, k=12, all_items=False, verbos
             s = judge_strict(pred, it['answer'])
             t = it['question_type']
             per_type[t]['n'] += 1
-            if s:
-                strict_hits += 1
-                per_type[t]['strict'] += 1
+            # ★None = 该题 gold 是散文型，strict 指标不适用（不再当 0 分骗自己）
+            if s is None:
+                strict_na += 1
+                per_type[t]['strict_na'] += 1
+            else:
+                strict_total += 1
+                per_type[t]['strict_n'] += 1
+                if s:
+                    strict_hits += 1
+                    per_type[t]['strict'] += 1
             if use_llm:
-                ok, note = judge_llm(it['question'], it['answer'], pred)
-                if ok is not None:
-                    llm_total += 1
-                    per_type[t]['llm_n'] += 1
-                    if ok:
-                        llm_hits += 1
-                        per_type[t]['llm'] += 1
+                # ★★2026-09-15 关键修复：**必须先把检索证据生成成答案，再判分**。
+                #   原实现把 top-12 检索结果拼成 ~3200 字符的**对话原文**直接给 judge，
+                #   而 gold 是 "Doc Martin" 这种短答案 —— judge 面对的是一大坨原文，
+                #   它实际在评"这段原文是否回答了问题"，不是在评"答案对不对"。
+                #   实测后果：llm 通过率 6/60 = 10%，**比 strict 还低 48.5pp**，
+                #   明显不合理（judge 应比子串严格匹配更宽松）。
+                #   根因不是 judge 模型弱（对照测试里所有模型对明确答案都判对），
+                #   而是**任务本身定义错了**：记忆系统返回的是"证据"不是"答案"。
+                #   → 补一次 generate：用同一套检索证据让模型作答，再拿答案去判分。
+                ans, gerr = generate_answer(it['question'], pred)
+                if ans is None:
+                    errs.append('gen: %s' % gerr)
+                    llm_skipped += 1
                 else:
-                    errs.append(note)
+                    ok, note = judge_llm(it['question'], it['answer'], ans)
+                    if ok is not None:
+                        llm_total += 1
+                        per_type[t]['llm_n'] += 1
+                        if ok:
+                            llm_hits += 1
+                            per_type[t]['llm'] += 1
+                    else:
+                        errs.append(note)
             if verbose and i % 10 == 0:
-                print('  ... %d/%d  strict %d  llm %d/%d' % (
-                    i, len(todo), strict_hits, llm_hits, llm_total))
+                print('  ... %d/%d  strict %d/%d  llm %d/%d' % (
+                    i, len(todo), strict_hits, strict_total, llm_hits, llm_total))
         except Exception as e:
             errs.append('%s: %s' % (type(e).__name__, str(e)[:70]))
 
-    lines.append('  能力类型          n     strict      llm')
+    lines.append('  能力类型          n   strict适用  strict      llm')
     for t in sorted(per_type):
         d = per_type[t]
-        sr = d['strict'] / d['n'] if d['n'] else 0
+        sr = d['strict'] / d['strict_n'] if d['strict_n'] else 0
         lr = d['llm'] / d['llm_n'] if d['llm_n'] else 0
-        lines.append('  %-22s %3d   %5.1f%%   %5.1f%%' % (t, d['n'], sr * 100, lr * 100))
+        lines.append('  %-22s %3d   %3d/%3d   %5.1f%%   %5.1f%%'
+                     % (t, d['n'], d['strict_n'], d['n'], sr * 100, lr * 100))
     lines.append('-' * 72)
-    sr = strict_hits / len(todo) if todo else 0
+    sr = strict_hits / strict_total if strict_total else 0
     lr = llm_hits / llm_total if llm_total else 0
-    lines.append('  严格匹配（下界）   %d/%d = %.1f%%' % (strict_hits, len(todo), sr * 100))
+    lines.append('  严格匹配（下界）   %d/%d = %.1f%%   [另有 %d 题 gold 为散文型，strict 不适用]'
+                 % (strict_hits, strict_total, sr * 100, strict_na))
     if use_llm:
-        lines.append('  LLM judge（论文口径） %d/%d = %.1f%%' % (llm_hits, llm_total, lr * 100))
+        lines.append('  LLM judge（检索→生成→判分） %d/%d = %.1f%%' % (llm_hits, llm_total, lr * 100))
+        if llm_skipped:
+            lines.append('    （其中 %d 题在生成阶段失败，未计入分母）' % llm_skipped)
         if llm_total:
             lines.append('  ★两者差距 %.1f pp —— 这就是 judge 的宽松度（不报这个数=在骗人）'
                          % ((lr - sr) * 100))
+        # ★2026-09-15：分母健全性校验。宁可把"算错了"写在脸上，也不让异常偷偷缩样本。
+        #   首轮 60 题就踩了：8 题因 `int.lower()` 崩溃被静默跳过，llm 分母变成 52，
+        #   看结果时很容易误以为"只跑了 52 题"，而实际是 60 题里有 8 题根本没判上分。
+        if strict_total + strict_na != len(todo) or llm_total + llm_skipped != len(todo):
+            lines.append('  ✗ 分母不健全：样本 %d 题，strict 有效 %d + 不适用 %d，llm 有效 %d + 跳过 %d'
+                         % (len(todo), strict_total, strict_na, llm_total, llm_skipped))
+            lines.append('    → 有题在判分阶段被跳过（异常见下），分数不可直接采信')
+        else:
+            lines.append('  ✓ 分母健全：%d/%d 题全部完成 strict 与 llm 判分' % (len(todo), len(todo)))
     lines.append('=' * 72)
     lines.append('  ⚠ 不可比声明：本结果**不能**与 LongMemEval 论文数值直接对比——')
     lines.append('     ① 论文假设全 haystack 入上下文；本 harness 是检索式（top-%d）' % k)
     lines.append('     ② 样本 %d 题（非全量 500），有抽样误差' % len(todo))
     lines.append('     ③ judge 有已知的宽松偏差（文献实测可接受 ~63%% 故意错答）')
-    lines.append('     ④ 本 harness 未做答案改写/实体规范化，strict 系统性低估')
+    lines.append('     ④ strict 只在"实体型 gold"上有意义；散文型已剔除（%d 题），'
+                 '否则它测的是 gold 长短而非检索质量' % strict_na)
     if errs:
         lines.append('  ⚠ 异常 %d 条，样例: %s' % (len(errs), errs[0][:70]))
     lines.append('=' * 72)
@@ -312,7 +543,9 @@ def run(sample=60, variant='oracle', use_llm=True, k=12, all_items=False, verbos
     print(text)
     out = {'ts': dt.datetime.now().isoformat(), 'variant': variant,
            'n': len(todo), 'strict': round(sr, 4),
+           'strict_n': strict_total, 'strict_na': strict_na,
            'llm': round(lr, 4) if use_llm else None,
+           'llm_n': llm_total, 'llm_skipped': llm_skipped,
            'per_type': {t: dict(v) for t, v in per_type.items()},
            'errors': errs[:20]}
     with open(os.path.join(HERE, 'bench_longmemeval_result.json'), 'w', encoding='utf-8') as f:
