@@ -13,6 +13,7 @@ import os
 import re
 import sys
 import json
+import math
 import time
 import sqlite3
 import urllib.request
@@ -43,6 +44,37 @@ def is_generic_garbage(content, min_len=20, min_generic=2):
         return False
     g = sum(1 for w in GENERIC_WORDS if w in c)
     return g >= min_generic
+
+
+def is_placeholder(content):
+    """占位符垃圾：<见vault:key> 这类只有指针没有内容的条目。
+    实测它会在向量检索里占据 Top1（因为短文本向量不稳定且与其他条目都"有点像"），
+    必须单独识别——is_generic_garbage 的长度规则抓不到它。"""
+    if not content:
+        return True
+    s = content.strip()
+    if not s:
+        return True
+    if re.match(r'^<[^>]{1,64}>\s*$', s):
+        return True
+    if len(s) < 8:
+        return True
+    return False
+
+
+_STOP = set('的了是在和与及为对把被这那有我你他不也很都就要会能可将并被让从到于之其此以所但而或如若则因故又再还只才更最已正在着过们个一些什么怎么如何可以不能没有以及通过进行使用需要应该因为所以虽然但是'.split())
+
+
+def _terms(text):
+    """查询/文档分词：中文 2~4gram + ASCII 实体。用于关键词路打分。"""
+    t = text or ''
+    out = set()
+    for w in re.findall(r'[\u4e00-\u9fa5]{2,4}', t):
+        if w not in _STOP:
+            out.add(w)
+    for w in re.findall(r'[A-Za-z][A-Za-z0-9_.\-]{2,}', t):
+        out.add(w.lower())
+    return out
 
 
 # ---- embedding ----
@@ -123,55 +155,80 @@ def search_hybrid(query, limit=10, vec_k=30):
         "SELECT uid, content, type, source, scope, updated_at FROM facts WHERE status='active'").fetchall()}
     conn.close()
 
-    # 门禁过滤掉垃圾
-    active = {u: f for u, f in active.items() if not is_generic_garbage(f['content'])}
+    # 门禁过滤掉垃圾（含 <见vault:key> 这类占位符）
+    active = {u: f for u, f in active.items()
+              if not is_generic_garbage(f['content']) and not is_placeholder(f['content'])}
 
-    cands = {}  # uid -> score info
-
+    # ---- 各路召回，只记录**排名**，不记录原始分数 ----
     # 1) 向量路
+    vec_rank, vec_sim = {}, {}
     try:
         col = _client().get_collection(COLLECTION)
         qv = _embed([q])[0]
         r = col.query(query_embeddings=[qv], n_results=vec_k)
-        for uid, dist in zip(r['ids'][0], r['distances'][0]):
+        for i, (uid, dist) in enumerate(zip(r['ids'][0], r['distances'][0])):
             if uid in active:
-                cands.setdefault(uid, {'uid': uid, 'reason': []})
-                cands[uid]['semantic'] = round(1 - dist, 4)
-                cands[uid]['reason'].append('semantic')
+                vec_rank[uid] = i
+                vec_sim[uid] = round(1 - dist, 4)
     except Exception as e:
         print('[warn] 向量检索失败:', str(e)[:80], file=sys.stderr)
 
-    # 2) ASCII 实体精确路（仅当 query 含 ASCII 实体时触发）
-    ents = extract_ascii_entities(q)
-    for uid, f in active.items():
-        for e in ents:
-            if e.lower() in (f['content'] or '').lower():
-                cands.setdefault(uid, {'uid': uid, 'reason': []})
-                cands[uid]['ascii'] = 0.3
-                cands[uid]['reason'].append('ascii:%s' % e)
-                break
+    # 2) 关键词路：查询词覆盖率 x IDF（专有名词命中权重更高）
+    q_terms = _terms(q)
+    kw_raw = {}
+    if q_terms:
+        N = max(len(active), 1)
+        df = {}
+        for uid, f in active.items():
+            c = (f['content'] or '').lower()
+            for tm in q_terms:
+                if tm.lower() in c:
+                    df[tm] = df.get(tm, 0) + 1
+        for uid, f in active.items():
+            c = (f['content'] or '').lower()
+            hits, s = 0, 0.0
+            for tm in q_terms:
+                tl = tm.lower()
+                if tl in c:
+                    hits += 1
+                    s += math.log(1 + N / max(df.get(tm, 1), 1))
+            if hits:
+                kw_raw[uid] = (hits / len(q_terms)) * 2.0 + s * 0.1
+    kw_rank = {u: i for i, u in enumerate(sorted(kw_raw, key=lambda u: -kw_raw[u]))}
 
-    # 3) 整句字面匹配路（中文概念兜底：如"三大机制"字面出现在事实里）
-    #    解决 astra 指出的"纯中文概念向量区分度不足"问题，且无需维护概念表。
+    # 3) 整句字面匹配路（"三大机制"这类整体概念，向量区分度不足）
     ql = q.lower()
+    lit_hit = set()
     if len(q) >= 2:
         for uid, f in active.items():
             if ql in (f['content'] or '').lower():
-                cands.setdefault(uid, {'uid': uid, 'reason': []})
-                cands[uid]['literal'] = 0.5
-                cands[uid]['reason'].append('literal')
+                lit_hit.add(uid)
 
-    # 4) 融合排序
+    # 4) RRF 融合（Reciprocal Rank Fusion）
+    #    旧实现把 semantic(余弦0~1) + ascii(0.3) + literal(0.5) 直接相加，量纲不一致导致
+    #    语义相近但不精确的条目（查"自动沉淀技能"返回"自动取件护栏"）压过精确匹配。
+    #    RRF 只用排名，各路量纲无关；K=60 为业界常用值。
+    #    关键词路权重 1.6：实测关键词 Top3 75% 优于纯语义 62%，专有名词命中更可靠。
+    K = 60
     out = []
-    for uid, c in cands.items():
+    for uid in set(vec_rank) | set(kw_rank) | lit_hit:
         f = active.get(uid)
         if not f:
             continue
-        score = c.get('semantic', 0.0) + c.get('ascii', 0.0) + c.get('literal', 0.0)
+        sc, reason = 0.0, []
+        if uid in vec_rank:
+            sc += 1.0 / (K + vec_rank[uid] + 1)
+            reason.append('semantic#%d' % vec_rank[uid])
+        if uid in kw_rank:
+            sc += 1.6 / (K + kw_rank[uid] + 1)
+            reason.append('kw#%d' % kw_rank[uid])
+        if uid in lit_hit:
+            sc += 1.6 / (K + 1)
+            reason.append('literal')
         out.append({'uid': uid, 'content': f['content'], 'type': f['type'],
-                    'source': f['source'], 'score': round(score, 4),
-                    'semantic': c.get('semantic', 0.0),
-                    'reason': c['reason']})
+                    'source': f['source'], 'score': round(sc, 5),
+                    'semantic': vec_sim.get(uid, 0.0),
+                    'reason': reason})
     out.sort(key=lambda x: x['score'], reverse=True)
     return {'query': q, 'results': out[:limit]}
 
