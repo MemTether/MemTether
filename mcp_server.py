@@ -117,8 +117,16 @@ def tool_add(args):
     )
     if not r or not r.get("ok"):
         return _err("写入失败: %s" % (r or "unknown"))
+    # 写入后自动重建投影（实测 rebuild 仅 ~0.05s，不必留给调用方手动触发）
+    refreshed = False
+    try:
+        rb = _quiet(gateway.rebuild)
+        refreshed = bool(rb is None or rb.get("ok", True))
+    except Exception:
+        refreshed = False
     return _text({"ok": True, "uid": r.get("uid"), "op": r.get("op"),
-                  "hint": "投影不会自动刷新，需要时跑 gateway.rebuild()"})
+                  "projection_refreshed": refreshed,
+                  "hint": "" if refreshed else "投影未刷新，需手动跑 gateway.rebuild()"})
 
 
 def tool_search(args):

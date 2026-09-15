@@ -721,9 +721,14 @@ def rebuild():
         _QUOTA = (('decision', 40), ('incident', 20), ('fact', 45), ('experience', 25))
         _picked = []
         for _typ, _q in _QUOTA:
+            # 🔴 2026-09-15 四修：remember() 写入时不填 updated_at（只有 supersede 才更新它），
+            #    而 SQLite 里 NULL 最小、DESC 时排**最末** → 新记忆永远排在队尾，
+            #    预算一满就被整体砍掉。实测 16:05 写入的条目 rebuild 后不在投影里（最后一条是 09-14 的）。
+            #    故统一按 COALESCE(updated_at, created_at) 排序，保证「新写的先进投影」。
             for _r in conn.execute(
                     "SELECT * FROM facts WHERE status='active' AND type=? "
-                    "ORDER BY updated_at DESC LIMIT ?", (_typ, _q)).fetchall():
+                    "ORDER BY COALESCE(NULLIF(updated_at,''), created_at) DESC LIMIT ?",
+                    (_typ, _q)).fetchall():
                 _picked.append((_r['updated_at'] or _r['created_at'] or '', _typ, _r))
         _picked.sort(key=lambda p: p[0], reverse=True)
         #    🔴 2026-09-14 再修：注入侧按体积截断，一条动辄 1500 字的"巨型事实"会把预算吃光
@@ -735,7 +740,13 @@ def rebuild():
         #       总预算硬守官方限额；全文一律走 mem.py search 按需取回。
         import re as _re
         _BUDGET = int(os.environ.get('MEM_PROJ_BUDGET', '4000'))
-        _LINE_CAP = 60
+        #    🔴 2026-09-15 四修：CAP=60 实测 43/43 全部「不以句号结尾」——首句普遍超过 60 字，
+        #       于是每条都被硬砍成半句话，连「首句要写自含结论」这条约定自己都被腰斩。
+        #       模拟对比（active 全量）：CAP60→50条/12条硬砍，CAP100→42/5，CAP130→41/2，
+        #       **CAP160→39条/0条硬砍（拐点）**，CAP200→38/0（收益递减）。
+        #       取 160：少装 11 条换「条条完整」，因为半句话无法据以判断是否要取回全文。
+        #       另：截断位置改为**回退到最近的句读**，避免出现「…决定中枢上限的四个硬约」这种断头。
+        _LINE_CAP = 160
 
         def _lead(txt):
             t = _re.sub(r'^【[^】]*】', '', (txt or '').strip()).strip()
@@ -743,7 +754,16 @@ def rebuild():
             if m and 0 < m.start() < _LINE_CAP:
                 t = t[:m.start()].strip()
             elif len(t) > _LINE_CAP:
-                t = t[:_LINE_CAP].rstrip() + '…'
+                seg = t[:_LINE_CAP]
+                best = -1
+                for _p in '。；，、：;:！？':
+                    _i = seg.rfind(_p)
+                    if _i > best:
+                        best = _i
+                if best > _LINE_CAP * 0.5:
+                    t = seg[:best + 1] + '…'
+                else:
+                    t = seg.rstrip() + '…'
             return t or '(空)'
 
         _tail = ['', '## 工具资产（active）']
