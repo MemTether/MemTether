@@ -1,0 +1,18 @@
+# 依赖与环境
+.venv-*/
+venv/
+__pycache__/
+*.pyc
+
+# 可再生（向量库可由 memory.db 重建）
+mem0_store/
+archive/
+backup/
+.backup/
+
+# 运行时
+*.db-wal
+*.db-shm
+*.db-journal
+*.log
+.sink.lock
