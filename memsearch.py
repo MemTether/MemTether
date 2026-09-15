@@ -66,15 +66,58 @@ _STOP = set('的了是在和与及为对把被这那有我你他不也很都就�
 
 
 def _terms(text):
-    """查询/文档分词：中文 2~4gram + ASCII 实体。用于关键词路打分。"""
+    """查询/文档分词：中文 2~4gram + 实体前缀候选 + ASCII 实体。
+
+    ★2026-09-15 修正：旧实现用 re.findall(r'[\\u4e00-\\u9fa5]{2,4}') 是**顺序滑窗**，
+    会把「微信装在哪」切成 ['微信装','信装在','装在哪'] —— 完整词「微信」被破坏，
+    df 统计里「微信」这类短实体词根本不存在，于是 `LIKE '%微信%'` 永远命不中。
+    修复：连续中文段先取**前 2/3/4 字作为实体词候选**（中文实体词几乎都在句首），
+    再补 3gram 滑窗做长词召回。
+    """
     t = text or ''
     out = set()
-    for w in re.findall(r'[\u4e00-\u9fa5]{2,4}', t):
-        if w not in _STOP:
-            out.add(w)
+    for seg in re.findall(r'[\u4e00-\u9fa5]+', t):
+        seg = seg.strip()
+        if not seg:
+            continue
+        if len(seg) <= 3:
+            if seg not in _STOP:
+                out.add(seg)
+        else:
+            for n in (2, 3, 4):
+                w = seg[:n]
+                if w not in _STOP:
+                    out.add(w)
+            for i in range(len(seg) - 1):
+                w = seg[i:i + 3]
+                if w not in _STOP:
+                    out.add(w)
     for w in re.findall(r'[A-Za-z][A-Za-z0-9_.\-]{2,}', t):
         out.add(w.lower())
     return out
+
+
+def asset_text(row):
+    """把一条 tool_assets 记录压成可检索的一段文本。
+
+    ★2026-09-15：此前 mem.py / search_hybrid 只查 facts 表，66 条资产对检索**完全不可见**
+    （实测 `mem.py search "微信 在哪"` 返回的是无关记忆，微信资产 0 命中）。
+    资产不该只是投影里的一行字，它必须和事实一样能被检索到。
+    """
+    parts = [row['name'] or '']
+    if row['aliases']:
+        parts.append(row['aliases'])
+    if row['path']:
+        parts.append(row['path'])
+    if row['entrypoint']:
+        parts.append(row['entrypoint'])
+    if row['capabilities']:
+        parts.append(row['capabilities'])
+    if row['prerequisites']:
+        parts.append(row['prerequisites'])
+    if row['known_failures']:
+        parts.append(row['known_failures'])
+    return '【资产】' + ' | '.join(p for p in parts if p)
 
 
 # ---- embedding ----
@@ -92,9 +135,36 @@ def _embed(texts):
     return [x['embedding'] for x in json.loads(r.read().decode())['data']]
 
 
+VENV_PY = os.path.join(HUB, '.venv-memory', 'Scripts', 'python.exe')
+
+
 def _client():
     import chromadb
     return chromadb.PersistentClient(path=CHROMA_PATH)
+
+
+def check_env(raise_on_missing=False):
+    """★2026-09-15 新增：解释器自检。
+
+    背景（血泪）：本模块要 chromadb + numpy，它们装在 `.venv-memory` 里。
+    用默认 python 跑时，向量路和精排路**各自 try/except 吞掉异常**，
+    最后降级成纯关键词检索——**表面上照常返回结果，实际残废**。
+    这个静默降级真实发生过：66 条资产查不到、我误判「语义检索不可用」，白查一整天。
+    → 与其让它安静地残废，不如显式报错，并直接把正确解释器路径告诉调用方。
+    """
+    missing = []
+    for m in ('chromadb', 'numpy'):
+        try:
+            __import__(m)
+        except Exception:
+            missing.append(m)
+    if missing and raise_on_missing:
+        raise RuntimeError(
+            '缺少 %s —— memsearch 需要 E:\\RUANJIAN\\memory_hub\\.venv-memory\\Scripts\\python.exe\n'
+            '当前解释器: %s\n'
+            '正确用法: PYTHONPATH= "%s" mem.py search "<关键词>"'
+            % (', '.join(missing), sys.executable, VENV_PY))
+    return missing
 
 
 def extract_ascii_entities(text):
@@ -103,11 +173,20 @@ def extract_ascii_entities(text):
 
 
 def rebuild_vector_index(verbose=True):
-    """从 SQLite active facts 重建干净的向量索引（排除垃圾/测试源）。幂等。"""
+    """从 SQLite active facts **+ active tool_assets** 重建干净的向量索引（排除垃圾/测试源）。幂等。
+
+    ★2026-09-15：资产（66 条）原先不在索引里，导致「微信装在哪」这类资产查询全灭。
+    现在资产以 kind='tool' 入索引，uid 沿用 tool_assets.uid。
+    """
     conn = sqlite3.connect(DB)
     conn.row_factory = sqlite3.Row
     rows = conn.execute(
         "SELECT uid, content, type, source, scope FROM facts WHERE status='active'").fetchall()
+    try:
+        arows = conn.execute(
+            "SELECT * FROM tool_assets WHERE status='active'").fetchall()
+    except Exception:
+        arows = []
     conn.close()
 
     kept, quarantined = [], []
@@ -116,6 +195,16 @@ def rebuild_vector_index(verbose=True):
             quarantined.append(r)
         else:
             kept.append(r)
+
+    # 资产转成「类 fact」的行，统一进入后续 embed
+    assets = []
+    for a in arows:
+        doc = asset_text(a)
+        if is_placeholder(doc):
+            continue
+        assets.append({'uid': a['uid'], 'content': doc, 'type': 'tool',
+                       'source': 'tool_assets', 'scope': 'asset'})
+    kept.extend(assets)
 
     client = _client()
     try:
@@ -134,13 +223,15 @@ def rebuild_vector_index(verbose=True):
         col.add(ids=[r['uid'] for r in kept], embeddings=vecs,
                 documents=[r['content'] for r in kept],
                 metadatas=[{'uid': r['uid'], 'type': r['type'] or 'fact',
-                            'source': r['source'] or '', 'kind': 'fact'} for r in kept])
+                            'source': r['source'] or '',
+                            'kind': ('tool' if r['type'] == 'tool' else 'fact')} for r in kept])
     if verbose:
-        print('向量索引重建完成：active %d 条，入索引 %d 条，隔离垃圾 %d 条'
-              % (len(rows), len(kept), len(quarantined)))
+        print('向量索引重建完成：facts %d 条 + 资产 %d 条，入索引 %d 条，隔离垃圾 %d 条'
+              % (len(rows), len(assets), len(kept), len(quarantined)))
         for q in quarantined:
             print('  隔离: %s' % q['content'][:50])
-    return {'active': len(rows), 'indexed': len(kept), 'quarantined': len(quarantined)}
+    return {'active': len(rows), 'assets': len(assets),
+            'indexed': len(kept), 'quarantined': len(quarantined)}
 
 
 def search_hybrid(query, limit=10, vec_k=30, use_rerank=True, rerank_k=30,
@@ -170,7 +261,21 @@ def search_hybrid(query, limit=10, vec_k=30, use_rerank=True, rerank_k=30,
     conn.row_factory = sqlite3.Row
     active = {r['uid']: dict(r) for r in conn.execute(
         "SELECT uid, content, type, source, scope, updated_at FROM facts WHERE status='active'").fetchall()}
+    # ★2026-09-15：资产一并入候选池（kind='tool'），否则「XX装在哪」永远查不到
+    assets = {}
+    try:
+        for a in conn.execute("SELECT * FROM tool_assets WHERE status='active'").fetchall():
+            doc = asset_text(a)
+            if is_placeholder(doc):
+                continue
+            assets[a['uid']] = {'uid': a['uid'], 'content': doc, 'type': 'tool',
+                                'source': 'tool_assets', 'scope': 'asset',
+                                'updated_at': a['updated_at'] if 'updated_at' in a.keys() else '',
+                                '_asset': dict(a)}
+    except Exception:
+        assets = {}
     conn.close()
+    active.update(assets)
 
     # 门禁过滤掉垃圾（含 <见vault:key> 这类占位符）
     active = {u: f for u, f in active.items()
@@ -188,7 +293,11 @@ def search_hybrid(query, limit=10, vec_k=30, use_rerank=True, rerank_k=30,
                 vec_rank[uid] = i
                 vec_sim[uid] = round(1 - dist, 4)
     except Exception as e:
-        print('[warn] 向量检索失败:', str(e)[:80], file=sys.stderr)
+        if not getattr(search_hybrid, '_warned', False):
+            search_hybrid._warned = True
+            print('[warn] 向量检索失败（将降级为纯关键词，召回会明显变差）:', str(e)[:80],
+                  file=sys.stderr)
+            print('[warn] 正确解释器: %s' % VENV_PY, file=sys.stderr)
 
     # 2) 关键词路：查询词覆盖率 x IDF（专有名词命中权重更高）
     q_terms = _terms(q)
@@ -276,7 +385,10 @@ def search_hybrid(query, limit=10, vec_k=30, use_rerank=True, rerank_k=30,
             head.sort(key=lambda x: -x['score'])
             out = head + tail
         except Exception as e:
-            print('[warn] 精排失败，退回 RRF:', str(e)[:80], file=sys.stderr)
+            if not getattr(search_hybrid, '_warned_rr', False):
+                search_hybrid._warned_rr = True
+                print('[warn] 精排失败，退回 RRF（排序质量下降）:', str(e)[:80], file=sys.stderr)
+                print('[warn] 正确解释器: %s' % VENV_PY, file=sys.stderr)
 
     return {'query': q, 'results': out[:limit]}
 

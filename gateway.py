@@ -818,7 +818,30 @@ def rebuild():
         conn.close()
 
 
+def _env_guard():
+    """★2026-09-15：解释器守卫（与 mem.py 同一目的）。
+
+    检索依赖 chromadb/numpy，只在 .venv-memory 里。用默认 python 跑会**静默降级**
+    成纯关键词检索——66 条资产查不到的坑就是这么来的。
+    """
+    try:
+        miss = []
+        for m in ('chromadb', 'numpy'):
+            try:
+                __import__(m)
+            except Exception:
+                miss.append(m)
+        if miss:
+            sys.stderr.write(
+                '\n[!] 当前解释器缺 %s，检索将降级为纯关键词（资产类查询大概率查不到）。\n'
+                '    正确: E:\\RUANJIAN\\memory_hub\\.venv-memory\\Scripts\\python.exe\n\n'
+                % ', '.join(miss))
+    except Exception:
+        pass
+
+
 def main():
+    _env_guard()
     ap = argparse.ArgumentParser(description='Memory Gateway — 三 agent 唯一记忆入口')
     sub = ap.add_subparsers(dest='cmd')
 

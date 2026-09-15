@@ -786,7 +786,30 @@ def cmd_stats(a) -> None:
         DB.stat().st_size if DB.exists() else 0, MD.stat().st_size if MD.exists() else 0))
 
 
+def _env_guard() -> None:
+    """★2026-09-15 新增：解释器守卫。
+
+    本中枢的检索依赖 chromadb/numpy，它们只装在 `.venv-memory`。
+    用默认 python 跑不会报错，只是**静默降级成纯关键词检索**——
+    这个坑真实发生过（66 条资产查不到 + 误判「语义检索不可用」，白查一天）。
+    与其让别人重踩，不如在入口就明说。
+    """
+    try:
+        sys.path.insert(0, str(HUB))
+        import memsearch
+        miss = memsearch.check_env()
+    except Exception:
+        return
+    if miss:
+        sys.stderr.write(
+            '\n[!] 当前解释器缺 %s，检索会降级为纯关键词（资源类查询大概率查不到）。\n'
+            '    正确解释器: E:\\RUANJIAN\\memory_hub\\.venv-memory\\Scripts\\python.exe\n'
+            '    正确用法:   PYTHONPATH= .venv-memory/Scripts/python.exe mem.py search "<关键词>"\n\n'
+            % ', '.join(miss))
+
+
 def main() -> None:
+    _env_guard()
     ap = argparse.ArgumentParser(description='多智能体共享记忆总线')
     sub = ap.add_subparsers(dest='cmd')
 

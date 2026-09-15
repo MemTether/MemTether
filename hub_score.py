@@ -13,8 +13,10 @@ hub_score.py —— 记忆中枢统一评分卡
   ④ 自省度 SelfAware  —— 中枢对自身结构（表/路径/槽位）的答对率
 
 ★诚信声明（必须随分数一起输出）：
-  - 主集 23 题覆盖了 2026-09-15 刚修的资产，存在"自出卷"偏差；
-    故同时报**留出集**（14 题，全为本次未修的资产 + 反向不瞎编题）作为校准。
+  - 评测集统一走**生产同一条检索链路**（memsearch.search_hybrid），不使用自拼 SQL。
+    ★这条是 2026-09-15 血的教训：旧评测自己拼 LIKE 直查表，结果 66 条资产
+    对 `mem.py search` 完全不可见时，卷子照样满分——"卷子满分、生产查不到"。
+  - 主集含本次刚修的资产，存在"自出卷"偏差；故同时报**留出集**作为校准。
   - 本评分卡不引入 LLM judge —— 答案键全是本机实测事实，无主观空间。
     （对比：LoCoMo 答案键约 6.4% 错误、LLM judge 接受约 63% 故意错答。）
   - 任何分数必须与 harness 版本、日期一起报告，否则不可比。
@@ -97,7 +99,7 @@ def score():
         ("② 保鲜度", "%d/%d" % (f, ft), c_fresh,
          "last_verified_at 在 7 天内的比例"),
         ("③ 正确率", "%d+%d/%d+%d" % (p1, p2, t1, t2), c_acc,
-         "主集+留出集，答案键为本机实测事实"),
+         "主集 + 留出集（均走生产检索链路 search_hybrid）"),
     ]
     for name, raw, val, desc in rows:
         bar = "#" * int(val * 24) + "." * (24 - int(val * 24))
@@ -108,14 +110,20 @@ def score():
     lines.append("  综合 %.1f%%（三维等权；④自省度已含在③的主集 C 类中）" % (total * 100))
     lines.append("=" * 72)
     lines.append("  ★诚信声明：主集 %d 题含本次刚修资产，有'自出卷'偏差；" % t1)
-    lines.append("   故并列留出集 %d 题（本次未修资产 + 反向不瞎编）作为校准。" % t2)
+    lines.append("   故并列留出集 %d 题（本次未修资产 + 反向不瞎编 + C盘资产）作为校准。" % t2)
     lines.append("   本卡不引入 LLM judge，答案键均为本机实测事实，无主观空间。")
     lines.append("   对比参考：LoCoMo 答案键约 6.4% 错误、LLM judge 接受约 63% 故意错答。")
+    lines.append("   两集均走**生产同一条检索链路**，非自拼 SQL。")
     lines.append("-" * 72)
-    lines.append("  ⚠ 失真警告：本卡三项均为'本机资产'类问题，且今天刚被补齐；")
-    lines.append("    满分 ≠ 中枢通用水平好。它只证明'资产类'这一维合格。")
-    lines.append("    真正的通用能力（跨会话长程推理、时序、知识更新、矛盾消解）")
-    lines.append("    本卡不测——那需要 LoCoMo/LongMemEval/BEAM 数据集，属另一条轨道。")
+    lines.append("  ⚠ 失真警告（2026-09-15 实测教训，必读）：")
+    lines.append("    ① 本卡三项全是'本机资产'类问题，且今天刚被补齐 → 满分")
+    lines.append("       只证明'资产类'这一维合格，不代表中枢通用水平。")
+    lines.append("    ② 今天已两次出现「评分卡 100% 但一问就露馅」：")
+    lines.append("       - 66 条资产对 mem.py search 完全不可见（资产表没进检索）")
+    lines.append("       - 旧评测自己拼 LIKE 直查表 → 卷子绿、生产查不到")
+    lines.append("       ★教训：评测器本身也是被测对象。分数高先怀疑卷子。")
+    lines.append("    ③ 通用能力（长程推理、时序、知识更新、矛盾消解）本卡不测——")
+    lines.append("       那需要 LoCoMo/LongMemEval/BEAM，属另一条轨道，尚未跑。")
     lines.append("=" * 72)
 
     text = "\n".join(lines)

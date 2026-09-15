@@ -100,17 +100,24 @@ def _fmt(case, hit, bad):
 def _tokens(q):
     """把问题拆成检索词：中英分开、去掉停用词，2 字以上中文片段与英文单词都留。"""
     stop = {"在哪", "哪里", "什么", "怎么", "如何", "有没", "有没有", "本机", "能不能",
-            "可以", "是否", "一共", "多少", "请问", "的", "了", "吗", "呢", "和", "与"}
+            "可以", "是否", "一共", "多少", "请问", "的", "了", "吗", "呢", "和", "与",
+            "装在哪", "放在哪", "在哪呢", "客户端", "工具", "目录", "干什么", "做什么"}
     toks = []
     # 英文/数字词
     for w in re.findall(r"[A-Za-z][A-Za-z0-9_.+\-]{1,}", q):
         toks.append(w)
-    # 中文串：切 2-3 字滑窗
+    # 中文串：先切出可能的实体词，再滑窗
     for seg in re.findall(r"[\u4e00-\u9fff]+", q):
         seg = seg.strip()
         if len(seg) <= 3:
             toks.append(seg)
         else:
+            # ★关键：先取前 2/3/4 字作为"实体词候选"。
+            # 否则"微信装在哪"只会切出「微信装/信装在/装在哪」，
+            # LIKE '%微信装%' 匹配不到「微信」→ 假失败（2026-09-15 留出集抓出）。
+            for n in (2, 3, 4):
+                if n <= len(seg):
+                    toks.append(seg[:n])
             for i in range(len(seg) - 1):
                 toks.append(seg[i:i + 3])
     out = []
@@ -126,24 +133,18 @@ def run(verbose=False):
     cur = conn.cursor()
     results = []
     for case in CASES:
+        # ★2026-09-15 改：改用**真实检索链路**（memsearch.search_hybrid）取证据。
+        #   旧写法是自己拼 SQL LIKE 直查两张表，与 `mem.py search` 是两条不同代码路径——
+        #   结果就是「卷子满分、生产查不到」：66 条资产当时对 mem.py search 完全不可见，
+        #   而本评测集靠行内 LIKE 照样全绿。卷子必须和生产走同一条路，否则分数无意义。
         blob = []
-        for kw in _tokens(case["q"]):
-            cur.execute(
-                "SELECT name||' | '||path||' | '||capabilities||' | '||COALESCE(known_failures,'')"
-                "||' | '||COALESCE(entrypoint,'')||' | '||COALESCE(prerequisites,'') "
-                "FROM tool_assets WHERE name LIKE ? OR aliases LIKE ? OR path LIKE ? "
-                "OR capabilities LIKE ? OR known_failures LIKE ? OR entrypoint LIKE ? "
-                "OR prerequisites LIKE ?",
-                (f"%{kw}%",) * 7,
-            )
-            blob += [r[0] or "" for r in cur.fetchall()]
-            cur.execute(
-                "SELECT subject||' '||content FROM facts "
-                "WHERE status='active' AND (subject LIKE ? OR content LIKE ?)",
-                (f"%{kw}%", f"%{kw}%"),
-            )
-            blob += [r[0] or "" for r in cur.fetchall()]
-        # 中枢自身元数据（C 类用）
+        try:
+            import memsearch as _ms
+            _r = _ms.search_hybrid(case["q"], limit=8)
+            blob = [x["content"] for x in _r.get("results", [])]
+        except Exception as _e:
+            blob = ["[检索异常] %s" % _e]
+        # 中枢自身元数据（C 类用）——这部分评测的是"中枢对自己的认知"，保留直查
         cur.execute("SELECT COUNT(*) FROM tool_assets")
         n_asset = cur.fetchone()[0]
         blob.append(f"tool_assets 共 {n_asset} 条")
