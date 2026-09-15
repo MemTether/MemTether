@@ -120,6 +120,29 @@ def asset_text(row):
     return '【资产】' + ' | '.join(p for p in parts if p)
 
 
+# ---- ★自指降权：记忆"关于某个查询"的笔记，不该压过那条查询的答案 ----
+# 背景（2026-09-15 实测）：我刚写完一条「结论：资产必须可被检索——实测
+#   `mem.py search "微信 在哪"` 零命中」的复盘笔记。下一次查「微信 在哪」，
+#   这条**笔记本身**因为字面包含完整查询串，kw 覆盖率做到 1.0 排到 Top1，
+#   把真正的资产条目压到第 3。更糟的是：自适应精排看到 cov=1.0 判定
+#   "字面特征可靠，别动排序" → 连精排都救不回来。
+# 判据：若一条记忆里**原样出现了整段查询**，且它自身明显是"复盘/教训/规范"体，
+#   则它是在**谈论**这个查询，而不是**回答**这个查询。
+_SELFREF_TELL = ('结论：', '实测', '之前', '此前', '已修', '缺', '坑',
+                 '教训', '写法', '不要', '必须', '规矩', '自指')
+
+
+def _is_self_referential(content, q):
+    """判断某条内容是不是"关于查询 q 的元讨论"而非"对 q 的回答"。"""
+    if not content or not q or len(q) < 4:
+        return False
+    c = content
+    # 必须**原样**含整段查询（含空格），才可能是元讨论
+    if q not in c:
+        return False
+    return any(t in c for t in _SELFREF_TELL)
+
+
 # ---- embedding ----
 def _embed(texts):
     sys.path.insert(0, r'E:\RUANJIAN\ai-audit')
@@ -357,6 +380,12 @@ def search_hybrid(query, limit=10, vec_k=30, use_rerank=True, rerank_k=30,
                     'source': f['source'], 'score': round(sc, 5),
                     'semantic': vec_sim.get(uid, 0.0),
                     'reason': reason})
+    # ★4.5) 自指降权：把"关于这个查询的元讨论"压到"这个查询的答案"之下。
+    #    （详见 _is_self_referential 的注释。字面路给了它们满额加分，这里收回来。）
+    for x in out:
+        if _is_self_referential(x['content'], q):
+            x['score'] = round(x['score'] * 0.25, 5)
+            x['reason'].append('self-ref↓')
     out.sort(key=lambda x: x['score'], reverse=True)
 
     # 5) cross-encoder 精排（复刻 agentmemory V4 的最大单项增益）
@@ -371,6 +400,10 @@ def search_hybrid(query, limit=10, vec_k=30, use_rerank=True, rerank_k=30,
     if do_rerank and adaptive and out:
         cov = kw_cov.get(out[0]['uid'], 0.0)
         do_rerank = cov < adaptive_thr
+        # ★2026-09-15：Top1 被判定自指（是"关于查询的笔记"）时，它那个 cov=1.0
+        #   毫无参考价值——恰恰是该让精排出面纠正的局面，不能反过来拿它当"字面可靠"的证据。
+        if out[0].get('reason') and 'self-ref↓' in out[0]['reason']:
+            do_rerank = True
     if do_rerank:
         try:
             import rerank as _rr
