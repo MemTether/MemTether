@@ -739,7 +739,7 @@ def rebuild():
         #       **记得越多反而注入越少**。故改为「导航版」：每条只留首句结论（自含），
         #       总预算硬守官方限额；全文一律走 mem.py search 按需取回。
         import re as _re
-        _BUDGET = int(os.environ.get('MEM_PROJ_BUDGET', '4000'))
+        _BUDGET = int(os.environ.get('MEM_PROJ_BUDGET', '3980'))
         #    🔴 2026-09-15 四修：CAP=60 实测 43/43 全部「不以句号结尾」——首句普遍超过 60 字，
         #       于是每条都被硬砍成半句话，连「首句要写自含结论」这条约定自己都被腰斩。
         #       模拟对比（active 全量）：CAP60→50条/12条硬砍，CAP100→42/5，CAP130→41/2，
@@ -767,8 +767,16 @@ def rebuild():
             return t or '(空)'
 
         _tail = ['', '## 工具资产（active）']
-        for _row in conn.execute("SELECT * FROM tool_assets WHERE status='active' ORDER BY name").fetchall():
-            _tail.append('- %s → %s' % (_row['name'], (_row['path'] or _row['entrypoint'] or '')[:58]))
+        # ★2026-09-15：资产增到 43 条，全量投影会挤爆 4000 槽位。
+        # 顺序：先保事实（上方 mem_lines），资产按剩余预算填；
+        # 带 ★ 的易错资产优先，其余截断并给检索提示。
+        _prio, _rest = [], []
+        for _row in conn.execute(
+                "SELECT * FROM tool_assets WHERE status='active' ORDER BY name").fetchall():
+            _line = '- %s → %s' % (_row['name'], (_row['path'] or _row['entrypoint'] or '')[:58])
+            (_prio if '★' in (_row['prerequisites'] or '') else _rest).append(_line)
+
+        _tail.extend(_prio)
         _room = _BUDGET - sum(len(x) + 1 for x in mem_lines) - sum(len(x) + 1 for x in _tail) - 90
 
         _kept = 0
@@ -780,6 +788,17 @@ def rebuild():
             mem_lines.append(_item)
             _room -= len(_item) + 1
             _kept += 1
+
+        # 事实填完后，把剩余预算给非优先资产
+        _extra = []
+        for _line in _rest:
+            if len(_line) + 1 > _room:
+                _extra.append('- …另 %d 条资产见网关库（mem.py search 或 tool_audit.py audit）'
+                              % (len(_rest) - len(_extra)))
+                break
+            _extra.append(_line)
+            _room -= len(_line) + 1
+        _tail.extend(_extra)
 
         mem_lines.extend(_tail)
         mem_lines.append('')
@@ -845,6 +864,12 @@ def main():
     sub.add_parser('init')
     sub.add_parser('rebuild')
 
+    # 资产审计与评测（见 tool_audit.py / asset_bench.py）
+    sub.add_parser('assetaudit')
+    sub.add_parser('assetseed')
+    sub.add_parser('assetverify')
+    sub.add_parser('assetbench')
+
     a = ap.parse_args()
     if not a.cmd:
         ap.print_help()
@@ -893,6 +918,22 @@ def main():
         print(json.dumps(stats(), ensure_ascii=False))
     elif a.cmd == 'rebuild':
         print(json.dumps(rebuild(), ensure_ascii=False))
+    elif a.cmd == 'assetaudit':
+        import tool_audit
+        tool_audit.audit()
+    elif a.cmd == 'assetseed':
+        import tool_audit
+        tool_audit.seed()
+    elif a.cmd == 'assetverify':
+        import tool_audit
+        tool_audit.verify()
+    elif a.cmd == 'assetbench':
+        import asset_bench
+        import asset_bench_holdout
+        print("\n【主集】")
+        asset_bench.run(verbose=False)
+        print("\n【留出集】")
+        asset_bench_holdout.run(verbose=False)
 
 
 if __name__ == '__main__':

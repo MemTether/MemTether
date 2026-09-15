@@ -143,8 +143,25 @@ def rebuild_vector_index(verbose=True):
     return {'active': len(rows), 'indexed': len(kept), 'quarantined': len(quarantined)}
 
 
-def search_hybrid(query, limit=10, vec_k=30):
-    """混合检索：质量门禁 + 向量 + ASCII精确 + 融合排序。"""
+def search_hybrid(query, limit=10, vec_k=30, use_rerank=True, rerank_k=30,
+                  rerank_w=0.4, rerank_model='bge',
+                  adaptive=True, adaptive_thr=0.6):
+    """混合检索：质量门禁 + 向量 + ASCII精确 + RRF 融合 + cross-encoder 精排。
+
+    use_rerank : 是否启用 cross-encoder 精排（agentmemory V4 的核心增益项）
+    rerank_k   : 对 RRF 前多少条做精排（精排是 O(n) 全注意力，太慢就调小）
+    rerank_w   : 精排分在最终融合中的权重，1-rerank_w 给 RRF 排名分
+    rerank_model: 'bge'（BAAI/bge-reranker-base，中文）或 'msmarco'（英文，实测有害不要用）
+
+    ★2026-09-15 实测选型依据（40 例自评测，直白集/改写集各 20）：
+      基线(RRF)        直白 80%/95%   改写 35%/45%    → 合计 Top1 57.5% Top3 70%
+      精排[msmarco]全量 直白 60%       改写 45%        → 英文模型在中文记忆上瞎排
+      精排[bge]全量     直白 70%/95%   改写 30%/55%
+      **bge+自适应      直白 80%/95%   改写 30%/55%    → 合计 Top1 55% Top3 75%**
+      选它的理由：直白集不退化（保住 80%），改写集 Top3 +10pp（给模型看 3 条比第 1 条更关键）。
+    ★更重要的实测结论：改写集 30% 的失败是「正确答案没进候选集」（见 _diag_recall.py），
+      精排救不了召回 → 下一步该做查询扩展，不是继续调排序。
+    """
     q = (query or '').strip()
     if not q:
         return {'query': q, 'results': []}
@@ -176,6 +193,7 @@ def search_hybrid(query, limit=10, vec_k=30):
     # 2) 关键词路：查询词覆盖率 x IDF（专有名词命中权重更高）
     q_terms = _terms(q)
     kw_raw = {}
+    kw_cov = {}
     if q_terms:
         N = max(len(active), 1)
         df = {}
@@ -194,6 +212,7 @@ def search_hybrid(query, limit=10, vec_k=30):
                     s += math.log(1 + N / max(df.get(tm, 1), 1))
             if hits:
                 kw_raw[uid] = (hits / len(q_terms)) * 2.0 + s * 0.1
+                kw_cov[uid] = hits / len(q_terms)
     kw_rank = {u: i for i, u in enumerate(sorted(kw_raw, key=lambda u: -kw_raw[u]))}
 
     # 3) 整句字面匹配路（"三大机制"这类整体概念，向量区分度不足）
@@ -230,6 +249,35 @@ def search_hybrid(query, limit=10, vec_k=30):
                     'semantic': vec_sim.get(uid, 0.0),
                     'reason': reason})
     out.sort(key=lambda x: x['score'], reverse=True)
+
+    # 5) cross-encoder 精排（复刻 agentmemory V4 的最大单项增益）
+    #    RRF 只有排名信息，分不清"语义相近但不精确"的干扰项；cross-encoder 把
+    #    (query, doc) 拼成一个序列做全注意力，能读出双塔相似度看不出的相关性。
+    #    只对头部 rerank_k 条精排（实测单条约 6.4ms），尾部保持 RRF 原序。
+    # 自适应开关（agentmemory V4 是固定六信号加权，这里改为按查询决定）：
+    #   实测精排是双刃剑——字面命中强的查询（Top1 80%）会被精排拉到 60%，
+    #   而字面命中弱的改写类查询（Top1 35%）能从精排拿到 +10pp。
+    #   → 用 Top1 的关键词覆盖率判断：覆盖率高说明字面特征可靠，别让精排改它。
+    do_rerank = use_rerank and len(out) > 1 and rerank_w > 0
+    if do_rerank and adaptive and out:
+        cov = kw_cov.get(out[0]['uid'], 0.0)
+        do_rerank = cov < adaptive_thr
+    if do_rerank:
+        try:
+            import rerank as _rr
+            head, tail = out[:rerank_k], out[rerank_k:]
+            for x in head:
+                x['rrf'] = x['score']
+            rn = _rr.normalize(_rr.scores(q, [x['content'] for x in head], rerank_model))
+            sn = _rr.normalize([x['rrf'] for x in head])
+            for x, a, b in zip(head, rn, sn):
+                x['rerank'] = round(float(a), 4)
+                x['score'] = round((1 - rerank_w) * b + rerank_w * a, 5)
+            head.sort(key=lambda x: -x['score'])
+            out = head + tail
+        except Exception as e:
+            print('[warn] 精排失败，退回 RRF:', str(e)[:80], file=sys.stderr)
+
     return {'query': q, 'results': out[:limit]}
 
 
