@@ -257,7 +257,7 @@ def rebuild_vector_index(verbose=True):
             'indexed': len(kept), 'quarantined': len(quarantined)}
 
 
-def search_hybrid(query, limit=10, vec_k=30, use_rerank=True, rerank_k=30,
+def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=30,
                   rerank_w=0.4, rerank_model='bge',
                   adaptive=True, adaptive_thr=0.6):
     """混合检索：质量门禁 + 向量 + ASCII精确 + RRF 融合 + cross-encoder 精排。
@@ -382,9 +382,13 @@ def search_hybrid(query, limit=10, vec_k=30, use_rerank=True, rerank_k=30,
                     'reason': reason})
     # ★4.5) 自指降权：把"关于这个查询的元讨论"压到"这个查询的答案"之下。
     #    （详见 _is_self_referential 的注释。字面路给了它们满额加分，这里收回来。）
+    #    ★注意用**乘法压到很狠**：实测当查询含 ASCII 文件名（如 mcp_server.py）时，
+    #    向量路整体召回不到资产（embedding 被 mem.py 这类相近 token 带偏），
+    #    候选集退化成"纯关键词平局"，此时 ×0.25 只能把自指条目从 0.0262 压到
+    #    同档，仍然排第一。必须压到任何正常候选之下，才真正起到排序作用。
     for x in out:
         if _is_self_referential(x['content'], q):
-            x['score'] = round(x['score'] * 0.25, 5)
+            x['score'] = round(x['score'] * 0.05, 5)
             x['reason'].append('self-ref↓')
     out.sort(key=lambda x: x['score'], reverse=True)
 
