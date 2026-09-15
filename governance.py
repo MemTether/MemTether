@@ -707,16 +707,26 @@ def audit():
 
     conf = find_conflicts()
     selfc = find_self_contradictions()
+    exact = detect_explicit_conflicts()
     stale = find_stale(days=30)
-    lines.append('  跨条冲突    %d 对（句子级·极性相反+共享强实体）' % len(conf))
-    lines.append('  条内自矛盾  %d 条（同一条记忆里不同句子打架）' % len(selfc))
+    lines.append('  ── 精确检测（可自动化，误报率低）──')
+    lines.append('  显式冲突    %d 个实体（跨条·状态断言相反）' % len(exact))
+    lines.append('  ── 启发式检测（**仅供人工复核**，勿自动处理）──')
+    lines.append('  跨条候选    %d 对（实测大量为互补决策/对比说明的误报）' % len(conf))
+    lines.append('  条内候选    %d 条（实测逐条核实全为误报，附在下方供参考）' % len(selfc))
     lines.append('  过期候选    %d 条（30 天以上未更新）' % len(stale))
     hi = sum(1 for s in stale if s['risk'] == 'high')
     lines.append('             其中高风险 %d 条（含否定信号）' % hi)
 
     lines.append('-' * 72)
+    if exact:
+        lines.append('  ★精确冲突（建议处理，注意先看残留事实）：')
+        for x in exact:
+            lines.append('    实体 %s（较新的是 %s）' % (x['entity'], x['newer']))
+            lines.append('      ⊕ %s' % x['pos']['sent'][:70].replace('\n', ' '))
+            lines.append('      ⊖ %s' % x['neg']['sent'][:70].replace('\n', ' '))
     if conf:
-        lines.append('  ★Top 冲突（前 5 对）：')
+        lines.append('  ☆跨条候选（前 3 对，人工判断用）：')
         for x in conf[:5]:
             lines.append('    [%s] 共享强实体: %s' % (x['why'], ', '.join(x['shared'][:4])))
             lines.append('      A %s | %s' % (x['a']['ts'], x['a']['text'][:74].replace('\n', ' ')))
