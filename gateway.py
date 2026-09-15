@@ -363,12 +363,32 @@ def search(query, limit=10, mem0=False):
         sys.path.insert(0, HUB)
         import memsearch
         r = memsearch.search_hybrid(query, limit=limit)
-        return {'ok': True, 'query': r['query'], 'results': r['results'],
-                'semantic': r['results'], 'engine': 'hybrid'}
+        if r.get('results'):
+            return {'ok': True, 'query': r['query'], 'results': r['results'],
+                    'semantic': r['results'], 'engine': 'hybrid'}
+        # 🔴 2026-09-15 修：向量库不可用（缺 chromadb）时 hybrid 会**成功返回空列表**
+        #    ——不是抛异常。旧实现把空结果直接当结果返回，调用方会误判「中枢里没有这条记忆」。
+        #    只要 hybrid 没给出结果，一律退化到 LIKE 兜底。
+        _why = 'hybrid 返回空（向量库不可用？）'
     except Exception as e:
-        r = _search_like_legacy(query, limit, mem0)
-        r['engine'] = 'like_fallback (%s)' % str(e)[:60]
-        return r
+        _why = '%s: %s' % (type(e).__name__, str(e)[:60])
+    r = _search_like_legacy(query, limit, mem0)
+    # 🔴 兜底再兜底：LIKE 是**整串子串**匹配，「记忆中枢 投影 容量」这种多词查询永远命中不了。
+    #    缺向量库时这就是唯一检索路径，故按空格/顿号拆词逐词再查，合并去重。
+    if not r.get('results'):
+        import re as _re2
+        _toks = [t for t in _re2.split(r'[\s,，、;；]+', query.strip()) if len(t) >= 2]
+        if len(_toks) > 1:
+            _merged = {}
+            for _t in _toks:
+                for _it in (_search_like_legacy(_t, limit, mem0).get('results') or []):
+                    _k = _it.get('uid') if isinstance(_it, dict) else str(_it)[:64]
+                    _merged.setdefault(_k, _it)
+            if _merged:
+                r['results'] = list(_merged.values())[:limit]
+                _why += ' + 拆词合并'
+    r['engine'] = 'like_fallback (%s)' % _why
+    return r
 
 
 def _search_like_legacy(query, limit=10, mem0=False):
