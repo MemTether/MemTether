@@ -13,7 +13,7 @@ import json
 import time
 
 sys.path.insert(0, r'<AUDIT>')
-sys.path.insert(0, r'<HUB>')
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import cred_env
 cred_env.env()
@@ -21,7 +21,7 @@ cred_env.env()
 import sqlite3
 from mem0 import Memory
 
-HUB = r'<HUB>'
+HUB = os.path.dirname(os.path.abspath(__file__))
 DB = os.path.join(HUB, 'memory.db')
 
 MEM0_CONFIG = {

@@ -18,7 +18,7 @@ import subprocess
 import sys
 import datetime
 
-BASE = r'<HUB>'
+BASE = os.path.dirname(os.path.abspath(__file__))
 PY = os.path.join(BASE, '.venv-memory', 'Scripts', 'python.exe')
 LOG_DIR = os.path.join(BASE, 'logs')
 CREATE_NO_WINDOW = 0x08000000          # 子进程不创建控制台窗口

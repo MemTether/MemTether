@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """8 条真实查询的回归测试（astra 建议的验收标准）"""
 import sys, json
-sys.path.insert(0, r'<HUB>')
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import memsearch
 
 CASES = [

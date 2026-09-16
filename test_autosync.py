@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """测试 remember 自动同步向量索引"""
 import sys, json
-sys.path.insert(0, r'<HUB>')
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import gateway
 
 # 写一条真实结论（本次工作的成果）

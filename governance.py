@@ -76,10 +76,24 @@ _NEG = ('失效', '不可用', '不通', '失败', '401', '403', '已死', '封�
 _STOP = {
     'cwd', 'raw', 'dump', 'message', 'launch', 'score', 'top1', 'rrf', 'menu', 'settings',
     'programs', 'server', 'account', 'balance', 'mtime', 'deny', 'icacls', 'fail-closed',
-    'gmail.com', 'venv-memory', '<KEY>', '<KEY>', 'region_restricted', 'schtasks.exe',
+    'gmail.com', 'venv-memory', 'region_restricted', 'schtasks.exe',
     'cmd.exe', 'python.exe', 'index.html', 'readme', 'todo', 'mcp.json', 'json', 'http',
     'https', 'localhost', 'localhost:8080', 'utf-8', 'stdout', 'stdin', 'api',
 }
+
+# ★脱敏（2026-09-16）：此处原先硬编码了两个**真实密钥前缀**（形如「s k -」加四个字符）。
+#   它们进 _STOP 的原因合理 —— 记忆里出现过的密钥片段会被 _strong_entities
+#   当成"强实体"（含数字 → 命中第 136 行判据），进而把两条无关记忆错配成"同一件事"。
+#   但把真实前缀写进开源源码 = 泄漏：哪怕只有前 8 位，也把爆破空间砍掉几个数量级。
+#   改为**通用规则**：任何以「s k -」开头的 token 一律视为停用词。
+#   行为等价（原先被排除的那两个前缀，现在同样被排除），且不留任何真实字符。
+_STOP_PREFIX = ('sk-',)
+
+
+def _is_stop(w):
+    """通用技术词 / 密钥片段 → 不能用来对齐主题。"""
+    w = (w or '').lower()
+    return w in _STOP or w.startswith(_STOP_PREFIX)
 
 
 def _polarity(text):
@@ -130,7 +144,7 @@ def _strong_entities(text):
     ents = set()
     for w in re.findall(r'[A-Za-z][A-Za-z0-9_.\-]{2,}', text or ''):
         wl = w.lower()
-        if wl in _STOP:
+        if _is_stop(wl):
             continue
         # 带下划线/数字 → 强实体
         if '_' in w or any(ch.isdigit() for ch in w):
@@ -174,7 +188,7 @@ def _polarity_by_entity(text):
             p, n = _polarity(sub)
             if not (p or n) or (p and n):
                 continue
-            ents = _strong_entities(sub) - _STOP
+            ents = {e for e in _strong_entities(sub) if not _is_stop(e)}
             if not ents:
                 continue
             pol = 1 if p else -1
@@ -192,7 +206,7 @@ def _topic_tokens(text, min_len=3):
     toks = set()
     for w in re.findall(r'[A-Za-z][A-Za-z0-9_.\-]{2,}', text or ''):
         wl = w.lower()
-        if wl not in _STOP:
+        if not _is_stop(wl):
             toks.add(wl)
     for seg in re.findall(r'[\u4e00-\u9fa5]{3,}', text or ''):
         for n in (3, 4, 5):
@@ -291,7 +305,7 @@ def find_self_contradictions(rows=None):
                 p, n = _polarity(sub)
                 if not (p or n) or (p and n):
                     continue
-                ents = _strong_entities(sub) - _STOP
+                ents = {e for e in _strong_entities(sub) if not _is_stop(e)}
                 if not ents:
                     continue
                 pol = 1 if p else -1
@@ -474,7 +488,7 @@ def detect_explicit_conflicts(days_window=90):
             for pat, pol in _STATUS_ASSERT:
                 for m in re.finditer(pat, seg, re.IGNORECASE):
                     ent = _canonical(m.group(1))
-                    if not ent or ent in _STOP:
+                    if not ent or _is_stop(ent):
                         continue
                     claims.setdefault(ent, {1: [], -1: []})
                     claims[ent][pol].append(

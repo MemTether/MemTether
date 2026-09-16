@@ -32,7 +32,7 @@
 """
 """评测：精排候选数 rerank_k 对 62 题准确率与耗时的影响。"""
 import os, sys, json, re, time, subprocess
-HERE = r'<HUB>'
+HERE = os.path.dirname(os.path.abspath(__file__))
 PY = os.path.join(HERE, '.venv-memory', 'Scripts', 'python.exe')
 sys.path.insert(0, HERE)
 from hard_bench import CASES, score, cases_ipc

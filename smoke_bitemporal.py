@@ -13,10 +13,10 @@
 import sqlite3
 import sys
 
-sys.path.insert(0, r'<HUB>')
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import gateway
 
-DB = r'<HUB>\memory.db'
+DB = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'memory.db')
 TAG = 'BITEMP_SMOKE_20260916'
 created = []
 

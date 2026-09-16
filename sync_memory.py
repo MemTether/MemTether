@@ -24,7 +24,7 @@ import os
 import sys
 import time
 
-HUB = r'<HUB>'
+HUB = os.path.dirname(os.path.abspath(__file__))
 WORKBUDDY_MEM = os.path.expanduser(r'~\.workbuddy\MEMORY.md')
 PROJECTION = os.path.join(HUB, 'projections', 'agent_workbuddy.md')
 

@@ -21,16 +21,22 @@ import hashlib
 import time
 import re
 
-HUB = r'<HUB>'
+HUB = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# 本机专有路径外置（开源版无 local_paths.json → 相关检查项自动跳过，不报假失败）
+_LOCAL = {}
+try:
+    with open(os.path.join(HUB, 'local_paths.json'), encoding='utf-8') as _f:
+        _LOCAL = json.load(_f)
+except (OSError, ValueError):
+    pass
+
 DOCS_DIR = os.path.join(HUB, 'docs')
 CATALOG = os.path.join(DOCS_DIR, 'catalog.json')
 DOC_INDEX = os.path.join(DOCS_DIR, 'doc_index.jsonl')
 
 # 默认扫描的共享文档目录
-DEFAULT_DOCDIRS = [
-    r'<PATH><USER>\WorkBuddy\2026-09-12-10-48-36\doubao-handover',
-    r'<AUDIT>',
-]
+DEFAULT_DOCDIRS = list(_LOCAL.get('doc_dirs') or [])
 
 # 高可信关键词（这些文件重点提炼）
 HIGH_TRUST = ['交接', '核验', '指令', '报告', '结论', '方案', '档案', 'README']

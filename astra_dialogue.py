@@ -25,7 +25,7 @@ cred_env.env()
 
 KEY = os.environ['GPTX_ASTRA_KEY']
 URL = 'https://api.gptx.cc/v1/chat/completions'
-HIST = r'<HUB>\astra_dialogue.json'
+HIST = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'astra_dialogue.json')
 
 
 def load():

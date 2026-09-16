@@ -14,7 +14,7 @@ import json
 import os
 import sys
 
-sys.path.insert(0, r'<HUB>')
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import bench_longmemeval as B
 
 path = os.path.join(B.DATA, 'longmemeval_oracle')
