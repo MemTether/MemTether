@@ -37,3 +37,28 @@ bench_data/
 #   BAAI/bge-reranker-base   -> models/bge_reranker/   1.11GB                     (cross-encoder 精排)
 #   另见 rerank.py 头部注释里 cross_encoder 的导出方式。
 models/
+
+# ===== 开源脱敏：私人数据与渲染镜像（2026-09-16）=====
+# 唯一真源（含真名/学号/本机路径/安全事件）
+memory.db
+sink.json
+# 渲染镜像（内容与 memory.db 等价）
+experience.md
+facts.md
+decisions.md
+incidents.md
+active_tasks.md
+DIGEST.md
+HUB_INDEX.md
+INDEX.md
+profile.md
+profile/
+astra_verdict_closure.md
+astra_dialogue.json
+astra_turn_ch.txt
+migration_report.json
+health_report.json
+toolbox.json
+# 投影与私有文档
+projections/
+docs/
