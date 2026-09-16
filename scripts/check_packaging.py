@@ -33,6 +33,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 PYPROJECT = os.path.join(ROOT, 'pyproject.toml')
+NOTICE_PATH = os.path.join(ROOT, 'NOTICE')
 
 
 def load_toml(path):
@@ -72,6 +73,61 @@ def tracked_root_modules():
             continue                      # 本仓库约定：临时脚本以 _ 开头，不进包
         mods.add(name)
     return mods
+
+
+def check_notice(cfg, problems):
+    """NOTICE 一致性：声明的依赖 / 用到的模型，都必须有归属声明。
+
+    ★为什么查这个：NOTICE 的组件清单与 pyproject 的依赖清单是**两份手工维护的
+      清单**，必然漂移（同 py-modules 那次的形态）。而 NOTICE 写漏了、写错了，
+      构建与安装**全程没有任何提示** —— 又是"跑起来不报错、但结果全错"。
+      且这是合规问题：Apache-2.0 §4(d) 要求分发时保留归属声明。
+
+    三条规则（前两条跨机器有效，第三条依赖本机模型目录）：
+
+      A. pyproject 声明的每个依赖名，必须能在 NOTICE 里找到；
+      B. 模型目录存在时，其每个子目录名必须能在 NOTICE 里找到（漏记 = 漏归属）；
+      C. NOTICE 里以 `models/<名字>` 形式出现的目录，必须真实存在（写错目录名）。
+
+    ★找不到模型目录时**跳过 B/C 并打印 skipped**，不是报错 ——
+      模型权重不在仓库里，别人的 clone 上本来就没有。
+    """
+    notice_path = NOTICE_PATH
+    if not os.path.exists(notice_path):
+        problems.append('NOTICE 不存在（Apache-2.0 分发需保留第三方归属声明）')
+        return None
+    with open(notice_path, encoding='utf-8') as f:
+        notice = f.read()
+
+    # --- A：依赖必须有归属 ---
+    names = []
+    for d in (cfg.get('project') or {}).get('dependencies') or []:
+        names.append(d)
+    for extra in ((cfg.get('project') or {}).get('optional-dependencies') or {}).values():
+        names.extend(extra)
+    for spec in names:
+        name = re.split(r'[<>=!\[; ]', spec)[0].strip()
+        if name and not re.search(r'\b%s\b' % re.escape(name), notice, re.I):
+            problems.append('依赖 %r 未在 NOTICE 中声明归属' % name)
+
+    # --- B / C：模型目录 ---
+    # 依次探测：显式环境变量 → <ROOT>/models → 本机布局 <ROOT>/../memory_hub/models
+    candidates = [os.environ.get('MEMTETHER_MODELS_DIR'),
+                  os.path.join(ROOT, 'models'),
+                  os.path.join(os.path.dirname(ROOT), 'memory_hub', 'models')]
+    models_dir = next((c for c in candidates if c and os.path.isdir(c)), None)
+    if models_dir is None:
+        return '模型目录不存在，B/C 已跳过'
+
+    local = sorted(n for n in os.listdir(models_dir)
+                   if os.path.isdir(os.path.join(models_dir, n)))
+    for d in local:
+        if not re.search(r'\b%s\b' % re.escape(d), notice):
+            problems.append('本机模型目录 %r 未在 NOTICE 中声明归属' % d)
+    for d in sorted(set(re.findall(r'models/([A-Za-z0-9_.\-]+)', notice))):
+        if d not in local:
+            problems.append('NOTICE 写了 models/%s，但该目录不存在（目录名写错了？）' % d)
+    return '模型目录 %s：%d 个已全部登记' % (models_dir, len(local))
 
 
 def main():
@@ -128,15 +184,19 @@ def main():
         problems.append('版本串 %r 不是合法 PEP 440（setuptools 会静默归一化，'
                         '导致与 __version__ 报两个号）' % ver_pj)
 
+    notice_note = check_notice(cfg, problems)
+
     if problems:
         print('★打包清单与仓库不一致：')
         for p in problems:
             print('   - %s' % p)
-        print('\n   改 %s 后重跑本脚本。' % PYPROJECT)
+        print('\n   改 %s 或 %s 后重跑本脚本。'
+              % (os.path.basename(PYPROJECT), os.path.basename(NOTICE_PATH)))
         return 1
 
     print('✓ 打包清单与仓库一致：%d 个根模块 + packages=%s + 入口 memtether:main + 版本 %s'
           % (len(declared), packages, ver_pj))
+    print('✓ NOTICE 归属声明完整（%s）' % (notice_note or '已登记'))
     return 0
 
 

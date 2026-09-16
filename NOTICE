@@ -1,0 +1,88 @@
+MemTether
+Copyright 2026 MemTether contributors
+
+本文件记录 MemTether 使用与分发的第三方组件及其许可归属。
+（Apache License 2.0 第 4(d) 条：分发本作品时须保留归属声明。）
+
+本项目自身以 Apache-2.0 授权，全文见 LICENSE（保持官方原文，未改动其附录模板）。
+
+
+核验方式与日期
+--------------
+以下版本号与许可字段均取自**本机实际安装 / 下载的实例**，不是转述或推测：
+
+  · Python 包 —— 读 <venv>/Lib/site-packages/<pkg>-<ver>.dist-info/METADATA
+  · 模型权重 —— 读 Hugging Face model card 的 YAML front matter，
+                并用本地 config.json 的 _name_or_path 核对来源
+
+核验日期：2026-09-16
+
+
+一、声明为依赖的第三方 Python 包
+--------------------------------
+
+  组件          版本      许可          用途                                              声明位置
+  ------------  --------  ------------  ------------------------------------------------  --------------
+  numpy         2.5.3     BSD-3-Clause  精排（cross-encoder）与 pair_superseded 的数值计算  必装依赖
+  chromadb      1.5.9     Apache-2.0    本地向量库（collection = facts_active）            [vector] extra
+  onnxruntime   1.30.0    MIT           本地 ONNX 推理（embedding / 精排）                 [vector] extra
+  tokenizers    0.23.2    Apache-2.0    本地分词（bge-m3 等）                              [vector] extra
+  mem0ai        2.0.20    Apache-2.0    可选语义写入（import_mem0.py；需自备 cred_env.py）  非必需，未声明为依赖
+
+  说明：
+
+  1. 只有 numpy 是必装依赖。核心引擎（gateway / mem / memsearch / governance /
+     embed_local / project / refuse_* / tool_audit 等）顶层只用标准库。
+     chromadb / onnxruntime / tokenizers 仅服务语义检索，缺省时优雅降级为
+     关键词 + 字面检索（会打印 [warn]），不影响演示库使用。
+
+  2. numpy 的 License-Expression 实为
+       "BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0"
+     即其发行包内自带若干第三方组件；完整文本见 numpy 发行包内的 LICENSE.txt。
+
+  3. mem0ai 仅被 import_mem0.py 引用，且该模块还依赖一个**不在本仓库内**的
+     cred_env.py。默认安装路径不会触达它。
+
+
+二、运行时可选获取的模型权重（不随本仓库分发）
+----------------------------------------------
+
+  模型                                    用途                        许可         本地目录
+  --------------------------------------  --------------------------  -----------  --------------------
+  BAAI/bge-m3                             默认 embedding（1024 维）     MIT          models/bge_m3
+  BAAI/bge-small-zh-v1.5                  可选 embedding（512 维）      MIT          models/bge_small_zh
+  BAAI/bge-reranker-base                  默认精排（int8 量化档）       MIT          models/bge_reranker_int8
+  xlm-roberta-base                        备选精排（fp32 档）           MIT          models/bge_reranker
+  cross-encoder/ms-marco-MiniLM-L-12-v2   备选精排（英文语料）          Apache-2.0   models/cross_encoder
+
+  说明：
+
+  1. 模型权重**不在本仓库内**（体积过大），首次运行时按提示获取。
+     使用时请遵守各模型自身的许可条款；本仓库仅记录归属，不代为分发。
+
+  2. models/bge_reranker 的本地 config.json 自述 _name_or_path 为
+     "xlm-roberta-base"，而其定位是 BAAI/bge-reranker-base 的 fp32 档
+     （见 rerank.py 的 MODELS 表）。本表按**本地 config 的实测值**记录，
+     未按用途反推。
+
+  3. 备选档（xlm-roberta-base / ms-marco）默认不启用。ms-marco 为英文语料
+     训练，中文实测更差（Top1 73% → 53%），仅作对照保留。
+
+  4. embed_local.py 另定义了 BAAI/bge-base-zh-v1.5 档（768 维，许可 MIT），
+     本机未下载故未入表。该档与表中三个 BAAI 模型同源同许可。
+
+
+三、本仓库不包含的内容
+----------------------
+
+  · 任何真实记忆数据。对外示例库（demo）为全合成数据，见 README「声明」。
+  · 任何模型权重文件。
+  · 任何用户凭据、密钥、本机账号路径。
+
+
+四、版权行如何替换
+------------------
+
+  本项目当前以 "MemTether contributors" 作集体署名。若需以真实姓名或组织
+  署名，替换本文件首行的版权行即可（LICENSE 为 Apache-2.0 官方全文，
+  其附录中的 "[yyyy] [name of copyright owner]" 属原文示例，无需改动）。
