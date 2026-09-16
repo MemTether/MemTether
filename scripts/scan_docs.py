@@ -28,7 +28,7 @@ DOC_INDEX = os.path.join(DOCS_DIR, 'doc_index.jsonl')
 
 # 默认扫描的共享文档目录
 DEFAULT_DOCDIRS = [
-    r'<PATH>\WorkBuddy\2026-09-12-10-48-36\doubao-handover',
+    r'C:\Users\<USER>\WorkBuddy\2026-09-12-10-48-36\doubao-handover',
     r'E:\RUANJIAN\ai-audit',
 ]
 

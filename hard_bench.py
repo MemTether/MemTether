@@ -74,7 +74,7 @@ CASES = [
     # ---- 网络 / 远程 ----
     dict(id='H07', q='我那个科学上网的客户端装在哪个目录？',
          expect=[r'Clash|ikuuu']),
-    dict(id='H08', q='想远程控制另一台电脑，本机装了什么远控软件？',
+    dict(id='H08', q='想远程控制另一台电脑，本机装了什么远程异常软件？',
          expect=[r'ToDesk']),
     dict(id='H09', q='我想抓取网卡上的数据包做协议分析，要装什么驱动库？',
          expect=[r'Npcap|WinPcap|pcap']),

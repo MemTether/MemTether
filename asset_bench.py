@@ -148,7 +148,7 @@ def run(verbose=False):
         cur.execute("SELECT COUNT(*) FROM tool_assets")
         n_asset = cur.fetchone()[0]
         blob.append(f"tool_assets 共 {n_asset} 条")
-        blob.append("投影写到 <PATH>/.workbuddy/MEMORY.md，官方槽位上限约 4000 字符")
+        blob.append("投影写到 C:/Users/<USER>/.workbuddy/MEMORY.md，官方槽位上限约 4000 字符")
         blob.append("真源 E:/RUANJIAN/memory_hub/memory.db")
         text = " \n ".join(blob)
 
