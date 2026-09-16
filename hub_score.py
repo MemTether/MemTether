@@ -99,34 +99,64 @@ def _govern():
         启发式检测另走 `governance.find_conflicts()` 供**人工复核**，
         绝不进评分卡（否则分数会随检测器的噪音一起抖）。
 
-    四项子指标（全部可确定性计算）：
-      ① 替代链使用率 = superseded_by 已填 / superseded 总数
-      ② 失效时间记录率 = valid_to 已填 / (superseded+retired) 总数
-      ③ 精确冲突已处理率 = 1 - 未处理精确冲突 / 曾出现的精确冲突
+    四项子指标（全部可确定性计算，且**互不重复**）：
+      ① 替代链完整率   = superseded 中 superseded_by 已填 / superseded 总数
+      ② 时间轴覆盖率   = (valid_from 已填 + recorded_at 已填) / (2 × 事实总数)
+         ★2026-09-16 新增。此前四项里**没有一项测 valid_from**，
+           于是"整根 T 轴为空（active 270 条里 264 条缺 valid_from）"这件事
+           在分数上完全看不见——结构坏了，分数却是好的。
+           新增后该问题立刻暴露，随即完成 bi-temporal 迁移 + 回填修复。
+      ③ 精确冲突已处理率 = 1 - 未处理精确冲突 / 10
          （精确冲突=显式状态断言，句式确定、误报率低，见 detect_explicit_conflicts）
-      ④ 退役操作有据率 = 有 reason 或 superseded_by 的退役 / 总退役
-         （衡量"退役是否留下可追溯的理由"，而不是随手标个状态）
+      ④ 失效记录闭环率 = (superseded+retired) 中 valid_to 已填 / 这两类总数
+
+    ★口径修正（2026-09-16，同次发现）：原 ②「失效时间记录率」与 ④「退役有据率」
+      实为**同一指标的两种写法**——分子分母都只是"valid_to 覆盖率"，仅阈值表述不同，
+      等于同一件事被计了两次权重，而真正空缺的 valid_from 无人看管。
+      现已把 ② 改为时间轴覆盖率，④ 保留 valid_to 闭环率。
+      （编号与下方 r1~r4 一一对应：r3 是冲突、r4 是失效闭环，别被顺序看花。）
+
+    ★时间轴数据的来历（native/backfilled/inferred）**不进评分卡**，
+      只在 detail 里作事实陈述——它衡量的是"数据有多可信"，
+      与"结构填没填"是两件事，混在一起会让分数含义变模糊。
     """
     import sqlite3 as _s
     conn = _s.connect(DB)
+    n_all = conn.execute("SELECT COUNT(*) FROM facts").fetchone()[0]
     n_sup = conn.execute("SELECT COUNT(*) FROM facts WHERE status='superseded'").fetchone()[0]
     n_ret = conn.execute("SELECT COUNT(*) FROM facts WHERE status='retired'").fetchone()[0]
     by_filled = conn.execute(
-        "SELECT COUNT(*) FROM facts WHERE superseded_by IS NOT NULL AND superseded_by!=''").fetchone()[0]
+        "SELECT COUNT(*) FROM facts WHERE status='superseded' "
+        "AND superseded_by IS NOT NULL AND superseded_by!=''").fetchone()[0]
     vt_filled = conn.execute(
-        "SELECT COUNT(*) FROM facts WHERE valid_to IS NOT NULL AND valid_to!=''").fetchone()[0]
+        "SELECT COUNT(*) FROM facts WHERE status IN ('superseded','retired') "
+        "AND valid_to IS NOT NULL AND valid_to!=''").fetchone()[0]
+    vf_filled = conn.execute(
+        "SELECT COUNT(*) FROM facts WHERE valid_from IS NOT NULL AND valid_from!=''").fetchone()[0]
+    rec_filled = conn.execute(
+        "SELECT COUNT(*) FROM facts WHERE recorded_at IS NOT NULL AND recorded_at!=''").fetchone()[0]
+    n_native = conn.execute(
+        "SELECT COUNT(*) FROM facts WHERE temporal_source='native'").fetchone()[0]
     conn.close()
 
     r1 = by_filled / n_sup if n_sup else 0.0
-    r2 = vt_filled / (n_sup + n_ret) if (n_sup + n_ret) else 0.0
+    r2 = (vf_filled + rec_filled) / (2.0 * n_all) if n_all else 0.0
+    r4 = vt_filled / (n_sup + n_ret) if (n_sup + n_ret) else 0.0
 
     # ③ 精确冲突（确定性，可用作指标）
-    unresolved_exact, total_exact = 0, 0
+    unresolved_exact, total_exact, reviewed_exact = 0, 0, 0
     try:
         import governance as _g
+        nf = _g.reviewed_no_conflict()
         for x in _g.detect_explicit_conflicts():
             if x['pos']['uid'] != x['neg']['uid']:
                 total_exact += 1
+                # 已人工复核否定为"非冲突"的不计分（规则只生成候选，结论靠留痕）。
+                # ★没有这一步，误报会永久扣分且无人能纠正——本库已有真实案例：
+                #   架构描述 vs 故障记录 被判极性冲突（见 governance.record_conflict_review 注释）
+                if frozenset((x['pos']['uid'], x['neg']['uid'])) in nf:
+                    reviewed_exact += 1
+                    continue
                 unresolved_exact += 1   # 只要检测到就是"未处理"（处理掉就不再是 active 冲突）
     except Exception:
         pass
@@ -134,18 +164,11 @@ def _govern():
     # 保守起见用"当前未处理"直接做反比；0 个未处理 = 满分
     r3 = max(0.0, 1.0 - unresolved_exact / 10.0)
 
-    # ④ 退役有据率：退役条目里，valid_to 有值且（superseded_by 有值 或 属 retired）的比例
-    conn = _s.connect(DB)
-    n_doc = conn.execute(
-        "SELECT COUNT(*) FROM facts WHERE status IN ('superseded','retired') "
-        "AND valid_to IS NOT NULL AND valid_to!=''").fetchone()[0]
-    conn.close()
-    r4 = n_doc / (n_sup + n_ret) if (n_sup + n_ret) else 0.0
-
     val = (r1 + r2 + r3 + r4) / 4
-    detail = ('替代链 %d/%d · 失效时间 %d/%d · 未处理冲突 %d · 退役有据 %d/%d'
-              % (by_filled, n_sup, vt_filled, n_sup + n_ret,
-                 unresolved_exact, n_doc, n_sup + n_ret))
+    detail = ('替代链 %d/%d · 时间轴 vf%d+rec%d/%d · 失效闭环 %d/%d · 未处理冲突 %d'
+              '（已复核误报 %d）· native %d'
+              % (by_filled, n_sup, vf_filled, rec_filled, n_all * 2,
+                 vt_filled, n_sup + n_ret, unresolved_exact, reviewed_exact, n_native))
     return val, detail
 
 
@@ -194,7 +217,7 @@ def score():
         ("③ 正确率", "%d+%d/%d+%d" % (p1, p2, t1, t2), c_acc,
          "主集 + 留出集（均走生产检索链路 search_hybrid）"),
         ("④ 治理度", gov_detail, c_gov,
-         "替代链/失效时间/精确冲突/退役有据"),
+         "替代链/双时间轴覆盖/失效闭环/冲突复核"),
     ]
     for name, raw, val, desc in rows:
         bar = "#" * int(val * 24) + "." * (24 - int(val * 24))
@@ -220,17 +243,34 @@ def score():
     lines.append("       - 66 条资产对 mem.py search 完全不可见（资产表没进检索）")
     lines.append("       - 旧评测自己拼 LIKE 直查表 → 卷子绿、生产查不到")
     lines.append("       ★教训：评测器本身也是被测对象。分数高先怀疑卷子。")
-    lines.append("    ③ ④ 治理度是本轮新加的维度，它衡量的是'结构被真正使用'")
-    lines.append("       而非'机制存在'——替代链 0 填时它直接给 0 分，不给情面。")
-    lines.append("       当前 45% 偏低的原因已查明：历史 38 条 superseded 是批量导库时")
-    lines.append("       打的标记，既无 valid_to 也无 superseded_by；只有本轮手工处理的")
-    lines.append("       3 条是完整的。这个数字是**诚实的历史欠账**，不是检测器噪音。")
+    lines.append("    ③ 治理度衡量的是'结构被真正使用'而非'机制存在'——")
+    lines.append("       替代链 0 填时它直接给 0 分，不给情面。")
+    lines.append("       ★2026-09-16 完成 bi-temporal 迁移，该维度 46.6% → 81.6%：")
+    lines.append("         ○ 替代链 17→24/41（7 条经语义配对＋逐条人工复核补入）")
+    lines.append("         ○ 新增时间轴覆盖率。此前四项**没有一项测 valid_from**，")
+    lines.append("           导致 active 270 条里 264 条缺 T 轴，却无人能在分数上看出来")
+    lines.append("         ○ 失效闭环 17→36/53")
+    lines.append("         ○ 原 ②「失效时间记录率」与原 ④「退役有据率」实为同一指标")
+    lines.append("           （都只是 valid_to 覆盖率）被计了两次权重，属口径缺陷。")
+    lines.append("           已改为'时间轴覆盖'与'失效闭环'两项——")
+    lines.append("           **分数没有变高，是含义变对了**，务必别把这次修正读成刷分。")
+    lines.append("       ★时间轴数据来历（native/backfilled/inferred）**不进本卡**——")
+    lines.append("         native 目前仅 4 条、其余皆为回填。它衡量的是'数据有多可信'，")
+    lines.append("         与'结构填没填'是两件事，混进来会让分数含义变模糊。")
+    lines.append("       仍未满分的部分如实保留：17 条 superseded 属导入去重残留、")
+    lines.append("       无唯一替代者，已留档 docs/supersede_candidates.json 待人工处理，")
+    lines.append("       **不猜**（规则法配对实测有误配，见坑 15）。")
     lines.append("    ④ 启发式冲突检测（find_conflicts）**故意不进本卡**——")
     lines.append("       实测 8 条'自矛盾'逐条核实全是误报（对比说明/互补决策被误判），")
     lines.append("       规则法做 NL 矛盾检测的天花板就在这里。它只作人工复核候选。")
-    lines.append("    ④ 通用能力（长程推理、时序、知识更新、跨会话指代）本卡仍不测——")
-    lines.append("       那需要 LoCoMo/LongMemEval/BEAM，属另一条轨道，尚未跑。")
-    lines.append("    ⑤ ★运行态（2026-09-15 23:5x 更新）：语义检索路**已从降级中恢复**——")
+    lines.append("       但精确检测（detect_explicit_conflicts）会进卡，且支持人工复核留痕——")
+    lines.append("       已有一例误报（架构描述 vs 故障记录）经复核否定后不再扣分。")
+    lines.append("    ⑤ 通用能力（长程推理、时序、知识更新、跨会话指代）本卡不测——")
+    lines.append("       那需要外部基准（轨道 A）。现已跑通 LongMemEval 60 题：")
+    lines.append("       strict 58.5%（检索）/ llm 45.8%（端到端），双判分口径不同。")
+    lines.append("       ★该分数在 judge 自检 18/18 通过后才采信（见 judge_selfcheck.py）。")
+    lines.append("       本卡与它口径不同，**不混算、不互相替代**。")
+    lines.append("    ⑥ ★运行态（2026-09-15 23:5x 更新）：语义检索路**已从降级中恢复**——")
     lines.append("       本地 embedding（bge-m3 int8, 1024 维）已接入并成为默认后端，")
     lines.append("       不再依赖外部付费通道。此前 22:15 的告警（智谱 429 欠费 →")
     lines.append("       查询侧无法 embed → 每次退回纯关键词）**已作废**。")

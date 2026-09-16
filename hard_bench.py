@@ -17,6 +17,7 @@
   答案键都是**本机实测事实**（路径存在、资产确实在库），不依赖 LLM judge。
 
 【用法】
+  python hard_bench.py selftest            # 题集传参自检（秒级，不加载模型）
   python hard_bench.py run                 # 当前后端跑一次
   python hard_bench.py compare             # 逐个模型：重建索引 → 跑 → 出对比表
 """
@@ -25,10 +26,32 @@ import re
 import sys
 import json
 import time
+import tempfile
 import subprocess
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PY = os.path.join(HERE, '.venv-memory', 'Scripts', 'python.exe')
+
+
+def cases_ipc(cases=None):
+    """把题集写成一个「子进程读得到」的临时文件，返回其路径。
+
+    ★为什么必须走系统临时目录，而不是仓库里的 _hb_cases.json（2026-09-16 修）
+      那个文件从来只是「父进程写 → 子进程读」的进程间传参通道，
+      却被当成仓库文件提交了。而 hard_holdout.py 会执行 `HB.CASES = HOLDOUT`
+      把本题集的 CASES 换成 22 题留出集；于是
+          「先跑留出集 → 再跑任何 import hard_bench 的脚本」
+      就会把 22 题**写回仓库里的 62 题文件**，题集真源被静默污染
+      （rerank_k_bench 因此只跑 22 题，看起来"跑通了"其实卷子被换了）。
+
+      题集真源只有一个：本模块的 CASES（带答案键，可判分）。
+      传参改走临时文件后，仓库不再参与，这类污染从结构上不可能发生。
+    """
+    fd, path = tempfile.mkstemp(suffix='.json', prefix='hb_cases_')
+    with os.fdopen(fd, 'w', encoding='utf-8') as f:
+        json.dump([{'id': c['id'], 'q': c['q']} for c in (cases or CASES)],
+                  f, ensure_ascii=False)
+    return path
 
 # id, 问题（回避实体名）, 期望命中正则（任一）, 禁止出现正则
 CASES = [
@@ -226,11 +249,12 @@ def _query_all(model_key, limit=10):
     env['MEM_EMBED_MODEL'] = model_key
     env['MEM_EMBED_BACKEND'] = 'local'
     env['PYTHONPATH'] = HERE
+    env['HB_CASES'] = cases_ipc()
     script = r'''
 import os, sys, json
 sys.path.insert(0, %r)
 import memsearch
-cases = json.load(open('_hb_cases.json', encoding='utf-8'))
+cases = json.load(open(os.environ['HB_CASES'], encoding='utf-8'))
 out = []
 for c in cases:
     try:
@@ -242,10 +266,14 @@ for c in cases:
     out.append({'id': c['id'], 'blob': blob, 'sim_max': max(sims) if sims else 0.0})
 print(json.dumps({'info': memsearch.LAST_EMBED_INFO, 'rows': out}, ensure_ascii=False))
 ''' % (HERE, limit)
-    with open(os.path.join(HERE, '_hb_cases.json'), 'w', encoding='utf-8') as f:
-        json.dump([{'id': c['id'], 'q': c['q']} for c in CASES], f, ensure_ascii=False)
-    r = subprocess.run([PY, '-c', script], cwd=HERE, env=env,
-                       capture_output=True, text=True, timeout=3600)
+    try:
+        r = subprocess.run([PY, '-c', script], cwd=HERE, env=env,
+                           capture_output=True, text=True, timeout=3600)
+    finally:
+        try:
+            os.remove(env['HB_CASES'])
+        except OSError:
+            pass
     if r.returncode != 0:
         return None, (r.stderr or '')[-300:]
     try:
@@ -330,10 +358,58 @@ def run(model_key=None):
             print('    [FAIL] %s  %s' % (cid, q))
 
 
+def selftest():
+    """快速自检：题集传参通道不得写回仓库（2026-09-16 加入的回归保护）。
+
+    背景见 cases_ipc 的文档串。断言三件事：
+      ① 传参文件落在系统临时目录，不在仓库目录；
+      ② 跑一趟之后仓库目录不多出任何文件（尤其不出现 _hb_cases.json）；
+      ③ 传参内容跟随传入的题集（这是 hard_holdout 换卷子能生效的前提）。
+    不加载任何模型，秒级完成，可以放进回归流水线。
+    """
+    fails = []
+    before = set(os.listdir(HERE))
+    p1 = cases_ipc()
+    n1 = len(json.load(open(p1, encoding='utf-8')))
+    if os.path.dirname(os.path.abspath(p1)) == HERE:
+        fails.append('传参文件落在了仓库目录：%s' % p1)
+    if n1 != len(CASES):
+        fails.append('传参题数 %d != 当前 CASES %d' % (n1, len(CASES)))
+
+    probe = [dict(id='Z1', q='探针一'), dict(id='Z2', q='探针二')]
+    p2 = cases_ipc(probe)
+    n2 = len(json.load(open(p2, encoding='utf-8')))
+    if n2 != 2:
+        fails.append('显式传入题集未生效：期望 2 题，实得 %d' % n2)
+
+    for p in (p1, p2):
+        try:
+            os.remove(p)
+        except OSError:
+            pass
+
+    leftover = sorted(set(os.listdir(HERE)) - before)
+    if leftover:
+        fails.append('仓库目录多出文件：%s' % leftover)
+    if os.path.exists(os.path.join(HERE, '_hb_cases.json')):
+        fails.append('仓库里又出现 _hb_cases.json —— 传参通道被写回仓库了')
+
+    if fails:
+        print('题集传参自检：FAIL')
+        for x in fails:
+            print('  - %s' % x)
+        return 1
+    print('题集传参自检：PASS（临时目录 %s；当前卷子 %d 题；仓库目录无新增文件）'
+          % (os.path.dirname(p1), len(CASES)))
+    return 0
+
+
 if __name__ == '__main__':
     a = sys.argv[1] if len(sys.argv) > 1 else 'run'
     if a == 'compare':
         models = sys.argv[2:] if len(sys.argv) > 2 else None
         compare(models)
+    elif a == 'selftest':
+        sys.exit(selftest())
     else:
         run(sys.argv[2] if len(sys.argv) > 2 else None)

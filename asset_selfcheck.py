@@ -27,13 +27,13 @@ def main():
         import sqlite3
         c = sqlite3.connect(os.path.join(HERE, "memory.db"))
         now = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        c.execute("""INSERT INTO facts(uid,type,subject,content,status,valid_from,
-                     source,scope,confidence,tags,created_at,updated_at)
-                     VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
+        c.execute("""INSERT INTO facts(uid,type,subject,content,status,valid_from,recorded_at,
+                     temporal_source,source,scope,confidence,tags,created_at,updated_at)
+                     VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                   ("alert-" + dt.datetime.now().strftime("%Y%m%d%H%M%S"), "incident",
                    "资产自检告警",
                    "结论：资产自检得分 %.1f%% < 90%%，需人工检查 tool_assets。" % (total * 100),
-                   "active", now, "asset_selfcheck.py", "global", 1.0,
+                   "active", now, now, "native", "asset_selfcheck.py", "global", 1.0,
                    '["alert"]', now, now))
         c.commit()
         log.append("ALERT 已写入 facts")

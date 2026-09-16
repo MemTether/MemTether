@@ -17,6 +17,12 @@ backup/
 *.log
 .sink.lock
 
+# 评测题集的进程间传参文件（2026-09-16）
+# ★曾经被当仓库文件提交过一次，结果 hard_holdout 把 CASES 换成 22 题留出集后
+#   又被写回，62 题真源被静默污染。现在传参一律走系统临时目录（见 hard_bench.cases_ipc），
+#   这里留条规则兜底：任何旧的 _hb_cases.json 都不再进版本库。
+_hb_cases*.json
+
 # 轨道A基准数据集（体积大，可重新下载）
 bench_data/
 

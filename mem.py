@@ -34,6 +34,7 @@ import hashlib
 import json
 import os
 import re
+import sqlite3
 import sys
 import time
 from pathlib import Path
@@ -45,7 +46,10 @@ LOCK = HUB / '.sink.lock'
 WM = HUB / 'watermarks.json'
 AGENTS_F = HUB / 'agents.json'
 BACKUP = HUB / '.backup'
-TYPES = ('experience', 'fact', 'todo')
+# ★2026-09-16 修正：原值只有 ('experience','fact','todo')，但 facts 表里实际还有
+#   decision(20 条)/incident(6 条)，导致 `mem.py asof --type decision` 会被 argparse
+#   直接拒绝（报 invalid choice），而这类"决策/事故"恰恰是时序查询最常问的对象。
+TYPES = ('experience', 'fact', 'todo', 'decision', 'incident', 'preference', 'environment')
 KEEP_BACKUPS = 12
 
 # ---------- gateway 桥接（2026-09-13）----------
@@ -821,6 +825,70 @@ def _env_guard() -> None:
             % ', '.join(miss))
 
 
+def cmd_asof(a) -> None:
+    """双时间轴 as-of 查询。
+
+      --kind valid   T 轴：在 at 时刻，**现实世界**哪些事实成立
+      --kind known   T'轴：在 at 时刻，**系统认为**哪些事实成立
+
+    ★两者不同正是 bi-temporal 的价值。本库真实例：
+      「DeepSeek 官方 API 已充值可用」现实里 09-15 失效、系统当晚 21:07 才发现。
+      问 2026-09-15 12:00 → valid 已失效、known 仍认为可用。
+      只有两条轴都在，才能解释"当时为什么那样决策"。
+    """
+    import gateway as _gw
+    r = _gw.as_of(a.at, kind=a.kind, ftype=getattr(a, 'ftype', None), limit=a.limit)
+    lab = '现实成立(T轴)' if a.kind == 'valid' else "系统当时认为(T'轴)"
+    print('as-of %s  [%s]  命中 %d 条   （当前 active 共 %s 条）'
+          % (r['at'], lab, r['count'], r['active_now']))
+    print('-' * 78)
+    shown = 0
+    for x in r['rows']:
+        if shown >= 30:
+            print('… 另有 %d 条未显示（用 --limit 调整）' % (r['count'] - shown))
+            break
+        print('[%-10s] %s  %s' % (x['status'], x['uid'][:30],
+                                  ('vf=%s vt=%s' % (x['valid_from'] or '?',
+                                                    x['valid_to'] or '至今'))
+                                  if a.kind == 'valid' else
+                                  ('rec=%s inv=%s' % (x['recorded_at'] or '?',
+                                                      x['invalidated_at'] or '至今'))))
+        print('    %s' % (x['content'] or '')[:104].replace('\n', ' '))
+        shown += 1
+
+
+def cmd_timeline(a) -> None:
+    """沿替代链还原一条事实的完整演化（支持 uid 前缀）。"""
+    import gateway as _gw
+    uid = a.uid
+    c = sqlite3.connect(str(HUB / 'memory.db'))
+    if not c.execute('SELECT 1 FROM facts WHERE uid=?', (uid,)).fetchone():
+        rs = c.execute('SELECT uid FROM facts WHERE uid LIKE ?', (uid + '%',)).fetchall()
+        c.close()
+        if len(rs) == 1:
+            uid = rs[0][0]
+        elif len(rs) > 1:
+            print('前缀命中 %d 条，请给更长的 uid：' % len(rs))
+            for r in rs[:12]:
+                print('   %s' % r[0])
+            return
+        else:
+            print('未找到: %s' % a.uid)
+            return
+    else:
+        c.close()
+
+    ch = _gw.timeline(uid)
+    print('演化链 %d 段（沿 superseded_by 前进）：' % len(ch))
+    for i, s in enumerate(ch):
+        print()
+        print('[%d] %s   status=%s   temporal_source=%s'
+              % (i, s['uid'], s['status'], s['temporal_source'] or '-'))
+        print("    T  有效窗口: %-19s → %s" % (s['valid_from'] or '?', s['valid_to'] or '至今'))
+        print("    T' 摄录窗口: %-19s → %s" % (s['recorded_at'] or '?', s['invalidated_at'] or '至今'))
+        print('    %s' % (s['content'] or '')[:190].replace('\n', ' '))
+
+
 def main() -> None:
     _env_guard()
     ap = argparse.ArgumentParser(description='多智能体共享记忆总线')
@@ -859,11 +927,21 @@ def main() -> None:
     di.add_argument('--model', default='gptx_astra', help='提炼用的通道名，默认 gptx_astra')
     di.add_argument('--commit', action='store_true', help='把结论写回中枢（默认只预览）')
 
+    ao = sub.add_parser('asof', help='双时间轴查询：某时刻什么为真 / 系统当时认为什么为真')
+    ao.add_argument('at', help='时间点，如 2026-09-15 或 "2026-09-15 22:00"')
+    ao.add_argument('--kind', choices=['valid', 'known'], default='valid',
+                    help="valid=现实成立(T轴) / known=系统当时认为(T'轴)")
+    ao.add_argument('--type', dest='ftype', choices=TYPES)
+    ao.add_argument('--limit', type=int, default=50)
+
+    tl = sub.add_parser('timeline', help='沿替代链还原一条事实的演化过程')
+    tl.add_argument('uid')
+
     args = ap.parse_args()
     fn = {'add': cmd_add, 'list': cmd_list, 'search': cmd_search, 'since': cmd_since,
           'drain': cmd_drain, 'agents': cmd_agents, 'verify': cmd_verify,
           'render': cmd_render, 'migrate': cmd_migrate, 'stats': cmd_stats,
-          'distill': cmd_distill}.get(args.cmd)
+          'distill': cmd_distill, 'asof': cmd_asof, 'timeline': cmd_timeline}.get(args.cmd)
     if not fn:
         ap.print_help()
         return

@@ -55,8 +55,11 @@ CREATE TABLE IF NOT EXISTS facts (
   content TEXT NOT NULL,      -- 正文
   status TEXT DEFAULT 'active', -- candidate/active/superseded/revoked/retired/conflicted/frozen
   superseded_by TEXT,         -- 指向替代它的 uid
-  valid_from TEXT,
-  valid_to TEXT,
+  valid_from TEXT,            -- T轴(有效时间): 现实世界开始成立的时间
+  valid_to TEXT,              -- T轴: 现实世界停止成立的时间(NULL=仍成立)
+  recorded_at TEXT,           -- T'轴(摄录时间): 系统第一次记录该事实的时刻
+  invalidated_at TEXT,        -- T'轴: 系统第一次认定该事实失效的时刻
+  temporal_source TEXT,       -- 时间轴数据来历 native/backfilled/inferred
   source TEXT,                -- workbuddy/openclaw/doubao_a/doubao_b/user/legacy
   scope TEXT DEFAULT 'shared',-- shared/workbuddy/openclaw/doubao/project:<n>/run:<id>
   confidence REAL DEFAULT 0.8,
@@ -115,6 +118,22 @@ CREATE TABLE IF NOT EXISTS audit_log (
   target TEXT,
   agent TEXT,
   detail TEXT,
+  ts TEXT
+);
+
+-- 冲突复核留痕（2026-09-16）
+-- 动机：detect_explicit_conflicts 被定位为"误报率低的确定性检测"，但实测仍会误判——
+--   例：「四层架构已落地(含 astra 通道)」vs「astra 403 欠费」被判为极性冲突，
+--   实为**互补信息**（一个讲配置存在、一个讲当前故障），并不矛盾。
+--   若无复核留痕，这类误报会永久扣治理度分且无人能纠正。
+-- 设计：规则只负责**生成候选**，人工复核结论单独留痕；评分卡据此排除已否定的对。
+CREATE TABLE IF NOT EXISTS conflict_reviews (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  uid_a TEXT,                 -- 无序对，写入时按 uid 字典序归一
+  uid_b TEXT,
+  verdict TEXT,               -- no_conflict / real_conflict
+  note TEXT,
+  by_agent TEXT,
   ts TEXT
 );
 
@@ -218,9 +237,17 @@ def _vec_delete(uid):
 
 
 def remember(content, type='fact', source='workbuddy', scope='shared', subject='user',
-             confidence=0.8, tags='', status='active', mem0=False):
+             confidence=0.8, tags='', status='active', mem0=False, valid_from=None):
     """写入/更新一条事实。若内容高度相似则更新，若冲突则 supersede。
-    可选 mem0=True 时同步写入 Mem0 语义索引（自动提取+冲突消解）。"""
+    可选 mem0=True 时同步写入 Mem0 语义索引（自动提取+冲突消解）。
+
+    valid_from: T 轴（有效时间）起点。默认 None → 取当前时刻，即假定"记录时即成立"。
+      事后复盘类事实应**显式传入**：例如本库真实条目
+      "通知问题定案(2026-09-11)" 是 09-13 才记录的，
+      其 valid_from 应为 2026-09-11、recorded_at 为 09-13。
+      ★这正是双时间轴存在的意义——让"事实何时成立"与"系统何时知道"分离，
+        否则查"09-12 系统认为什么为真"会得出错误结论。
+    """
     init_db()
     conn = get_conn()
     try:
@@ -260,10 +287,13 @@ def remember(content, type='fact', source='workbuddy', scope='shared', subject='
         except Exception:
             pass
 
+        ts = now()
         conn.execute(
-            """INSERT INTO facts (uid,type,subject,content,status,source,scope,confidence,tags,created_at,updated_at)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
-            (uid, type, subject, content, status, source, scope, confidence, tags, now(), now()))
+            """INSERT INTO facts (uid,type,subject,content,status,source,scope,confidence,tags,
+                                  created_at,updated_at,valid_from,recorded_at,temporal_source)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (uid, type, subject, content, status, source, scope, confidence, tags,
+             ts, ts, valid_from or ts, ts, 'native'))
         audit(conn, 'remember', uid, source, content[:80])
         conn.commit()
 
@@ -280,8 +310,15 @@ def remember(content, type='fact', source='workbuddy', scope='shared', subject='
         conn.close()
 
 
-def correct(old_uid, new_content, reason, by_agent='workbuddy'):
-    """用户纠正：旧事实 supersede，新事实 active。"""
+def correct(old_uid, new_content, reason, by_agent='workbuddy', valid_from=None):
+    """用户纠正：旧事实 supersede，新事实 active。
+
+    双时间轴处理：
+      旧事实 valid_to = 新事实 valid_from（T 轴连续——旧事实止于新事实起，
+        不留下"两边都不成立"的时间空档）
+      旧事实 invalidated_at = 当前时刻（T' 轴——**我们此刻**才判定它失效，
+        可能与 valid_to 不同；若纠正的是陈年旧事，两个值会明显分离）
+    """
     init_db()
     conn = get_conn()
     try:
@@ -289,15 +326,19 @@ def correct(old_uid, new_content, reason, by_agent='workbuddy'):
         if not old:
             return {'ok': False, 'error': 'old uid not found: %s' % old_uid}
         new_uid = _uid('fact', new_content + by_agent)
+        ts = now()
+        nvf = valid_from or ts          # 新事实的 T 轴起点
         # 旧事实标记 superseded
-        conn.execute("UPDATE facts SET status='superseded', superseded_by=?, valid_to=?, updated_at=? WHERE uid=?",
-                     (new_uid, now(), now(), old_uid))
+        conn.execute("UPDATE facts SET status='superseded', superseded_by=?, valid_to=?, "
+                     "invalidated_at=?, updated_at=? WHERE uid=?",
+                     (new_uid, nvf, ts, ts, old_uid))
         # 新事实写入
         conn.execute(
-            """INSERT INTO facts (uid,type,subject,content,status,source,scope,confidence,created_at,updated_at)
-               VALUES (?,?,?,?,?,?,?,?,?,?)""",
+            """INSERT INTO facts (uid,type,subject,content,status,source,scope,confidence,
+                                  created_at,updated_at,valid_from,recorded_at,temporal_source)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (new_uid, old['type'], old['subject'], new_content, 'active',
-             by_agent, old['scope'], 1.0, now(), now()))
+             by_agent, old['scope'], 1.0, ts, ts, nvf, ts, 'native'))
         conn.execute("INSERT INTO supersessions (old_uid,new_uid,reason,by_agent,ts) VALUES (?,?,?,?,?)",
                      (old_uid, new_uid, reason, by_agent, now()))
         audit(conn, 'correct', old_uid, by_agent, '%s -> %s' % (old['content'][:40], new_content[:40]))
@@ -311,18 +352,114 @@ def correct(old_uid, new_content, reason, by_agent='workbuddy'):
 
 
 def retire(uid, reason, by_agent='workbuddy'):
-    """退役机制/工具。"""
+    """退役机制/工具。双时间轴：valid_to 与 invalidated_at 都记当前时刻
+    （退役是"现在就判定不再有效"的动作，两轴在此重合；若某条事实是
+     事后才补记退役，则应改用 governance.retire 并另行指定 valid_to）。"""
     init_db()
     conn = get_conn()
     try:
-        conn.execute("UPDATE facts SET status='retired', valid_to=?, updated_at=? WHERE uid=?",
-                     (now(), now(), uid))
+        ts = now()
+        conn.execute("UPDATE facts SET status='retired', valid_to=?, invalidated_at=?, "
+                     "updated_at=? WHERE uid=?",
+                     (ts, ts, ts, uid))
         conn.execute("UPDATE tool_assets SET status='retired', updated_at=? WHERE uid=?",
-                     (now(), uid))
+                     (ts, uid))
         audit(conn, 'retire', uid, by_agent, reason)
         conn.commit()
         _vec_delete(uid)
         return {'ok': True, 'uid': uid, 'op': 'retired'}
+    finally:
+        conn.close()
+
+
+def _norm_at(at):
+    """把 as-of 时间点归一化为可比较的字符串。
+    只给日期 → 视为当天末尾（"截至那天为止"的直觉语义）。"""
+    at = (at or '').strip()
+    if not at:
+        return now()
+    if len(at) == 10:
+        return at + ' 23:59:59'
+    if len(at) == 16:
+        return at + ':59'
+    return at
+
+
+def as_of(at, kind='valid', ftype=None, subject=None, source=None, limit=200):
+    """双时间轴 as-of 查询：回答"在某个时间点，什么是真的 / 系统知道什么"。
+
+      kind='valid'  T 轴（有效时间）—— 现实世界在 at 时刻，哪些事实成立
+                    条件 valid_from <= at AND (valid_to 为空 OR valid_to > at)
+      kind='known'  T'轴（摄录时间）—— 系统在 at 时刻**认为**哪些事实成立
+                    条件 recorded_at <= at AND (invalidated_at 为空 OR invalidated_at > at)
+
+    ★两条轴的差异正是这套模型的价值。用本库真实事件说明：
+      「DeepSeek 官方 API 已充值 10 元可用」现实里 2026-09-15 失效，
+      但系统当晚 21:07 才发现并落库。
+        问 2026-09-15 12:00 —
+          kind='valid' → 已失效（现实如此）
+          kind='known' → 仍认为"可用"（系统当时确实还不知道）
+      只有同时具备两条轴，才能解释"当时为什么那样决策"，
+      也才能避免用今天的信息去责备昨天的判断。
+    """
+    init_db()
+    conn = get_conn()
+    try:
+        t = _norm_at(at)
+        where, args = [], []
+        if kind == 'valid':
+            where.append("valid_from IS NOT NULL AND valid_from!='' AND valid_from<=?")
+            args.append(t)
+            where.append("(valid_to IS NULL OR valid_to='' OR valid_to>?)")
+            args.append(t)
+        else:                                   # known
+            where.append("recorded_at IS NOT NULL AND recorded_at!='' AND recorded_at<=?")
+            args.append(t)
+            where.append("(invalidated_at IS NULL OR invalidated_at='' OR invalidated_at>?)")
+            args.append(t)
+        if ftype:
+            where.append('type=?'); args.append(ftype)
+        if subject:
+            where.append('subject=?'); args.append(subject)
+        if source:
+            where.append('source=?'); args.append(source)
+        sql = ("SELECT uid,type,subject,content,status,valid_from,valid_to,recorded_at,"
+               "invalidated_at,temporal_source,superseded_by,source FROM facts WHERE "
+               + ' AND '.join(where) + " ORDER BY COALESCE(valid_from,created_at) LIMIT ?")
+        args.append(limit)
+        rows = [dict(r) for r in conn.execute(sql, args)]
+        # 附带"此刻仍为真"的条数，便于一眼看出历史与现状差多少
+        try:
+            live = conn.execute(
+                "SELECT COUNT(*) FROM facts WHERE status='active'"
+                + (" AND type=?" if ftype else '')
+                + (" AND subject=?" if subject else '')
+                + (" AND source=?" if source else ''),
+                tuple(x for x in (ftype, subject, source) if x)).fetchone()[0]
+        except Exception:
+            live = None
+        return {'at': t, 'kind': kind, 'count': len(rows),
+                'active_now': live, 'rows': rows}
+    finally:
+        conn.close()
+
+
+def timeline(uid, max_hops=20):
+    """沿替代链还原一条事实的完整演化时间轴（forward: 它被谁取代）。"""
+    init_db()
+    conn = get_conn()
+    try:
+        chain, seen, cur = [], set(), uid
+        while cur and cur not in seen and len(chain) < max_hops:
+            seen.add(cur)
+            r = conn.execute(
+                "SELECT uid,status,content,valid_from,valid_to,recorded_at,invalidated_at,"
+                "temporal_source,superseded_by FROM facts WHERE uid=?", (cur,)).fetchone()
+            if not r:
+                break
+            chain.append(dict(r))
+            cur = r['superseded_by']
+        return chain
     finally:
         conn.close()
 

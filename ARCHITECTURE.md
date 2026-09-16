@@ -15,6 +15,8 @@
 │  ├─ search     混合检索（向量+ASCII+字面）  │
 │  ├─ correct    用户纠正 → supersede 旧事实  │
 │  ├─ retire     退役机制/工具                │
+│  ├─ as_of      时序查询：某时刻什么为真 / 系统当时认为什么为真 │
+│  ├─ timeline   沿替代链还原一条事实的完整演化（双轴并列）│
 │  ├─ record_tool 记录工具/路径/地址资产      │
 │  ├─ resolve_task 按任务召回完整执行配方     │
 │  ├─ event/process_events  事件驱动自动闭环  │
@@ -41,7 +43,8 @@
 | 事实提取 LLM | deepseek-chat（官方） | 1.3s、便宜，质量够用 |
 | 自动记忆引擎 | Mem0 2.0.20 | 冲突消解(ADD/UPDATE/DELETE) + 自动提取 |
 | 检索模块 | memsearch.py | 质量门禁+向量+ASCII+字面 四路融合（见第六节） |
-| embedding | 智谱 embedding-3 | 免费、2048维、中文友好 |
+| embedding | **本地 bge-m3 int8**（默认） | 1024维、543MB、短进程零常驻；可选智谱 embedding-3（2048维）。**切后端须重建索引**，维度不符会硬报错 |
+| 精排 | bge-reranker-base int8 | 266MB；单次查询 98.4% 耗时在这里，`MEM_RERANK_K` 可调 |
 | 向量库 | ChromaDB 1.5.9 | 本地目录 mem0_store/，collection=`facts_active`，无 Docker |
 
 > **注意**：语义检索的实际入口是 `memsearch.py`（直接查 ChromaDB 的 `facts_active`），
@@ -57,6 +60,15 @@
 5. 任务检索优先 resolve_task 返回配方，不是散乱记忆。
 6. 候选（candidate）不能伪装成 active 事实。
 7. *.md 是投影，改记忆请用 gateway，别手改 md。
+8. **时间必须成对记录**：T 轴（`valid_from`/`valid_to`，现实世界何时成立）与
+   T′轴（`recorded_at`/`invalidated_at`，系统何时记录、何时认定失效）都要维护，
+   `temporal_source` 标注数据来历（native/backfilled/inferred）。
+   **只记一根轴 = 历史查询会静默给出错误结论**（见 docs/bitemporal-migration-2026-09-16.md）。
+9. **派生文件不许进版本库**。「父进程写、子进程读」的传参文件是 IPC 不是产物；
+   一旦提交，任何"换掉题集/换掉配置"的运行时行为都会把它覆盖成污染源
+   （实例：`_hb_cases.json` 被 hard_holdout 写成 22 题，使 62 题真源失效，
+   且 `rerank_k_bench` 分子来自文件、分母来自常量，**分数依然自洽看不出异常**）。
+   判据：**删掉它会不会丢信息？** 不会 → 它是派生物，传参改走系统临时目录。
 
 ## 四、常用命令
 

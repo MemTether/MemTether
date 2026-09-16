@@ -521,6 +521,53 @@ HALFLIFE_BY_TYPE = {'decision': 120, 'incident': 120, 'experience': 45, 'fact': 
 DECAY_FLOOR = 0.35
 
 
+def _norm_pair(a, b):
+    """冲突对归一为无序，避免 (a,b)/(b,a) 各存一条。"""
+    return (a, b) if a <= b else (b, a)
+
+
+def record_conflict_review(uid_a, uid_b, verdict, note='', by_agent='workbuddy'):
+    """记录一次冲突的人工复核结论。
+
+    ★为什么需要这张表：detect_explicit_conflicts 定位是"误报率低的确定性检测"，
+      但实测仍会误判。本库真实例（2026-09-16）：
+        「四层架构已全部落地（含 gptx_astra 通道配置）」
+        「2026-09-15 22:15 Astra GPTX_ASTRA_KEY 403 insufficient balance」
+      被判为 gptx_astra 的极性冲突，实为**互补信息**——一条讲配置存在、
+      一条讲当前故障，并不矛盾。
+      若无复核留痕，这类误报会**永久扣治理度分且无人能纠正**。
+      → 规则只负责生成候选，人工复核结论单独留痕，评分卡据此排除已否定的对。
+    """
+    a, b = _norm_pair(uid_a, uid_b)
+    conn = sqlite3.connect(DB)
+    try:
+        # 自包含建表：本模块可能被独立调用（不经 gateway.init_db）
+        conn.execute("CREATE TABLE IF NOT EXISTS conflict_reviews ("
+                     "id INTEGER PRIMARY KEY AUTOINCREMENT, uid_a TEXT, uid_b TEXT, "
+                     "verdict TEXT, note TEXT, by_agent TEXT, ts TEXT)")
+        conn.execute("INSERT INTO conflict_reviews (uid_a,uid_b,verdict,note,by_agent,ts) "
+                     "VALUES (?,?,?,?,?,?)",
+                     (a, b, verdict, (note or '')[:300], by_agent,
+                      dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
+        conn.commit()
+        return {'ok': True, 'uid_a': a, 'uid_b': b, 'verdict': verdict}
+    finally:
+        conn.close()
+
+
+def reviewed_no_conflict():
+    """已被人工复核否定为"非冲突"的 uid 对（frozenset 集合，供评分卡排除）。"""
+    conn = sqlite3.connect(DB)
+    try:
+        rows = conn.execute("SELECT uid_a,uid_b FROM conflict_reviews "
+                            "WHERE verdict='no_conflict'").fetchall()
+        return {frozenset((a, b)) for a, b in rows}
+    except Exception:
+        return set()
+    finally:
+        conn.close()
+
+
 def decay_factor(updated_at, ftype='fact', halflife=None, now=None):
     """返回 (factor, age_days)。factor ∈ [DECAY_FLOOR, 1.0]。"""
     now = now or dt.datetime.now()
@@ -673,9 +720,9 @@ def retire(uid, by_uid=None, reason='', apply=False, force=False):
                 'residual_facts': resid[:5],
                 'residual_warning': bool(resid)}
     conn.execute(
-        "UPDATE facts SET status='superseded', valid_to=?, superseded_by=?, "
+        "UPDATE facts SET status='superseded', valid_to=?, invalidated_at=?, superseded_by=?, "
         "updated_at=? WHERE uid=?",
-        (now, by_uid, now, uid))
+        (now, now, by_uid, now, uid))
     conn.commit()
     conn.close()
     return {'ok': True, 'dry_run': False, 'uid': uid, 'status': 'superseded',
