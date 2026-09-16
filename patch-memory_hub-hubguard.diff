@@ -1,0 +1,138 @@
+--- a/gateway.py
++++ b/gateway.py
+@@ -1076,7 +1076,7 @@
+         _type_kept = {}
+         for _i, (_ts, _typ, _r) in _fill_order:
+             _d = (_r['updated_at'] or _r['created_at'] or '')[:10] or '????-??-??'
+-            _item = '- [%s|%s] %s' % (_d, _typ, _lead(_r['content']))
++            _item = _hg_fact_line(_d, _typ, _r['source'], _lead(_r['content']))  # >>> hubguard-attach:fact-line
+             if len(_item) + 1 > _room:
+                 # ★2026-09-16 七修：**跳过**装不下的长条目，继续尝试后面的短条目。
+                 #   旧实现是 break —— 一条 160 字的巨型事实就能让其后所有短条目全部作废，
+@@ -1142,10 +1142,46 @@
+                 mem_text = mem_text[:_BUDGET]
+                 _hard_clipped = True
+ 
+-        wb = os.path.expanduser(r'~\.workbuddy\MEMORY.md')
+-        os.makedirs(os.path.dirname(wb), exist_ok=True)
+-        with open(wb, 'w', encoding='utf-8') as f:
+-            f.write(mem_text)
++        # >>> hubguard-attach:proj-write
++        # 由 memtether/attach_hubguard.py 注入：原子写 + 格式回退闸门 + 投影路径可隔离
++        import time as _hg_t
++        _wb = (os.environ.get('MEM_PROJ_PATH')
++               or os.path.expanduser(r'~\.workbuddy\MEMORY.md'))
++        # ★保留原名 wb：rebuild 的返回体（`'mem': wb`）与后续日志都可能引用它。
++        #   在隔离副本上真打补丁时才暴露出来 —— 少这一行就 NameError。
++        wb = _wb
++        os.makedirs(os.path.dirname(_wb), exist_ok=True)
++        _hg_downgrade = None
++        _hg_writes = []
++        if HG is not None:
++            try:
++                with open(_wb, encoding='utf-8') as _hg_f:
++                    _hg_old = _hg_f.read()
++                _hg_no, _hg_nn = _count_tagged(_hg_old), _count_tagged(mem_text)
++                if _hg_no and not _hg_nn:
++                    # 磁盘上现有投影有来源标记、本次产物 0 条 => 本次生成器更旧，
++                    # 直接覆盖等于把对方的格式升级抹掉。另存后再降级，且显式告警。
++                    _hg_downgrade = _hg_no
++                    HG.atomic_write('%s.tagged-%s' % (_wb, _hg_t.strftime('%Y%m%d-%H%M%S')),
++                                    _hg_old)
++                    sys.stderr.write(
++                        '[rebuild][warn] ★★格式回退：磁盘现有投影有 %d 条来源标记，'
++                        '本次产物 0 条（生成器更旧）。已另存旧版。\n' % _hg_no)
++            except Exception as _hg_e:
++                sys.stderr.write('[rebuild][warn] 格式回退检查跳过：%s\n' % _hg_e)
++            _hg_r = HG.atomic_write(_wb, mem_text)
++            _hg_writes = [{k: _hg_r.get(k) for k in
++                           ('path', 'bytes', 'atomic', 'newline', 'why')
++                           if _hg_r.get(k) is not None}]
++            if _hg_downgrade:
++                _hg_writes[0]['format_downgrade_from'] = _hg_downgrade
++        else:
++            with open(_wb, 'w', encoding='utf-8') as _hg_f:
++                _hg_f.write(mem_text)
++            _hg_writes = [{'path': _wb, 'bytes': len(mem_text.encode('utf-8')),
++                           'atomic': False}]
++        globals()['_HG_LAST_WRITES'] = _hg_writes
++        # <<< hubguard-attach:proj-write
+ 
+         # ★2026-09-16 六修：把"被砍了多少 / 哪类被饿死 / 余量还剩多少"全部显式化。
+         #   验收口径不是"跑通了"，而是**故意制造超预算，看它报不报**。
+@@ -1419,5 +1455,75 @@
+                          ensure_ascii=False, indent=2))
+ 
+ 
++
++# >>> hubguard-attach:begin
++# 由 memtether/attach_hubguard.py 注入 —— 并发锁 + 投影来源标记 + 原子写。
++# 整块可整段删除（或跑 `attach_hubguard.py revert`）以回到原行为。
++# 块内所有辅助函数集中定义在此，正文只做最小替换，故对不同源版本都适用。
++try:
++    import sys as _hg_sys
++except Exception:                                   # pragma: no cover
++    _hg_sys = None
++
++HG = None
++for _hg_p in (os.environ.get('MEM_HUBGUARD_PATH'), r'E:\RUANJIAN\memtether'):
++    if not _hg_p:
++        continue
++    _hg_f = os.path.join(_hg_p, 'hubguard.py')
++    if not os.path.isfile(_hg_f):
++        continue
++    try:
++        # ★★按**显式文件路径**加载，绝不改 sys.path。
++        #   实测事故（2026-09-17，修了两次）：memtether/ 与 memory_hub/ 各有
++        #   一份同名 governance.py，而 gateway.py 在函数内 `import governance`。
++        #   只要 hubguard 所在目录进了 sys.path，目标目录一旦缺同名模块就会
++        #   静默命中 memtether 那份；它第 42 行硬编码
++        #       DB = os.path.join(HERE, 'memory.db')
++        #   （不认 MEM_DB）→ 连到 memtether/memory.db（不存在，被 sqlite3.connect
++        #   当场建成 0 字节空库）→ sqlite3.OperationalError: no such table: facts。
++        #   后果：govern / stale / conflicts_exact 三个命令全部崩溃（含线上），
++        #   而 rebuild / remember 全都不报错 —— **静默回归**。
++        #   先改 append 只降概率，沙箱仍复现；最终改 spec_from_file_location：
++        #   hubguard.py 只依赖标准库，可脱离 sys.path 直接按路径加载，
++        #   从此不存在任何模块遮蔽面。
++        import importlib.util as _hg_iu
++        _hg_spec = _hg_iu.spec_from_file_location('hubguard', _hg_f)
++        _hg_mod = _hg_iu.module_from_spec(_hg_spec)
++        _hg_spec.loader.exec_module(_hg_mod)
++        HG = _hg_mod
++        break
++    except Exception as _hg_e:                      # pragma: no cover
++        HG = None
++        if _hg_sys is not None:
++            _hg_sys.stderr.write('[hubguard] 载入失败（已降级为原行为）：%s\n' % _hg_e)
++
++
++def _hg_fact_line(date10, typ, source, lead):
++    """投影事实行的唯一出口。有 hubguard 时带 `类型·来源` 标记。"""
++    if HG is not None:
++        return HG.format_fact_line(date10, typ, source, lead)
++    return '- [%s|%s] %s' % (date10, typ, lead)
++
++
++_HG_TAG_RE = None
++
++
++def _count_tagged(text):
++    """★刻意不依赖 hubguard：最需要被抓的场景正是「hubguard.py 没装」，
++    若这里调 HG.parse_fact_line，那个场景反而检查不了（自证盲区）。"""
++    global _HG_TAG_RE
++    if _HG_TAG_RE is None:
++        import re as _hg_re
++        _HG_TAG_RE = _hg_re.compile(r'^- \[\d{4}-\d{2}-\d{2}\|[^\]·]+·[^\]·]+\]')
++    return sum(1 for _l in (text or '').split('\n') if _HG_TAG_RE.match(_l))
++
++
++_HG_LAST_WRITES = []
++_HG_GUARDED = HG.install_guards(globals()) if HG is not None else []
++if HG is not None:
++    sys.stderr.write('[hubguard] 已接管 %d 个写函数：%s\n'
++                     % (len(_HG_GUARDED), ', '.join(_HG_GUARDED)))
++# <<< hubguard-attach:end
++
+ if __name__ == '__main__':
+     main()
