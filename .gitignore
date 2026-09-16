@@ -63,10 +63,11 @@ toolbox.json
 projections/
 docs/
 
-# 打包产物（pyproject + 构建结果都在 packaging/ 下，但 dist/ 不入库）
-packaging/dist/
-packaging/build/
-packaging/*.egg-info/
+# 打包产物（构建配置在仓库根 pyproject.toml；产物不入库）
+# ★2026-09-16：原先写的是 `packaging/dist/` —— 那时构建配置错放在 packaging/ 里。
+#   现构建配置已搬到仓库根，规则同步搬到根级。
+build/
+dist/
 *.egg-info/
 
 # ===== 二次脱敏：工作区散落的私人笔记与运行时产物（2026-09-16）=====
