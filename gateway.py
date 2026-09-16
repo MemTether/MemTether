@@ -925,22 +925,60 @@ def rebuild():
         _FOOTER_RESERVE = 110
         _room = max(0, _room - _FOOTER_RESERVE)
 
+        # ★2026-09-16 六修（预算可观测化 + 类型保底）：
+        #   ① 旧实现在预算不足时**静默 break** —— 读者只看到页脚"已列 16 条"，
+        #      不知道还有 100+ 条被砍、更不知道被砍的是哪几类。而超预算的后果是
+        #      官方注入侧**整体截断**（不是截掉末尾），属于"跑起来不报错、但结果全错"。
+        #      故本版把所有裁剪动作**显式计数 + 落 stderr + 进返回结构**。
+        #   ② 类型保底：防某一类被整体饿死。历史坑：更早的实现在 SQL 里写
+        #      `type IN ('fact','decision') LIMIT 80`，把 incident/experience 全丢，
+        #      而它们恰恰最该被记住（ACL 拒写坑、判病毒方法论、会话卡顿真因）。
+        #      策略：预算不足时先保「每类最新 N 条」，再按时间倒序填其余；
+        #      预算充足时行为与旧版**完全一致**（只是填充顺序不同，输出会重排回去）。
+        _floor_n = int(os.environ.get('MEM_PROJ_TYPE_FLOOR', '1'))
+        _floor_idx = []
+        if _floor_n > 0:
+            _seen_typ = {}
+            for _i, _p in enumerate(_picked):
+                if _seen_typ.get(_p[1], 0) < _floor_n:
+                    _seen_typ[_p[1]] = _seen_typ.get(_p[1], 0) + 1
+                    _floor_idx.append(_i)
+        _floor_set = set(_floor_idx)
+        _fill_order = [(i, _picked[i]) for i in _floor_idx]
+        _fill_order += [(i, p) for i, p in enumerate(_picked) if i not in _floor_set]
+
         _kept = 0
-        for _ts, _typ, _r in _picked:
+        _dropped_facts = 0
+        _kept_pairs = []
+        _type_kept = {}
+        for _i, (_ts, _typ, _r) in _fill_order:
             _d = (_r['updated_at'] or _r['created_at'] or '')[:10] or '????-??-??'
             _item = '- [%s|%s] %s' % (_d, _typ, _lead(_r['content']))
             if len(_item) + 1 > _room:
+                _dropped_facts = len(_picked) - _kept
                 break
             mem_lines.append(_item)
+            _kept_pairs.append((_i, _item))
+            _type_kept[_typ] = _type_kept.get(_typ, 0) + 1
             _room -= len(_item) + 1
             _kept += 1
+        # ★输出必须恢复「新→旧」约定：注入侧按体积截断时只会丢最老的。
+        #   排序键是 _picked 的原始下标（_picked 已按时间倒序），**不能按整行字符串排** ——
+        #   同一天写入的条目日期前缀相同，整行降序会退化成「按内容字典序」，
+        #   使顺序与真实时间脱钩（2026-09-16 实测踩到：集合未变、字符数未变，
+        #   但行序全乱，属于"跑起来不报错、但结果错"的一类）。
+        #   （_kept == 0 时切片会误伤页眉，必须判空）
+        if _kept:
+            mem_lines[-_kept:] = [_it for _i, _it in sorted(_kept_pairs)]
 
         # 事实填完后，把剩余预算给非优先资产
         _extra = []
-        for _line in _rest:
+        _dropped_assets = 0
+        for _i, _line in enumerate(_rest):
             if len(_line) + 1 > _room:
+                _dropped_assets = len(_rest) - len(_extra)
                 _extra.append('- …另 %d 条资产见网关库（mem.py search 或 tool_audit.py audit）'
-                              % (len(_rest) - len(_extra)))
+                              % _dropped_assets)
                 break
             _extra.append(_line)
             _room -= len(_line) + 1
@@ -955,23 +993,68 @@ def rebuild():
 
         # ★硬裁保险：无论上游怎么算，最终产物绝不超过 _BUDGET。
         #   超了就从**事实区**末尾往回删整行（保留页脚，因为它告知读者"还有更多"）。
+        #   ★2026-09-16：硬裁本身是"上游算错了"的信号 —— 触发即报警，不再静默吞掉。
+        _hard_trimmed = 0
+        _hard_clipped = False
         if len(mem_text) > _BUDGET:
             _foot = mem_lines[-2:]
             _body = mem_lines[:-2]
             while _body and len('\n'.join(_body + _foot)) > _BUDGET:
                 _body.pop()
+                _hard_trimmed += 1
             mem_text = '\n'.join(_body + _foot)
             if len(mem_text) > _BUDGET:      # 极端情况：连页脚都放不下，砍到纯粹硬上限
                 mem_text = mem_text[:_BUDGET]
+                _hard_clipped = True
 
         wb = os.path.expanduser(r'~\.workbuddy\MEMORY.md')
         os.makedirs(os.path.dirname(wb), exist_ok=True)
         with open(wb, 'w', encoding='utf-8') as f:
             f.write(mem_text)
 
+        # ★2026-09-16 六修：把"被砍了多少 / 哪类被饿死 / 余量还剩多少"全部显式化。
+        #   验收口径不是"跑通了"，而是**故意制造超预算，看它报不报**。
+        #   （此前是静默 _body.pop()，读者完全看不出投影已经被裁剪过。）
+        _used = len(mem_text)
+        _headroom = _BUDGET - _used
+        _warnings = []
+        if _hard_clipped:
+            _warnings.append('★★严重：投影被**整体截断**（尾部半句已丢失）——'
+                             '官方注入侧是按体积整体砍的，必须降低写入量或收紧 _LINE_CAP')
+        if _hard_trimmed:
+            _warnings.append('★硬裁触发：正文超出预算，已从末尾回删 %d 行'
+                             '（事实区/资产区均可能被删；正常路径不该走到这里）' % _hard_trimmed)
+        if _dropped_facts:
+            _warnings.append('预算不足：%d 条事实未进投影（配额选出 %d 条 · 实入 %d 条）'
+                             % (_dropped_facts, len(_picked), _kept))
+        if _dropped_assets:
+            _warnings.append('预算不足：%d 条资产未进投影' % _dropped_assets)
+        _starved = [t for t, _q in _QUOTA if not _type_kept.get(t)]
+        if _kept == 0:
+            # ★预算小到一条事实都放不下时，报"类型饿死"是**误报** ——
+            #   饿死的根因是预算太小，不是配额设计问题，照旧给"调低 _QUOTA"的建议会误导。
+            #   （2026-09-16 受控演练 T1/T2 实测踩到。）
+            _warnings.append('★★预算过小：一条事实都放不下（预算 %d）—— '
+                             '投影将只剩页眉/页脚，事实区为空，请检查 MEM_PROJ_BUDGET 是否被外部调小'
+                             % _BUDGET)
+        elif _starved:
+            _warnings.append('★类型饿死：%s 一条都没进投影（请调低 _QUOTA 或收紧 _LINE_CAP）'
+                             % ' / '.join(_starved))
+        if _headroom < 100:
+            _warnings.append('余量仅 %d 字符（预算 %d）—— 再写一条记忆就会触发裁剪'
+                             % (_headroom, _BUDGET))
+        for _w in _warnings:
+            sys.stderr.write('[rebuild][warn] %s\n' % _w)
+
         conn.commit()
         return {'ok': True, 'sink': SINK, 'mem': wb, 'facts': len(sink['fact']),
-                'tools': len(conn.execute("SELECT id FROM tool_assets WHERE status='active'").fetchall())}
+                'tools': len(conn.execute("SELECT id FROM tool_assets WHERE status='active'").fetchall()),
+                # —— 预算可观测字段（2026-09-16 新增，供 hub_selfcheck / 维护脚本消费）
+                'budget': _BUDGET, 'used': _used, 'headroom': _headroom,
+                'facts_listed': _kept, 'type_listed': _type_kept,
+                'dropped_facts': _dropped_facts, 'dropped_assets': _dropped_assets,
+                'hard_trimmed': _hard_trimmed, 'hard_clipped': _hard_clipped,
+                'warnings': _warnings}
     finally:
         conn.close()
 
