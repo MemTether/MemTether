@@ -280,6 +280,23 @@ def expected_dim():
 VENV_PY = os.path.join(HUB, '.venv-memory', 'Scripts', 'python.exe')
 
 
+def _interp_hint():
+    """该用哪个解释器 / 该装什么 —— 提示必须与**当前安装形态**匹配。
+
+    ★2026-09-16 实测坑（L3 验收时抓到）：本项目原先只有"源码 + .venv-memory"
+      一种形态，于是提示里写死 `<HUB>\\.venv-memory\\Scripts\\python.exe` 是对的。
+      但支持 pip 安装之后，site-packages 下**根本没有** `.venv-memory` ——
+      这条提示会把用户指向一个不存在的路径，照着做只会更困惑
+      （属"提示正确但对象错"：话没说错，只是说的不是这个场景）。
+    判据：那个解释器**真的存在**才给路径提示，否则给 pip 档位提示。
+    """
+    if os.path.exists(VENV_PY):
+        return '正确解释器: %s' % VENV_PY
+    return ("缺可选依赖（语义检索 / 精排用）。装它即可："
+            "pip install \"memtether[vector]\""
+            "（等价于 pip install chromadb onnxruntime tokenizers numpy）")
+
+
 def _client():
     import chromadb
     return chromadb.PersistentClient(path=CHROMA_PATH)
@@ -302,10 +319,10 @@ def check_env(raise_on_missing=False):
             missing.append(m)
     if missing and raise_on_missing:
         raise RuntimeError(
-            '缺少 %s —— memsearch 需要 <HUB>\\.venv-memory\\Scripts\\python.exe\n'
+            '缺少 %s —— 语义检索所需的可选依赖没装齐\n'
             '当前解释器: %s\n'
-            '正确用法: PYTHONPATH= "%s" mem.py search "<关键词>"'
-            % (', '.join(missing), sys.executable, VENV_PY))
+            '%s'
+            % (', '.join(missing), sys.executable, _interp_hint()))
     return missing
 
 
@@ -624,7 +641,7 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
             search_hybrid._warned = True
             print('[warn] 向量检索失败（将降级为纯关键词，召回会明显变差）:', str(e)[:80],
                   file=sys.stderr)
-            print('[warn] 正确解释器: %s' % VENV_PY, file=sys.stderr)
+            print('[warn] %s' % _interp_hint(), file=sys.stderr)
 
     # 2) 关键词路：查询词覆盖率 x IDF（专有名词命中权重更高）
     q_terms = _terms(q)
@@ -730,7 +747,7 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
             if not getattr(search_hybrid, '_warned_rr', False):
                 search_hybrid._warned_rr = True
                 print('[warn] 精排失败，退回 RRF（排序质量下降）:', str(e)[:80], file=sys.stderr)
-                print('[warn] 正确解释器: %s' % VENV_PY, file=sys.stderr)
+                print('[warn] %s' % _interp_hint(), file=sys.stderr)
 
     # 6) ★时间衰减（2026-09-15 接入）：越老的记忆 score 越低。
     #    动机：实测「过时记忆未退役」是继 RRF 之后的下一个瓶颈——

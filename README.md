@@ -46,10 +46,43 @@ MemTether 的答案更简单：**让它们指向同一份文件**。
 
 ## 快速开始
 
-> 当前状态：**研究原型**。一键安装脚本在路线图中（见文末）。
+> 当前状态：**研究原型**。已支持标准 `pip` 安装；一键安装脚本在路线图中（见文末）。
 
-**依赖**：`chromadb` `numpy` `onnxruntime` `tokenizers`
-（模型：本地 `bge-m3 int8` 做 embedding、`bge-reranker` 做精排，均可离线获取）
+### 方式 A：装成一个包（推荐）
+
+```bash
+# 从 PyPI（★尚未发布，占位中；现在请用下面那条）
+pip install memtether
+
+# 现在就能用：直接从仓库装
+pip install "memtether @ git+https://github.com/MemTether/MemTether"
+
+# 想要语义检索（本地 embedding + 向量库）再加这一档：
+#   多装 chromadb / onnxruntime / tokenizers；缺它时检索自动降级为
+#   关键词 + 字面（会打印 [warn]，不崩，但排序质量下降）
+pip install "memtether[vector] @ git+https://github.com/MemTether/MemTether"
+```
+
+装完得到一个 `memtether` 命令，**不再依赖仓库目录**：
+
+```bash
+memtether demo                          # 生成全合成演示库 → ~/.memtether/memory.db
+memtether search "跨客户端共享"          # 混合检索
+memtether stats                         # 库内统计
+memtether remember "结论：……" --type experience --source my_agent
+```
+
+数据目录默认 `~/.memtether/`（可用环境变量 `MEMTETHER_HOME` 改）。
+
+**依赖说明**：唯一的硬依赖是 `numpy`（精排用；缺它时 `memsearch` 会 `try/except`
+兜住并退回 RRF，**不崩**但排序质量下降）。语义检索所需的
+`chromadb` / `onnxruntime` / `tokenizers` 放在 `[vector]` 档 —— 只想跑 demo 的人
+不必先下几百 MB。模型权重（本地 `bge-m3 int8` 做 embedding、`bge-reranker` 做精排）
+不在包内，首次按提示离线获取。
+
+### 方式 B：直接用源码（运维脚本 / 评测集走这条）
+
+仓库里的模块是**平铺在根目录**的，运维与评测脚本按路径直接调用：
 
 ```bash
 # 写一条记忆（source 必填，用于多 agent 归属）
@@ -73,6 +106,9 @@ python mem.py asof 2026-09-15
 python mem.py timeline <uid>
 ```
 
+> `memtether demo` 与 `python scripts/make_demo_db.py` 是同一件事的两种入口
+> （前者装完即用，后者无需安装）。
+
 **写入约定**：每条记忆的**第一句必须把结论说完** —— 投影只保留首句，结论写在后面等于白写。
 
 ---
@@ -86,7 +122,8 @@ python mem.py timeline <uid>
 
 ```bash
 # 1) 生成演示库（自带三项自检，任一不通过即返回非 0）
-python scripts/make_demo_db.py
+python scripts/make_demo_db.py      # 源码方式
+memtether demo                      # 装成包之后（等价入口，输出到 ~/.memtether/）
 
 # 2) 用 MEM_DB 指向它 —— gateway / memsearch / mem.py 会一起切过去
 export MEM_DB=demo/memory_demo.db
@@ -160,8 +197,10 @@ MemTether 的卖点是**可验证性**：评分卡源码、评测集、双判分
 ## 路线图
 
 - [x] 合成 demo 库（对外示例，不含任何真实记忆）
+- [x] 标准 `pip` 安装（wheel：平铺模块 + `memtether` 命令 + `[vector]` 可选档）
 - [x] 拒答 / 置信度门槛（**默认 warn**；实测零误拒拦截面 41%，天花板 59%）
 - [x] 评测集与评分卡源码开源（双判分口径 + 失真警告）
+- [ ] 发布到 PyPI（当前只能从仓库装）
 - [ ] 一键安装脚本（Windows 优先）
 - [ ] 注入槽位策略优化（存得多、喂得少是当前最大瓶颈）
 - [ ] 拒答判据从"词形法"升级为"带语义的判据"（词形法对同形不同属性无解）

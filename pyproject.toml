@@ -1,0 +1,127 @@
+# MemTether —— 打包配置（★唯一构建配置，就这一处）
+#
+# 为什么在仓库根，而不是 `packaging/`
+# ----------------------------------
+# 2026-09-16 实测缺陷：`packaging/pyproject.toml` 声称 `name = "memtether"`、
+# `packages = ["memtether"]`，但 `packaging/src/memtether/__init__.py` 是个只有
+# `__version__` 的空壳，真实模块（gateway.py / mem.py / memsearch.py …）全在仓库根。
+# 后果：`python -m build` 通过 → `pip install` 通过 → `import memtether` 通过 →
+# **然后什么也干不了** —— 典型的「跑起来不报错、但结果全错」。
+#
+# 修法：把构建配置搬到仓库根，让「仓库里有什么」= 「wheel 里有什么」。
+# 原来那份 `packaging/` 已整目录删除（git 历史可追），
+# 避免出现第二份会与真源漂移的构建配置。
+#
+# 结构说明
+# --------
+# 引擎模块是**平铺**在仓库根的（`import gateway` 这类顶层互相引用），
+# 且生产环境（memory_hub 按脚本路径直接调用）依赖这个结构，不能改。
+# 所以这里用 `py-modules` 逐个列出，而不是 `packages`。
+# `scripts/` 是唯一的包（演示库生成器在里面）。
+# 门面与 CLI 入口在 `memtether.py`（`[project.scripts]` 指向它）。
+#
+# ★新增根模块后必须把名字补进 py-modules，否则 wheel 里没有它 ——
+#   而 `pip install` 不会报任何错，只会在运行到那条路径时才炸。
+#   校验：`python scripts/check_packaging.py`（缺失/多余都会报出来）
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "memtether"
+version = "0.1.0a1"
+description = "Cross-client memory hub for AI agents — one physical memory, many clients"
+readme = "README.md"
+license = {text = "Apache-2.0"}
+requires-python = ">=3.10"
+authors = [{name = "MemTether Contributors"}]
+keywords = ["memory", "agent", "ai", "llm", "mcp", "knowledge-graph"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+    # ★只留一个硬依赖。理由（2026-09-16 逐个模块核过顶层 import）：
+    #   · 核心引擎（gateway / mem / memsearch / governance / embed_local / project /
+    #     refuse_live / refuse_gate / tool_audit …）**顶层全是标准库**，装完即用；
+    #   · `numpy` 只有 cross-encoder 精排（rerank.py）与 pair_superseded.py 用。
+    #     缺它时 memsearch 会 try/except 兜住并退回 RRF（打印 [warn]），**不崩**，
+    #     但排序质量确实下降 —— 所以它是"要完整体验就必须有"的那一个；
+    #   · chromadb / onnxruntime / tokenizers 只服务**语义路**，缺了会降级成
+    #     关键词 + 字面检索（演示库本来就没有预建向量索引）→ 放 extra，
+    #     不让只想跑 demo 的人先下 300MB。
+    "numpy",
+]
+
+[project.optional-dependencies]
+# 语义检索：本地 bge-m3 int8 embedding（onnxruntime + tokenizers）+ 本地向量库。
+# 装完还要建一次索引：`python -m memsearch --rebuild`
+vector = ["chromadb", "onnxruntime", "tokenizers"]
+
+[project.urls]
+Homepage = "https://github.com/MemTether/MemTether"
+Repository = "https://github.com/MemTether/MemTether"
+Issues = "https://github.com/MemTether/MemTether/issues"
+Security = "https://github.com/MemTether/MemTether/blob/main/SECURITY.md"
+
+[project.scripts]
+# 门面在 memtether.py（仓库根），它负责把平铺的引擎模块接到 sys.path 上。
+memtether = "memtether:main"
+
+[tool.setuptools]
+# ★不写 packages = ["memtether"]：那会指向一个不存在的包（空壳已删）。
+packages = ["scripts"]
+include-package-data = false
+py-modules = [
+    # —— 引擎核心
+    "gateway",              # 唯一写入入口（带 source 归属）
+    "mem",                  # 多 agent 共享总线 + CLI
+    "memsearch",            # 混合检索（向量 + 关键词 + 字面，RRF + 精排）
+    "embed_local",          # 本地 bge-m3 推理
+    "rerank",               # cross-encoder 精排（需 numpy）
+    "governance",           # 退役 / 冲突治理
+    "project",              # 项目作用域
+    "refuse_live",          # 拒答判据（在线）
+    "refuse_gate",          # 拒答闸门
+    "tool_audit",           # 工具资产普查 / 可执行校验
+    "memory_sink",          # 写入投递
+    "memory_maintenance",   # 维护任务
+    "pair_superseded",      # 语义重复 / 取代配对
+    "mem0_config",          # mem0 兼容配置
+    # —— 对外接口
+    "memtether",            # ★包门面 + CLI 入口
+    "mcp_server",           # MCP Server（供各客户端接入）
+    "post_turn",            # 每轮钩子
+    "demo_gateway",         # 演示网关
+    # —— 运维 / 自检
+    "hub_score",            # 四维评分卡
+    "hub_selfcheck",        # 定时巡检
+    "preflight",            # 发布前置闸门
+    "bootstrap",            # 初始化
+    "board",                # 待办看板
+    "approve",              # 审批
+    "enrich_caps",          # 资产能力补全
+    "sync_memory",          # 同步
+    "skill_forge",          # 技能沉淀
+    # —— 迁移 / 一次性工具
+    "migrate_bitemporal",   # 双时间轴回填
+    "migrate_sink",         # 投影迁移
+    "import_mem0",          # mem0 导入（★需自备 cred_env.py，见 README）
+    "sync_reflector_mem0",  # reflector 同步
+    "astra_dialogue",       # ASTRA 对话导出
+    "astra_memory_closure", # ASTRA 记忆闭包
+    # —— 评测 / 回归（开源的意义之一：口径与卷子都在仓库里，可自行复跑）
+    "asset_bench", "asset_bench_holdout", "asset_selfcheck",
+    "bench_longmemeval", "e2e_verify", "hard_bench", "hard_holdout",
+    "judge_selfcheck", "refuse_bench", "regression_test",
+    "rerank_k_bench", "smoke_bitemporal", "test_autosync", "test_triggers",
+]
