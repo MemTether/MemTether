@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """把 reflector 来源的 fact 同步到 Mem0 语义索引（补齐语义检索召回）"""
 import sys, json
-sys.path.insert(0, r'<HUB>')
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import gateway, sqlite3
 
 conn = sqlite3.connect(gateway.DB)

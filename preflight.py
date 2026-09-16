@@ -20,7 +20,7 @@ import re
 import sys
 import json
 
-HUB = r'<HUB>'
+HUB = os.path.dirname(os.path.abspath(__file__))
 
 # 权重：facts/decisions/incidents 高于 experience
 WEIGHT = {

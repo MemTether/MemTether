@@ -50,7 +50,7 @@ import sqlite3
 import sys
 import time
 
-HUB = r'<HUB>'
+HUB = os.path.dirname(os.path.abspath(__file__))
 DB = os.path.join(HUB, 'memory.db')
 
 NEW_COLS = [

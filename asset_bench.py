@@ -87,7 +87,7 @@ CASES = [
          expect=[r"Everything"], forbid=[r"dir /s", r"逐个遍历"]),
     dict(id="D3", cat="工具选用", q="要抓 eNSP 里的设备界面截图，能读 telnet 输出吗？",
          expect=[r"不能", r"GUI", r"PrintWindow", r"抓图"], forbid=[r"直接读 telnet 就行"]),
-    dict(id="D4", cat="工具选用", q="改名后备份原文件的 X.exe/<SAMPLE_X>.exe 兄弟文件是什么特征？",
+    dict(id="D4", cat="工具选用", q="某软件主程序被第三方包装器顶替、文件夹里多出同名兄弟文件，这种文件是什么特征、能用吗？",
          expect=[r"包装器", r"第三方", r"勿用", r"伪装"], forbid=[]),
 ]
 
@@ -148,8 +148,9 @@ def run(verbose=False):
         cur.execute("SELECT COUNT(*) FROM tool_assets")
         n_asset = cur.fetchone()[0]
         blob.append(f"tool_assets 共 {n_asset} 条")
-        blob.append("投影写到 <PATH><USER>/.workbuddy/MEMORY.md，官方槽位上限约 4000 字符")
-        blob.append("真源 <HUB>/memory.db")
+        _proj = os.path.expanduser("~/.workbuddy/MEMORY.md").replace("\\", "/")
+        blob.append("投影写到 %s，官方槽位上限约 4000 字符" % _proj)
+        blob.append("真源 %s" % os.path.join(HERE, "memory.db").replace("\\", "/"))
         text = " \n ".join(blob)
 
         hit = any(re.search(p, text, re.I) for p in case["expect"])

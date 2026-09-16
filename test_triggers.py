@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """测试 incident / on_miss 触发器"""
 import sys, json
-sys.path.insert(0, r'<HUB>')
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import gateway
 
 print('=== incident 触发器（出错即时记录）===')

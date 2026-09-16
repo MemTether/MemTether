@@ -102,7 +102,7 @@ try:
     print('=' * 60)
     print(msg)
     # 落盘
-    with open(r'<HUB>\astra_verdict_closure.md', 'w', encoding='utf-8') as f:
+    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'astra_verdict_closure.md'), 'w', encoding='utf-8') as f:
         f.write('# astra 深度裁决：记忆自动闭环\n\n')
         f.write('> 耗时 %.1fs | prompt %s | completion %s\n\n' % (
             elapsed, usage.get('prompt_tokens', '?'), usage.get('completion_tokens', '?')))

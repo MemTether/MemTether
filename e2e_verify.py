@@ -19,7 +19,7 @@ import time
 import sqlite3
 import subprocess
 
-HUB = r'<HUB>'
+HUB = os.path.dirname(os.path.abspath(__file__))
 PY = os.path.join(HUB, '.venv-memory', 'Scripts', 'python.exe')
 DB = os.path.join(HUB, 'memory.db')
 ENV = dict(os.environ)

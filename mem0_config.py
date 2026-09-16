@@ -24,7 +24,7 @@ try:
 except Exception:
     pass
 
-HUB = r'<HUB>'
+HUB = os.path.dirname(os.path.abspath(__file__))
 
 # 主 LLM：gptx_astra（最强，事实提取质量最高）
 GPTX_BASE = 'https://api.gptx.cc/v1'

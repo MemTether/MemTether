@@ -15,7 +15,7 @@ import json
 import time
 import subprocess
 
-HUB = r'<HUB>'
+HUB = os.path.dirname(os.path.abspath(__file__))
 INBOX = os.path.join(HUB, 'inbox', 'inbox.jsonl')
 REVIEW = os.path.join(HUB, 'review', 'review.jsonl')
 

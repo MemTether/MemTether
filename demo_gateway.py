@@ -12,7 +12,7 @@ import sys
 import json
 import os
 
-sys.path.insert(0, r'<HUB>')
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import gateway
 
@@ -30,7 +30,8 @@ for task in ['生图', 'STM32', 'APK', '模拟器']:
     print('  任务「%s」→ 工具: %s' % (task, tools if tools else '（无匹配）'))
 
 print('\n【3】关键词检索')
-r = gateway.search('<USER_NAME>')
+# ★开源版：查询词用中性占位（原为本机用户的真名）。换成你自己的关键词即可。
+r = gateway.search('使用者')
 for x in r['results']:
     print('  [%s] %s' % (x['kind'], x.get('content') or x.get('name')))
 
@@ -42,7 +43,7 @@ for x in active:
     print('   - %s' % x['content'][:80])
 
 print('\n【5】Mem0 语义检索（理解"近义"而非"精确词"）')
-r = gateway.search('<USER_NAME>会做什么AI相关的？', mem0=True)
+r = gateway.search('使用者会做什么AI相关的？', mem0=True)
 for x in r.get('semantic', []):
     print('  [语义 %.3f] %s' % (x['score'], x['content'][:60]))
 

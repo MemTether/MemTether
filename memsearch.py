@@ -19,7 +19,7 @@ import sqlite3
 import datetime
 import urllib.request
 
-HUB = r'<HUB>'
+HUB = os.path.dirname(os.path.abspath(__file__))
 DB = os.path.join(HUB, 'memory.db')
 CHROMA_PATH = os.path.join(HUB, 'mem0_store')
 COLLECTION = 'facts_active'

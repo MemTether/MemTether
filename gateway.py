@@ -41,7 +41,7 @@ import hashlib
 import argparse
 from pathlib import Path
 
-HUB = r'<HUB>'
+HUB = os.path.dirname(os.path.abspath(__file__))
 DB = os.path.join(HUB, 'memory.db')
 SINK = os.path.join(HUB, 'sink.json')
 
@@ -840,10 +840,10 @@ def rebuild():
         # 2) 生成 WorkBuddy MEMORY.md
         mem_lines = [
             '# MEMORY.md — 记忆中枢投影（导航版）',
-            '<!-- 真源：<HUB>\\memory.db；由 gateway.py rebuild 生成，勿手改 -->',
+            '<!-- 真源：%s；由 gateway.py rebuild 生成，勿手改 -->' % os.path.join(HUB, 'memory.db'),
             '',
             '## 怎么用',
-            '- 取全文：cd <HUB> && python mem.py search "<关键词>"',
+            '- 取全文：cd %s && python mem.py search "<关键词>"' % HUB.replace('\\', '/'),
             '- 写记忆：python gateway.py remember "<内容>" --type fact|decision|incident|experience',
             '- 禁止直接改本文件与 sink.json，一律走 gateway.py。',
             '- 下全称否定结论前先全盘搜索；动手前可用 resolve_task 取工具配方。',
