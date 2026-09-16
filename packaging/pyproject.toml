@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "memtether"
+version = "0.1.0-pre"
+description = "Cross-client memory hub for AI agents — one physical memory, many clients"
+readme = "README.md"
+license = {text = "Apache-2.0"}
+requires-python = ">=3.10"
+authors = [{name = "MemTether Contributors"}]
+keywords = ["memory", "agent", "ai", "llm", "mcp", "knowledge-graph"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+    # 引擎主体（向量化检索）
+    "numpy",
+    "chromadb",
+    # 本地 embedding 与精排
+    "onnxruntime",
+    "tokenizers",
+    # 注意：embedding / 精排的模型权重不在包内（太大）
+    # 首次使用时由本地 ONNX 推理拉取
+]
+
+[project.urls]
+Homepage = "https://github.com/MemTether/MemTether"
+Repository = "https://github.com/MemTether/MemTether"
+Issues = "https://github.com/MemTether/MemTether/issues"
+Security = "https://github.com/MemTether/MemTether/blob/main/SECURITY.md"
+
+[tool.setuptools]
+packages = ["memtether"]
+
+[tool.setuptools.package-data]
+memtether = ["py.typed"]
