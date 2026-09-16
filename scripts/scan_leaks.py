@@ -27,12 +27,25 @@
   （`--exclude-standard` 仍遵守 .gitignore，所以 memory.db / models/ 照旧不在范围内。）
 
 【判级】
-  block : 必须清掉才可发布（真名 / 班级 / 安全事件 / 密钥）
-  warn  : 建议清（本机账号路径 / 第三方账号），不清也能发但会暴露环境
+  block : 必须清掉才可发布（真名 / 班级 / 事故**标识词** / 密钥）
+  warn  : 只提示人工复核（事故**通用技术词** / 本机账号路径 / 第三方账号），不阻断发布
+  ★2026-09-16：事故类词必须分两档 —— 判据是「这个词单独出现时，是否等于
+    声明『这台机器被控过』」。详见下方 RULES 注释与 leak_terms.local.json 的 _readme。
+
+【退出码】
+  0  无 BLOCK 命中，且词表就位（可以发布）
+  1  有 BLOCK 命中（必须清）
+  2  词表缺失 → 真名 / 事故类未参与扫描 → **无法判定**（★不是"零命中"）
+     ★为什么给 2 而不是 0：返回 0 会让调用方把「这几类没查」当成「查过且干净」，
+       而本项目所有严重缺陷都是这一类「跑起来不报错、但结论错」。
 
 用法：
   python scripts/scan_leaks.py            # 人读报告
   python scripts/scan_leaks.py --json     # 机器读
+环境变量：
+  MEM_SCAN_REPO   指定被扫仓库（默认 = 本脚本所在仓库的根）
+  MEM_SCAN_TERMS  指定敏感词表路径（默认 = 本脚本同目录的 leak_terms.local.json）
+                  ★发布库那份扫描器旁边没有词表 → 需指回真源那份，否则降级
 """
 import os
 import re
@@ -44,29 +57,42 @@ HERE = os.environ.get('MEM_SCAN_REPO') or os.path.dirname(os.path.dirname(os.pat
 # ★2026-09-16：加 MEM_SCAN_REPO 环境变量 —— 扫描器不该只能扫"自己所在的仓库"。
 #   实际需求：用 memory_hub 里这一份，去扫**发布库 memtether** 的历史。
 #   没有这个开关时，把脚本拷过去会让 HERE 指到 memtether 的父目录，扫错仓库还看不出来。
-#   （踩坑：第一版直接 cp 过去跑，HERE 变成 <DATA>，静默扫错目标。）
+#   （踩坑：第一版直接 cp 过去跑，HERE 变成 E:\RUANJIAN，静默扫错目标。）
 HERE = os.path.abspath(HERE)
 
 # ★2026-09-16：项目专属敏感词（真名 / 班级 / 安全事件词）改为**外部加载**。
 #   原因：这份扫描器本身也是要开源的文件。把真名和安全事件词写死在代码里，
 #   等于**用泄密清单去泄密**——实测它自己就贡献了 3 处 block 命中。
 #   外置后：扫描器可原样发布，而「你的真名是什么」留在被 .gitignore 排除的本地文件里。
-_TERMS = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                      'leak_terms.local.json')
+_TERMS = (os.environ.get('MEM_SCAN_TERMS')
+          or os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                          'leak_terms.local.json'))
+# ★2026-09-16：加 MEM_SCAN_TERMS 开关。动机与 MEM_SCAN_REPO 同源 ——
+#   真源只有一份词表（在 memory_hub/scripts/），发布库那份扫描器旁边**没有**词表，
+#   于是「在发布库跑扫描器自检」必然降级。有这个开关就能把发布库副本指向真源词表，
+#   让「发布库自检」这件事真正可做，而不是每次都看到一句降级提示后不了了之。
 
 
 def _local_terms():
-    """读本地敏感词表；文件缺失 → 三类降级为空（只跑通用规则），不报错。"""
+    """读本地敏感词表；文件缺失 → 四类降级为空（只跑通用规则），不报错。
+
+    ★2026-09-16 增第 4 类 incident_soft_patterns：事故词**必须分两档**。
+      原先「通用技术词」与「样本唯一标识」同列 BLOCK，而替换器又无差别替换
+      → 把正常内容里的通用技术词改写成不存在的说法，破坏内容却全流程绿灯。
+      详见 leak_terms.local.json 的 _readme。
+      ★本注释本身也不能写出被查的词（第一版写了，当场自命中 3 处）。
+    """
     try:
         with open(_TERMS, encoding='utf-8') as f:
             d = json.load(f)
     except (OSError, ValueError):
-        return [], [], []
+        return [], [], [], []
     pick = lambda k: [x for x in (d.get(k) or []) if isinstance(x, str) and x]
-    return pick('names'), pick('class_patterns'), pick('incident_patterns')
+    return (pick('names'), pick('class_patterns'),
+            pick('incident_patterns'), pick('incident_soft_patterns'))
 
 
-_NAMES, _CLASSES, _INCIDENTS = _local_terms()
+_NAMES, _CLASSES, _INCIDENTS, _INCIDENTS_SOFT = _local_terms()
 
 # (类别, 正则, 级别, 说明) —— **类别顺序即报告顺序，勿改**
 RULES = [
@@ -74,12 +100,27 @@ RULES = [
      '真实姓名，公开发布等于实名上网'),
     ('班级/学号', '|'.join(_CLASSES + [r'学号\s*[:：]?\s*\d+']), 'block',
      '班级与学号是校内唯一标识'),
-    ('安全事件', '|'.join(_INCIDENTS), 'block',
+    # ★2026-09-16：事故词**必须分两档**。判据是：
+    #   「这个词单独出现时，是否等于声明『这台机器被控过』？」
+    #     是 → BLOCK（样本名 / 驱动名 / 服务名这类**唯一标识**，必须阻断发布）
+    #     否 → WARN（远程控制 / 内核级隐藏程序 / 自我复制程序 / 隐蔽通道等**通用技术词**，
+    #              正常技术讨论里到处都有，只提示人工复核，不阻断）
+    #   ★原先两档混在一起全列 BLOCK，而 memtether_sync.py 的替换器又无差别改写
+    #     → 把正常内容里的通用技术词改成不存在的说法，破坏内容却全流程绿灯
+    #     （2026-09-16 实测事故，污染已入库）。
+    ('安全事件(标识词)', '|'.join(_INCIDENTS), 'block',
      # ★说明文案本身不能出现被查的词 —— 否则扫描器**自己命中自己**
-     #   （实测：这里原写「故障样本/异常项/内核级自保护驱动」里的英文词名，
-     #    预演提交时当场多出 1 处 block 命中，纯属自找）。
-     '安全事件类词（故障样本 / 远程异常异常项 / 内核级自保护驱动等）：'
+     #   （实测两次：一次是这里写了被查的英文词名，一次是写了通用技术词的中文名，
+     #    预演提交时当场多出 block 命中，纯属自找）。
+     '本机安全事故的**唯一标识**（样本名 / 驱动名 / 服务名）：'
      '公开等于声明「这台机器被控过」，对个人是实打实的风险，不是技术细节'),
+    ('安全事件(通用词)', '|'.join(_INCIDENTS_SOFT), 'warn',
+     # ★按 BLOCK 处理有两重害处，这是本次事故最可复用的教训：
+     #   ① 阻断正常发布 → 人会习惯性加 `--yes` 绕过闸门，真命中时也照过；
+     #   ② 更糟：替换器会无差别改写它们，把正常说法改成不存在的说法，
+     #      破坏内容而全流程绿灯（这就是 2026-09-16 那 3 处污染）。
+     '通用技术词（远程控制 / 内核级隐藏程序 / 自我复制程序 / 隐蔽通道等）：'
+     '单独出现不构成泄密声明，仅提示人工复核，不阻断发布'),
     ('密钥明文/前缀', r'(?<![A-Za-z0-9_\-])sk-[A-Za-z0-9_\-]{4,}', 'block',
      '★哪怕是前 8 位也是泄漏：它把爆破空间砍掉了几个数量级'),
     ('本机账号路径', r'[A-Za-z]:[\\/]{1,2}Users[\\/]{1,2}(?:Administrator|USER-\d+)', 'warn',
@@ -162,11 +203,18 @@ def report(findings):
     print('开源前「引擎侧」泄密扫描 —— 范围 =「会被发布的全集」（索引 + 未跟踪非忽略）')
     print('=' * 84)
     if _MISSING:
-        # 避免「扫出 0 处」被误读成「很干净」——降级必须显式说出来
-        print('  ⚠ 降级：本地敏感词表缺失，以下类别**未参与扫描**：%s' % ' / '.join(_MISSING))
+        # ★避免「扫出 0 处」被误读成「很干净」——降级必须显式说出来，
+        #   而且**不能**再打「✓ 零命中」那个对勾：三类根本没查，打勾就是自欺。
+        #   （这正是本项目头号缺陷型态「跑起来不报错、但结论错」的显示层版本。）
+        print('  ✗ 无法判定（降级）：本地敏感词表缺失，以下类别**未参与扫描**：')
+        print('       %s' % ' / '.join(_MISSING))
         print('     期望位置：%s' % _TERMS)
+        print('     ★这不是「零命中」，是「这几类没查」。修好词表再跑，')
+        print('       或用 MEM_SCAN_TERMS 指向词表（发布库副本没有词表，需指回真源那份）。')
+    else:
+        print('  规则来源：%s' % _TERMS)
     if not findings:
-        print('  ✓ 零命中')
+        print('  ✓ 零命中' if not _MISSING else '  — 已扫类别零命中（整体结论仍为「无法判定」）')
         return
     order = [r[0] for r in RULES]
     for cat in order:
@@ -210,6 +258,11 @@ def main():
         print(json.dumps(fs, ensure_ascii=False, indent=2))
     else:
         report(fs)
+    if _MISSING:
+        # ★降级 → 结论是「无法判定」→ 非零退出（失败闭锁）。
+        #   返回 0 会让调用方把「三类没查」当成「查过且干净」——
+        #   正是本项目反复踩的那类静默失败（L1 全绿、结论全错）。
+        return 2
     return 1 if any(f['level'] == 'block' for f in fs) else 0
 
 

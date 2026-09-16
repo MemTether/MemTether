@@ -39,6 +39,10 @@ bench_data/
 models/
 
 # ===== 开源脱敏：私人数据与渲染镜像（2026-09-16）=====
+# 本地敏感词表（真名 / 班级 / 安全事件词）—— 只在本机存在，绝不入库。
+# ★为什么必须忽略：scan_leaks.py 与 memtether_sync.py 都读它。
+#   它一旦进仓库，外置就等于没外置 —— 又回到「用泄密清单去泄密」。
+scripts/leak_terms.local.json
 # 唯一真源（含真名/学号/本机路径/安全事件）
 memory.db
 sink.json
