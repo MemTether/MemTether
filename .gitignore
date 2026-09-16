@@ -115,3 +115,9 @@ cleanup_tmp.py
 demo/
 # 拒答判据的停用二元组缓存（refuse_live.py 生成，含本机语料用词分布，属"数据"）
 _refuse_stop.json
+
+# hubguard 并发治理的运行时文件（2026-09-17）
+# ★必须单独列：锁叫 `memory.db.hub.lock`，**不匹配**上面的 `*.db`
+*.hub.lock
+*.hub.lock.holder
+*.journal.jsonl

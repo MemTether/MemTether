@@ -41,6 +41,70 @@ import hashlib
 import argparse
 from pathlib import Path
 
+# ---------------------------------------------------------------------------
+# hubguard —— 并发治理（**可选依赖**）
+#   解决问题①（两个客户端并发写 = 后写覆盖前写，无检测无拒绝无通知）
+#   解决问题②（投影逐条不保留 source → 看投影分不清谁写的）
+#   解决问题③（工作区 memory/ 与另一实例同一物理文件 → 整体重写互相覆盖）
+# ★为什么做成可选：hubguard.py 是新增文件。若有人只拷走 gateway.py，
+#   不能让 import 失败把整个网关拖死 —— 缺失时全部降级为**原有行为**并置 HG=None。
+# ★为什么用"包装"而不是改函数体：本机存在两个不同版本的 gateway.py
+#   （memory_hub 在制品 72550 B / 本仓发布版），逐行打补丁必然对不齐；
+#   包装器只依赖"函数名存在"，对两版都适用（见 hubguard.install_guards 的 docstring）。
+try:
+    import hubguard as HG
+except Exception:                       # pragma: no cover - 无 hubguard 时照旧跑
+    HG = None
+
+
+def _hg_fact_line(date10, typ, source, lead):
+    """投影事实行的唯一出口。有 hubguard 时带 `类型·来源` 标记。"""
+    if HG is not None:
+        return HG.format_fact_line(date10, typ, source, lead)
+    return '- [%s|%s] %s' % (date10, typ, lead)
+
+
+def _proj_targets():
+    """投影目标列表。
+
+    ★为什么不用 `HG.proj_paths() if HG else [硬编码]`：那样一旦 hubguard 缺失，
+      MEM_PROJ_PATH 隔离**同时失效** —— 想模拟"旧版生成器"就必然写线上投影。
+      2026-09-17 实测踩到：演练里把 HG 置 None，结果直接覆盖了线上 MEMORY.md。
+      故这里自己实现同一契约：不设 MEM_PROJ_PATH 时与原来那一个硬编码路径**完全相同**。
+    """
+    if HG is not None:
+        return HG.proj_paths()
+    v = os.environ.get('MEM_PROJ_PATH')
+    if v:
+        return [x for x in v.split(os.pathsep) if x]
+    return [os.path.expanduser(r'~\.workbuddy\MEMORY.md')]
+
+
+_TAG_RE = None
+
+
+def _count_tagged(text):
+    """数投影里带「来源标记」的事实行（形如 `- [2026-09-17|exp·a] …`）。
+
+    ★刻意**不依赖 hubguard**：最需要被抓住的场景恰恰是"hubguard.py 没装"，
+      若这里调 HG.parse_fact_line，那个场景反而检查不了（自证盲区）。
+    """
+    global _TAG_RE
+    if _TAG_RE is None:
+        import re as _re2
+        _TAG_RE = _re2.compile(r'^- \[\d{4}-\d{2}-\d{2}\|[^\]·]+·[^\]·]\]')
+    return sum(1 for _l in (text or '').split('\n') if _TAG_RE.match(_l))
+
+
+def _hg_write(path, text):
+    """投影落盘。有 hubguard 走原子写（★跟随目标现有换行风格，见下）。"""
+    if HG is not None:
+        return HG.atomic_write(path, text)
+    with open(path, 'w', encoding='utf-8') as f:
+        f.write(text)
+    return {'ok': True, 'path': path, 'bytes': os.path.getsize(path), 'atomic': False}
+
+
 HUB = os.path.dirname(os.path.abspath(__file__))
 # ★真源库路径可被 MEM_DB 覆盖（默认仍是 HUB/memory.db，不设环境变量时行为完全不变）。
 #   用途：仓库不发布真实 memory.db（含真名/学号/本机路径/密钥，见 .gitignore），
@@ -845,6 +909,10 @@ def rebuild():
             json.dump(sink, f, ensure_ascii=False, indent=2)
 
         # 2) 生成 WorkBuddy MEMORY.md
+        #    ★2026-09-17：投影行加「来源」标记（问题②）。图例只在有 hubguard 时加，
+        #      避免"标了来源却没解释"和"没标来源却留图例"两种半吊子状态。
+        _legend = ('- 行首标记 `类型·来源`；来源 w=国内版 · a=国际版 · o=OpenClaw · d=豆包。'
+                   if HG is not None else None)
         mem_lines = [
             '# MEMORY.md — 记忆中枢投影（导航版）',
             '<!-- 真源：%s；由 gateway.py rebuild 生成，勿手改 -->' % os.path.join(HUB, 'memory.db'),
@@ -854,6 +922,10 @@ def rebuild():
             '- 写记忆：python gateway.py remember "<内容>" --type fact|decision|incident|experience',
             '- 禁止直接改本文件与 sink.json，一律走 gateway.py。',
             '- 下全称否定结论前先全盘搜索；动手前可用 resolve_task 取工具配方。',
+        ]
+        if _legend:
+            mem_lines.append(_legend)
+        mem_lines += [
             '',
             '## 关键事实（active，新→旧，每条仅首句结论）',
         ]
@@ -960,7 +1032,7 @@ def rebuild():
         _type_kept = {}
         for _i, (_ts, _typ, _r) in _fill_order:
             _d = (_r['updated_at'] or _r['created_at'] or '')[:10] or '????-??-??'
-            _item = '- [%s|%s] %s' % (_d, _typ, _lead(_r['content']))
+            _item = _hg_fact_line(_d, _typ, _r['source'], _lead(_r['content']))
             if len(_item) + 1 > _room:
                 _dropped_facts = len(_picked) - _kept
                 break
@@ -1014,10 +1086,46 @@ def rebuild():
                 mem_text = mem_text[:_BUDGET]
                 _hard_clipped = True
 
-        wb = os.path.expanduser(r'~\.workbuddy\MEMORY.md')
-        os.makedirs(os.path.dirname(wb), exist_ok=True)
-        with open(wb, 'w', encoding='utf-8') as f:
-            f.write(mem_text)
+        # ★2026-09-17：改走原子写（问题③）。原 `open(wb,'w')` 有两个隐患：
+        #   ① 非原子：写到一半被打断 → 投影半截，而注入侧读到的就是半截；
+        #   ② 换行风格：`open(p,'w')` 默认 newline=None 会把 '\n' 翻成 os.linesep（Windows=CRLF），
+        #      线上投影现在是 CRLF。hubguard.atomic_write 默认 `_detect_newline()` **跟随现状**，
+        #      不会出现"内容没变、字节全变"的假 diff。
+        # ★目标列表：不设 MEM_PROJ_PATH 时与原来那一个硬编码路径**完全相同**（行为不变）；
+        #   设了就写到隔离路径 —— 否则"想验证 rebuild 的改动"就必然要动线上投影，等于不能安全地测。
+        _wb_targets = _proj_targets()
+        wb = _wb_targets[0]
+        _writes = []
+        for _t in _wb_targets:
+            os.makedirs(os.path.dirname(_t), exist_ok=True)
+            # ★问题③/②回归闸门（2026-09-17）：
+            #   投影是**两个实例共写的同一物理文件**（实测 .workbuddy 与 .workbuddy-ai
+            #   是同一 inode），而两侧 gateway.py **不同源**。所以"修好来源标记"这件事
+            #   随时可能被另一侧的一次 rebuild 静默抹掉 —— 谁最后跑谁说了算。
+            #   判据：磁盘上现有投影**有**来源标记，而本次产物**没有** ⇒ 本次生成器更旧。
+            #   处置：照写（不写会让投影变陈旧，更坏），但把对方版本另存 + 大声报警。
+            _downgrade = None
+            if os.path.exists(_t):
+                try:
+                    with open(_t, encoding='utf-8') as _f:
+                        _old = _f.read()
+                    _n_old, _n_new = _count_tagged(_old), _count_tagged(mem_text)
+                    if _n_old and not _n_new:
+                        _downgrade = _n_old
+                        _side = '%s.tagged-%s' % (_t, time.strftime('%Y%m%d-%H%M%S'))
+                        _hg_write(_side, _old)
+                        sys.stderr.write(
+                            '[rebuild][warn] ★★格式回退：磁盘上现有投影有 %d 条来源标记，'
+                            '本次产物 0 条 —— 说明本次生成器更旧（多半是没装 hubguard.py）。'
+                            '已把对方版本另存为 %s\n' % (_n_old, _side))
+                except Exception as _e:
+                    sys.stderr.write('[rebuild][warn] 格式回退检查跳过：%s\n' % _e)
+            _r = _hg_write(_t, mem_text)
+            _w = {k: _r.get(k) for k in ('path', 'bytes', 'atomic', 'newline', 'why')
+                  if _r.get(k) is not None}
+            if _downgrade:
+                _w['format_downgrade_from'] = _downgrade
+            _writes.append(_w)
 
         # ★2026-09-16 六修：把"被砍了多少 / 哪类被饿死 / 余量还剩多少"全部显式化。
         #   验收口径不是"跑通了"，而是**故意制造超预算，看它报不报**。
@@ -1061,7 +1169,11 @@ def rebuild():
                 'facts_listed': _kept, 'type_listed': _type_kept,
                 'dropped_facts': _dropped_facts, 'dropped_assets': _dropped_assets,
                 'hard_trimmed': _hard_trimmed, 'hard_clipped': _hard_clipped,
-                'warnings': _warnings}
+                'warnings': _warnings,
+                # —— 并发治理可观测字段（2026-09-17 新增）
+                #   'writes' 里 atomic=False 表示 os.replace 被拒/目标有硬链接而降级就地写，
+                #   调用方**必须**把这个字段报出去，否则又是"跑起来不报错但结果错"。
+                'writes': _writes, 'guarded': bool(HG is not None)}
     finally:
         conn.close()
 
@@ -1244,6 +1356,17 @@ def main():
         r = governance.find_stale(days=30)
         print(json.dumps({'ok': True, 'count': len(r), 'items': r[:20]},
                          ensure_ascii=False, indent=2))
+
+
+# ---------------------------------------------------------------------------
+# 并发守卫装配（问题①）
+#   ★放在这里、而不是改函数体：本机两个 gateway.py 版本不同源，逐行补丁对不齐；
+#     包装器只依赖"函数名存在"，对两版都适用。
+#   ★为什么模块级就装：任何 `import gateway` 的调用方（mem.py / tool_audit.py /
+#     另一个客户端）拿到的是**同一个** module 对象，装配一次即全局生效。
+#   ★为什么放在文件末尾：必须在所有 def 之后，否则包装会被后面的 def 覆盖掉。
+#   ★同进程可重入是**刻意的**：否则 rebuild 内部再调 remember 会自锁死。
+_HG_GUARDED = HG.install_guards(globals()) if HG is not None else []
 
 
 if __name__ == '__main__':
