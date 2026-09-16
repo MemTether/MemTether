@@ -6,7 +6,7 @@
 """
 import sys, os, json, urllib.request, time
 
-sys.path.insert(0, r'E:\RUANJIAN\ai-audit')
+sys.path.insert(0, r'<AUDIT>')
 import cred_env
 cred_env.env()
 
@@ -102,7 +102,7 @@ try:
     print('=' * 60)
     print(msg)
     # 落盘
-    with open(r'E:\RUANJIAN\memory_hub\astra_verdict_closure.md', 'w', encoding='utf-8') as f:
+    with open(r'<HUB>\astra_verdict_closure.md', 'w', encoding='utf-8') as f:
         f.write('# astra 深度裁决：记忆自动闭环\n\n')
         f.write('> 耗时 %.1fs | prompt %s | completion %s\n\n' % (
             elapsed, usage.get('prompt_tokens', '?'), usage.get('completion_tokens', '?')))

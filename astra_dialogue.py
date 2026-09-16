@@ -19,13 +19,13 @@ import time
 import argparse
 import urllib.request
 
-sys.path.insert(0, r'E:\RUANJIAN\ai-audit')
+sys.path.insert(0, r'<AUDIT>')
 import cred_env
 cred_env.env()
 
 KEY = os.environ['GPTX_ASTRA_KEY']
 URL = 'https://api.gptx.cc/v1/chat/completions'
-HIST = r'E:\RUANJIAN\memory_hub\astra_dialogue.json'
+HIST = r'<HUB>\astra_dialogue.json'
 
 
 def load():

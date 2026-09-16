@@ -68,3 +68,34 @@ packaging/dist/
 packaging/build/
 packaging/*.egg-info/
 *.egg-info/
+
+# ===== 二次脱敏：工作区散落的私人笔记与运行时产物（2026-09-16）=====
+# ★教训一：上一版**逐个列文件名**，必然漏——
+#   写了 astra_turn_ch.txt，实际文件叫 astra_turn_ch**2**.txt；
+#   忽略了 *.db-wal/shm，却漏了 board.db 本身。→ 一律用**模式**，不用名字。
+# ★教训二：这些文件当初是被 `git add -A` 顺手带进来的。凡"本机跑出来的东西"
+#   （结果 json、状态 json、进度 txt、裸 .db）默认都是运行时产物，一律不入库。
+# ★本文件属于「发布侧自有」，**不会被 memtether_sync.py 覆盖**（见 RELEASE_OWNED）。
+
+# 私人笔记与操作记录
+豆包数据转移记录.md
+C盘占用诊断报告.md
+astra_turn_ch*.txt
+as_talk*.txt
+inbox/
+
+# 运行时产物 / 状态文件
+run_*.json
+*_result.json
+*_result.*.json
+scorecard.json
+watermarks.json
+skill_forge_state.json
+robocopy*_progress.txt
+*.db
+
+# 开发残留
+_*.py
+*.bak
+*.bak_*
+cleanup_tmp.py

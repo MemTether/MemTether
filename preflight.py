@@ -20,7 +20,7 @@ import re
 import sys
 import json
 
-HUB = r'E:\RUANJIAN\memory_hub'
+HUB = r'<HUB>'
 
 # 权重：facts/decisions/incidents 高于 experience
 WEIGHT = {

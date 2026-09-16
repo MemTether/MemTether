@@ -74,7 +74,7 @@
 
 ```bash
 # 环境（清空 PYTHONPATH 绕开 WorkBuddy bulk-delete guard）
-cd E:\RUANJIAN\memory_hub
+cd <HUB>
 PYTHONPATH= ./.venv-memory/Scripts/python.exe gateway.py <子命令>
 
 # 写一条事实
@@ -158,8 +158,8 @@ commit_memory_candidate（价值评分 + 阈值过滤 + 去重）
 
 ## 七、环境依赖
 
-- Python venv：`E:\RUANJIAN\memory_hub\.venv-memory`（已装 mem0ai 2.0.20 + chromadb 1.5.9）
-- 凭据：走 `E:\RUANJIAN\ai-audit\cred_env.py`（vault 解析，环境变量灌入）
+- Python venv：`<HUB>\.venv-memory`（已装 mem0ai 2.0.20 + chromadb 1.5.9）
+- 凭据：走 `<AUDIT>\cred_env.py`（vault 解析，环境变量灌入）
 - **关键坑**：跑 pip 必须 `PYTHONPATH=` 清空，否则 WorkBuddy 的 sitecustomize bulk-delete guard 会拦截 pip 清理并 SystemExit(1)。
 
 ## 八、各 agent 的接入方式（唯一入口契约）

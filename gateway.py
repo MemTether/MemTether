@@ -41,7 +41,7 @@ import hashlib
 import argparse
 from pathlib import Path
 
-HUB = r'E:\RUANJIAN\memory_hub'
+HUB = r'<HUB>'
 DB = os.path.join(HUB, 'memory.db')
 SINK = os.path.join(HUB, 'sink.json')
 
@@ -619,7 +619,7 @@ def _llm_json(prompt, system='', model='deepseek', temperature=0.1, max_tokens=2
     """用指定通道做一次 JSON 结构化提炼。返回 dict 或 None。"""
     import urllib.request
     try:
-        sys.path.insert(0, r'E:\RUANJIAN\ai-audit')
+        sys.path.insert(0, r'<AUDIT>')
         import cred_env
         cred_env.env()
         if model == 'deepseek':
@@ -840,10 +840,10 @@ def rebuild():
         # 2) 生成 WorkBuddy MEMORY.md
         mem_lines = [
             '# MEMORY.md — 记忆中枢投影（导航版）',
-            '<!-- 真源：E:\\RUANJIAN\\memory_hub\\memory.db；由 gateway.py rebuild 生成，勿手改 -->',
+            '<!-- 真源：<HUB>\\memory.db；由 gateway.py rebuild 生成，勿手改 -->',
             '',
             '## 怎么用',
-            '- 取全文：cd E:/RUANJIAN/memory_hub && python mem.py search "<关键词>"',
+            '- 取全文：cd <HUB> && python mem.py search "<关键词>"',
             '- 写记忆：python gateway.py remember "<内容>" --type fact|decision|incident|experience',
             '- 禁止直接改本文件与 sink.json，一律走 gateway.py。',
             '- 下全称否定结论前先全盘搜索；动手前可用 resolve_task 取工具配方。',
@@ -992,7 +992,7 @@ def _env_guard():
         if miss:
             sys.stderr.write(
                 '\n[!] 当前解释器缺 %s，检索将降级为纯关键词（资产类查询大概率查不到）。\n'
-                '    正确: E:\\RUANJIAN\\memory_hub\\.venv-memory\\Scripts\\python.exe\n\n'
+                '    正确: <HUB>\\.venv-memory\\Scripts\\python.exe\n\n'
                 % ', '.join(miss))
     except Exception:
         pass

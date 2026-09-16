@@ -18,7 +18,7 @@ import os
 import json
 import time
 
-HUB = r'E:\RUANJIAN\memory_hub'
+HUB = r'<HUB>'
 WORKBUDDY_MEM = os.path.expanduser(r'~\.workbuddy\MEMORY.md')
 FULL = '--full' in __import__('sys').argv
 

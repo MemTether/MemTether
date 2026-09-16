@@ -12,7 +12,7 @@ import sys
 import json
 import os
 
-sys.path.insert(0, r'E:\RUANJIAN\memory_hub')
+sys.path.insert(0, r'<HUB>')
 
 import gateway
 

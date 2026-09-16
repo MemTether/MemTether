@@ -38,7 +38,7 @@ import os
 import sys
 import time
 
-HUB = r'E:\RUANJIAN\memory_hub'
+HUB = r'<HUB>'
 
 # ---------------------------------------------------------------- 模型档案
 # 每条：目录名, ONNX 相对路径, 输出维度, 显示名, 备注

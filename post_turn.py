@@ -23,7 +23,7 @@ import time
 import hashlib
 import argparse
 
-HUB = r'E:\RUANJIAN\memory_hub'
+HUB = r'<HUB>'
 INBOX = os.path.join(HUB, 'inbox', 'inbox.jsonl')
 
 # 触发沉淀的强信号（用户原话里的关键词）

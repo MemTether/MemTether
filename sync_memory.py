@@ -24,7 +24,7 @@ import os
 import sys
 import time
 
-HUB = r'E:\RUANJIAN\memory_hub'
+HUB = r'<HUB>'
 WORKBUDDY_MEM = os.path.expanduser(r'~\.workbuddy\MEMORY.md')
 PROJECTION = os.path.join(HUB, 'projections', 'agent_workbuddy.md')
 
@@ -47,7 +47,7 @@ def read_if_exists(path):
 def build_projection():
     parts = []
     parts.append('# MEMORY.md — WorkBuddy 侧记忆（启动适配层）\n')
-    parts.append('<!-- 真源：E:\\RUANJIAN\\memory_hub（唯一事实源） -->\n')
+    parts.append('<!-- 真源：<HUB>（唯一事实源） -->\n')
     parts.append('<!-- 本文件由 sync_memory.py 全量生成，勿手改；改记忆走 mem.py add -->\n')
     parts.append('<!-- 生成时间 %s -->\n' % time.strftime('%Y-%m-%d %H:%M:%S'))
 
@@ -67,7 +67,7 @@ def build_projection():
             parts.append('')
 
     parts.append('## 工作规则（硬性，不可丢）\n')
-    parts.append('- 唯一事实源 = E:\\RUANJIAN\\memory_hub（sink.json + facts/decisions/incidents/active_tasks）。\n')
+    parts.append('- 唯一事实源 = <HUB>（sink.json + facts/decisions/incidents/active_tasks）。\n')
     parts.append('- 会话启动/摘要压缩后，优先重读本文件与 memory_hub 的 DIGEST.md，覆盖摘要里的冲突信息。\n')
     parts.append('- 关键结论必须写入 memory_hub（走 mem.py add），绝不只留在对话里。\n')
     parts.append('- 拿不准"记没记住"时，读文件，不靠回忆；下全称否定结论前先全盘搜索（含 E 盘等非系统盘）。\n')

@@ -16,7 +16,7 @@ cross-encoder 把 (query, doc) 拼成一个序列做全注意力，能读出双�
 import os
 import numpy as np
 
-HUB = r'E:\RUANJIAN\memory_hub'
+HUB = r'<HUB>'
 # 每条：目录 / ONNX 相对路径 / 备注
 MODELS = {
     'msmarco': dict(dir='cross_encoder', onnx='model.onnx',

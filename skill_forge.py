@@ -26,8 +26,8 @@ HUB = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HUB)
 import gateway  # noqa: E402
 
-SKILLS = r'C:\Users\<USER>\.agents\skills'
-CAND = r'C:\Users\<USER>\.agents\.candidates'
+SKILLS = r'<PATH><USER>\.agents\skills'
+CAND = r'<PATH><USER>\.agents\.candidates'
 STATE = os.path.join(HUB, 'skill_forge_state.json')
 
 # 主题词表：命中 ≥MIN_HITS 条记录才建议沉淀
@@ -236,15 +236,15 @@ def cmd_admit(args):
     _save_state(st)
 
     try:
-        subprocess.run(['git', 'add', '-A'], cwd=r'C:\Users\<USER>\.agents', check=True)
+        subprocess.run(['git', 'add', '-A'], cwd=r'<PATH><USER>\.agents', check=True)
         subprocess.run(['git', '-c', 'user.name=memory-hub', '-c', 'user.email=local@hub',
                         'commit', '-q', '-m', 'skill: %s（自动沉淀自 %s）' % (name, topic)],
-                       cwd=r'C:\Users\<USER>\.agents', check=True)
+                       cwd=r'<PATH><USER>\.agents', check=True)
         print('已 git commit')
     except Exception as e:
         print('[warn] git 提交失败: %s' % e)
     print('入库完成: %s' % os.path.join(dst_dir, 'SKILL.md'))
-    print('（两版通过 junction 立即可见；回滚: cd C:\\Users/<USER>\\.agents && git revert HEAD）')
+    print('（两版通过 junction 立即可见；回滚: cd <PATH><USER>\\.agents && git revert HEAD）')
 
 
 def cmd_status(_args=None):

@@ -12,8 +12,8 @@ import os
 import json
 import time
 
-sys.path.insert(0, r'E:\RUANJIAN\ai-audit')
-sys.path.insert(0, r'E:\RUANJIAN\memory_hub')
+sys.path.insert(0, r'<AUDIT>')
+sys.path.insert(0, r'<HUB>')
 
 import cred_env
 cred_env.env()
@@ -21,7 +21,7 @@ cred_env.env()
 import sqlite3
 from mem0 import Memory
 
-HUB = r'E:\RUANJIAN\memory_hub'
+HUB = r'<HUB>'
 DB = os.path.join(HUB, 'memory.db')
 
 MEM0_CONFIG = {

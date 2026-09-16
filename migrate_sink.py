@@ -21,7 +21,7 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import gateway
 
-HUB = r'E:\RUANJIAN\memory_hub'
+HUB = r'<HUB>'
 SINK = os.path.join(HUB, 'sink.json')
 
 # 已退役机制关键词（这些旧条目应被 supersede，不再当 active 事实）

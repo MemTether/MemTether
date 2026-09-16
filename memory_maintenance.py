@@ -24,10 +24,10 @@ import time
 import shutil
 import sqlite3
 
-sys.path.insert(0, r'E:\RUANJIAN\memory_hub')
+sys.path.insert(0, r'<HUB>')
 import gateway
 
-HUB = r'E:\RUANJIAN\memory_hub'
+HUB = r'<HUB>'
 DB = os.path.join(HUB, 'memory.db')
 BACKUP_DIR = os.path.join(HUB, 'backup')
 

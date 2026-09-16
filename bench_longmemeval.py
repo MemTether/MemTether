@@ -294,14 +294,14 @@ def _looks_like_prose(gold):
 
 
 def _load_cred():
-    """从本机 vault 载入密钥（唯一真源 E:/RUANJIAN/.secure/vault/vault.bin）。
+    """从本机 vault 载入密钥（唯一真源 <DATA>/.secure/vault/vault.bin）。
 
     ★实测踩坑（2026-09-15 21:22）：vault 的读取入口是 `cred_env.env()`
       （把全部条目**灌进 os.environ**），不是 `cred_env.resolve()`（那个只是
       `${VAR}` 字符串展开器，调用它拿到的是变量名本身，看着"有值"其实没用）。
     """
     try:
-        sys.path.insert(0, 'E:/RUANJIAN/ai-audit')
+        sys.path.insert(0, '<AUDIT>')
         import cred_env
         cred_env.env()
     except Exception:

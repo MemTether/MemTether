@@ -15,7 +15,7 @@ import json
 import time
 import subprocess
 
-HUB = r'E:\RUANJIAN\memory_hub'
+HUB = r'<HUB>'
 INBOX = os.path.join(HUB, 'inbox', 'inbox.jsonl')
 REVIEW = os.path.join(HUB, 'review', 'review.jsonl')
 

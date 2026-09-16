@@ -34,7 +34,7 @@ RESULT = os.path.join(HERE, "bench_result.json")
 CASES = [
     # === A 类：本机资产位置（这次翻车的地方）===
     dict(id="A1", cat="资产位置", q="本机 eNSP 装在哪里？",
-         expect=[r"AXUEXI"], forbid=[r"RUANJIAN\\\\eNSP", r"^.*E:\\\\RUANJIAN\s*$"]),
+         expect=[r"AXUEXI"], forbid=[r"RUANJIAN\\\\eNSP", r"^.*<DATA>\s*$"]),
     dict(id="A2", cat="资产位置", q="本机有没有 LibreOffice？在哪？",
          expect=[r"LibreOffice", r"soffice"],
          forbid=[r"没有\s*LibreOffice", r"未安装\s*LibreOffice", r"not installed"]),
@@ -148,8 +148,8 @@ def run(verbose=False):
         cur.execute("SELECT COUNT(*) FROM tool_assets")
         n_asset = cur.fetchone()[0]
         blob.append(f"tool_assets 共 {n_asset} 条")
-        blob.append("投影写到 C:/Users/<USER>/.workbuddy/MEMORY.md，官方槽位上限约 4000 字符")
-        blob.append("真源 E:/RUANJIAN/memory_hub/memory.db")
+        blob.append("投影写到 <PATH><USER>/.workbuddy/MEMORY.md，官方槽位上限约 4000 字符")
+        blob.append("真源 <HUB>/memory.db")
         text = " \n ".join(blob)
 
         hit = any(re.search(p, text, re.I) for p in case["expect"])

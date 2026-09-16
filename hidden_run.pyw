@@ -7,10 +7,10 @@
     启动本脚本即可完全无窗口；子进程再显式带上 CREATE_NO_WINDOW 双保险。
 
 用法（任务动作里写）：
-    <venv>\\Scripts\\pythonw.exe E:\\RUANJIAN\\memory_hub\\hidden_run.pyw gateway.py process_events --limit 10
-    <venv>\\Scripts\\pythonw.exe E:\\RUANJIAN\\memory_hub\\hidden_run.pyw memory_maintenance.py
+    <venv>\\Scripts\\pythonw.exe <HUB>\\hidden_run.pyw gateway.py process_events --limit 10
+    <venv>\\Scripts\\pythonw.exe <HUB>\\hidden_run.pyw memory_maintenance.py
 
-输出：追加到 E:\\RUANJIAN\\memory_hub\\logs\\<脚本名>.log（含时间戳、参数、退出码），
+输出：追加到 <HUB>\\logs\\<脚本名>.log（含时间戳、参数、退出码），
       这样切了无窗口也**不丢诊断信息**。
 """
 import os
@@ -18,7 +18,7 @@ import subprocess
 import sys
 import datetime
 
-BASE = r'E:\RUANJIAN\memory_hub'
+BASE = r'<HUB>'
 PY = os.path.join(BASE, '.venv-memory', 'Scripts', 'python.exe')
 LOG_DIR = os.path.join(BASE, 'logs')
 CREATE_NO_WINDOW = 0x08000000          # 子进程不创建控制台窗口

@@ -21,15 +21,15 @@ import hashlib
 import time
 import re
 
-HUB = r'E:\RUANJIAN\memory_hub'
+HUB = r'<HUB>'
 DOCS_DIR = os.path.join(HUB, 'docs')
 CATALOG = os.path.join(DOCS_DIR, 'catalog.json')
 DOC_INDEX = os.path.join(DOCS_DIR, 'doc_index.jsonl')
 
 # 默认扫描的共享文档目录
 DEFAULT_DOCDIRS = [
-    r'C:\Users\<USER>\WorkBuddy\2026-09-12-10-48-36\doubao-handover',
-    r'E:\RUANJIAN\ai-audit',
+    r'<PATH><USER>\WorkBuddy\2026-09-12-10-48-36\doubao-handover',
+    r'<AUDIT>',
 ]
 
 # 高可信关键词（这些文件重点提炼）

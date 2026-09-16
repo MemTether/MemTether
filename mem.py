@@ -687,7 +687,7 @@ def cmd_distill(a) -> None:
     )
     # 调用 consilium.load_cfg + get_channel（复用成熟通道解析）
     code = (
-        "import sys, json; sys.path.insert(0, r'E:\\RUANJIAN\\ai-audit'); "
+        "import sys, json; sys.path.insert(0, r'<AUDIT>'); "
         "from consilium import call_llm, load_cfg, get_channel; "
         "cfg = load_cfg(); url, key, model = get_channel(cfg, '%s'); "
         "content, usage, dt, err = call_llm('%s', url, key, model, "
@@ -820,7 +820,7 @@ def _env_guard() -> None:
     if miss:
         sys.stderr.write(
             '\n[!] 当前解释器缺 %s，检索会降级为纯关键词（资源类查询大概率查不到）。\n'
-            '    正确解释器: E:\\RUANJIAN\\memory_hub\\.venv-memory\\Scripts\\python.exe\n'
+            '    正确解释器: <HUB>\\.venv-memory\\Scripts\\python.exe\n'
             '    正确用法:   PYTHONPATH= .venv-memory/Scripts/python.exe mem.py search "<关键词>"\n\n'
             % ', '.join(miss))
 

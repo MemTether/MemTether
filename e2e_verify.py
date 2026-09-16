@@ -19,7 +19,7 @@ import time
 import sqlite3
 import subprocess
 
-HUB = r'E:\RUANJIAN\memory_hub'
+HUB = r'<HUB>'
 PY = os.path.join(HUB, '.venv-memory', 'Scripts', 'python.exe')
 DB = os.path.join(HUB, 'memory.db')
 ENV = dict(os.environ)

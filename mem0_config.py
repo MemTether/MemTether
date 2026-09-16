@@ -17,14 +17,14 @@ import os
 import sys
 
 # 通道配置（从 cred_env 解析）
-sys.path.insert(0, r'E:\RUANJIAN\ai-audit')
+sys.path.insert(0, r'<AUDIT>')
 try:
     import cred_env
     cred_env.env()
 except Exception:
     pass
 
-HUB = r'E:\RUANJIAN\memory_hub'
+HUB = r'<HUB>'
 
 # 主 LLM：gptx_astra（最强，事实提取质量最高）
 GPTX_BASE = 'https://api.gptx.cc/v1'

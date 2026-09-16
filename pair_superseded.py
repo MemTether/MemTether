@@ -37,7 +37,7 @@ import sys
 
 import numpy as np
 
-HUB = r'E:\RUANJIAN\memory_hub'
+HUB = r'<HUB>'
 DB = os.path.join(HUB, 'memory.db')
 CAND = os.path.join(HUB, 'docs', 'supersede_candidates.json')
 

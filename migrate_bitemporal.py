@@ -50,7 +50,7 @@ import sqlite3
 import sys
 import time
 
-HUB = r'E:\RUANJIAN\memory_hub'
+HUB = r'<HUB>'
 DB = os.path.join(HUB, 'memory.db')
 
 NEW_COLS = [

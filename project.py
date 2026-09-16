@@ -129,7 +129,7 @@ def build_projection(agent: str, display: str = '', peers=()) -> str:
 ## Recent Memory Index（各类最近 %d 条，带来源）
 %s
 
-> 本投影由 `E:\\RUANJIAN\\memory_hub\\project.py` 自动生成，时间 %s。
+> 本投影由 `<HUB>\\project.py` 自动生成，时间 %s。
 > **唯一权威真源是 `memory.db`（SQLite）**；`sink.json` 仅为兼容期镜像；人读全文 `experience.md`。
 > 本文件是轻量注入快照，敏感信息不在此处。
 > 未读增量请跑：`python mem.py drain --agent %s`（或 `recall --agent %s` 取完整注入块）。

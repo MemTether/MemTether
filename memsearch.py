@@ -19,7 +19,7 @@ import sqlite3
 import datetime
 import urllib.request
 
-HUB = r'E:\RUANJIAN\memory_hub'
+HUB = r'<HUB>'
 DB = os.path.join(HUB, 'memory.db')
 CHROMA_PATH = os.path.join(HUB, 'mem0_store')
 COLLECTION = 'facts_active'
@@ -199,7 +199,7 @@ EMBED_BACKEND_DEFAULT = os.environ.get('MEM_EMBED_BACKEND') or 'local'
 
 
 def _embed_zhipu(texts):
-    sys.path.insert(0, r'E:\RUANJIAN\ai-audit')
+    sys.path.insert(0, r'<AUDIT>')
     import cred_env
     cred_env.env()
     key = os.environ['ZHIPU_KEY']
@@ -290,7 +290,7 @@ def check_env(raise_on_missing=False):
             missing.append(m)
     if missing and raise_on_missing:
         raise RuntimeError(
-            '缺少 %s —— memsearch 需要 E:\\RUANJIAN\\memory_hub\\.venv-memory\\Scripts\\python.exe\n'
+            '缺少 %s —— memsearch 需要 <HUB>\\.venv-memory\\Scripts\\python.exe\n'
             '当前解释器: %s\n'
             '正确用法: PYTHONPATH= "%s" mem.py search "<关键词>"'
             % (', '.join(missing), sys.executable, VENV_PY))
