@@ -485,14 +485,15 @@ def rebuild_vector_index(verbose=True, reclaim=True):
             'reclaimed_mb': (rec or {}).get('freed_mb', 0.0)}
 
 
-def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=30,
+def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
                   rerank_w=0.4, rerank_model=None,
                   adaptive=True, adaptive_thr=0.6,
                   decay=True):
     """混合检索：质量门禁 + 向量 + ASCII精确 + RRF 融合 + cross-encoder 精排。
 
     use_rerank : 是否启用 cross-encoder 精排（agentmemory V4 的核心增益项）
-    rerank_k   : 对 RRF 前多少条做精排（精排是 O(n) 全注意力，太慢就调小）
+    rerank_k   : 对 RRF 前多少条做精排（精排是 O(n) 全注意力）。
+                 默认 None → 读 MEM_RERANK_K，再退回 30（生产值）。
     rerank_w   : 精排分在最终融合中的权重，1-rerank_w 给 RRF 排名分
     rerank_model: 默认读环境变量 MEM_RERANK_MODEL，再退回 'bge'。
                  'bge'=BAAI/bge-reranker-base fp32(1.06GB)；
@@ -514,6 +515,20 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=30,
 
     # ★精排模型：显式传入 > 环境变量 MEM_RERANK_MODEL > 'bge'
     rerank_model = rerank_model or os.environ.get('MEM_RERANK_MODEL') or 'bge'
+    # ★精排候选数：显式传入(默认30)保持生产行为；MEM_RERANK_K 可覆盖。
+    #   2026-09-16 实测：精排占单次查询耗时 98.4%（其余全部环节合计仅 0.03s）。
+    #   62 题同一卷子逐档实测（准 / 单题耗时）：
+    #     k=30  59/62  1.591s   ← 默认，精度优先
+    #     k=20  57/62  1.108s   （比 k=15 还差 → ±2 题属噪声）
+    #     k=15  58/62  0.825s
+    #     k=10  56/62  0.685s
+    #   → 降 k 是明确的"拿精度换速度"，故默认不动；需要更快时
+    #     set MEM_RERANK_K=15 自行权衡。
+    if rerank_k is None:
+        try:
+            rerank_k = int(os.environ.get('MEM_RERANK_K') or 30)
+        except ValueError:
+            rerank_k = 30
 
     conn = sqlite3.connect(DB)
     conn.row_factory = sqlite3.Row
