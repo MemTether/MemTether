@@ -41,7 +41,11 @@ from pathlib import Path
 
 HUB = Path(os.path.dirname(os.path.abspath(__file__)))
 DB = HUB / 'sink.json'
+# ★真源库路径（与 gateway.py / memsearch.py 同一套 MEM_DB 规则；不设时行为不变）。
+#   本文件 L67/L880 直接开库，若各自硬编码就会出现"同一轮查询读两个库"的错。
+_MEMDB = os.environ.get('MEM_DB') or 'memory.db'
 MD = HUB / 'experience.md'
+MEMDB = Path(_MEMDB) if os.path.isabs(_MEMDB) else (HUB / _MEMDB)
 LOCK = HUB / '.sink.lock'
 WM = HUB / 'watermarks.json'
 AGENTS_F = HUB / 'agents.json'
@@ -64,7 +68,7 @@ def _gw():
 def _gw_facts(status='active'):
     """从 memory.db（唯一真源）读事实。"""
     import sqlite3
-    conn = sqlite3.connect(str(HUB / 'memory.db'))
+    conn = sqlite3.connect(str(MEMDB))
     conn.row_factory = sqlite3.Row
     rows = conn.execute(
         "SELECT uid,type,subject,content,status,source,scope,confidence,tags,created_at,updated_at "
@@ -466,6 +470,7 @@ def cmd_search(a) -> None:
       这是**不做常驻服务**的替代方案：既不长期占 ~930MB 内存，又不为每个问题重复付冷启动。
     """
     kws = a.kw if isinstance(a.kw, list) else [a.kw]
+    _mode = getattr(a, 'refuse', None)
     try:
         gw = _gw()
         for qi, kw in enumerate(kws):
@@ -473,10 +478,25 @@ def cmd_search(a) -> None:
                 print('─' * 60)
             r = gw.search(kw, limit=a.limit)
             res = r.get('results', [])
+            # ★证据强度判定（refuse_live）。默认 warn：**结果照常返回**，只在证据弱时
+            #   加一行提示；strict 才真正拒答。默认不改输出的理由见 refuse_live 模块头
+            #   —— 判据误判会让读者以为"记忆里真没有"，比给错答案更糟。
+            _v = None
+            try:
+                from refuse_live import decide as _rd
+                _v = _rd(kw, res, mode=_mode)
+            except Exception as _e:
+                sys.stderr.write('[warn] 拒答判定不可用（不影响检索）: %s\n' % _e)
+            if _v and _v.get('refuse'):
+                print('⊘ 拒答：%s' % _v.get('note'))
+                print('  （引擎 %s；确需查看请加 --refuse off 关闭判定）' % r.get('engine', '?'))
+                continue
             print('命中 %d 条（engine=%s, 查询 %r）' % (len(res), r.get('engine', '?'), kw))
             for item in res:
                 print('  [%s|%s] %.3f %s' % (item.get('type', 'fact'), item.get('source', '?'),
                                               item.get('score', 0), str(item.get('content', ''))[:200]))
+            if _v and _v.get('level') == 'weak':
+                print('  ⚠ %s' % _v.get('note'))
         return
     except Exception as e:
         sys.stderr.write('[warn] gateway 检索失败，退回关键词匹配: %s\n' % e)
@@ -861,7 +881,7 @@ def cmd_timeline(a) -> None:
     """沿替代链还原一条事实的完整演化（支持 uid 前缀）。"""
     import gateway as _gw
     uid = a.uid
-    c = sqlite3.connect(str(HUB / 'memory.db'))
+    c = sqlite3.connect(str(MEMDB))
     if not c.execute('SELECT 1 FROM facts WHERE uid=?', (uid,)).fetchone():
         rs = c.execute('SELECT uid FROM facts WHERE uid LIKE ?', (uid + '%',)).fetchall()
         c.close()
@@ -907,6 +927,9 @@ def main() -> None:
     s = sub.add_parser('search'); s.add_argument('kw', nargs='+',
                                                  help='一个或多个查询（多个时共用一次模型加载）')
     s.add_argument('--limit', type=int, default=20)
+    s.add_argument('--refuse', choices=['off', 'warn', 'strict'], default=None,
+                   help='证据弱时的行为：off=不判定 / warn=照常返回但加提示（默认）'
+                        ' / strict=直接拒答。也可用环境变量 MEM_REFUSE 设定。')
 
     sc = sub.add_parser('since'); sc.add_argument('ts'); sc.add_argument('--source')
 

@@ -20,8 +20,20 @@ import datetime
 import urllib.request
 
 HUB = os.path.dirname(os.path.abspath(__file__))
-DB = os.path.join(HUB, 'memory.db')
-CHROMA_PATH = os.path.join(HUB, 'mem0_store')
+# ★真源库/向量库路径解析（与 gateway.py 同一套规则；不设环境变量时行为完全不变）。
+#   动机（2026-09-16 实测）：本文件与 gateway.py **各自硬编码** memory.db，
+#   一旦用 MEM_DB 切库（例如指向合成演示库 demo/memory_demo.db），
+#   gateway 走新库、本文件仍读旧库 → **一次查询混两个库的数据**，
+#   属"跑起来不报错、但结果错"的一类。凡新增读真源的模块，一律用这段解析。
+DB = os.environ.get('MEM_DB') or os.path.join(HUB, 'memory.db')
+if not os.path.isabs(DB):
+    DB = os.path.join(HUB, DB)
+# 向量库必须与真源库**同步切换**：切库后默认落到"新库同目录/mem0_store"。
+#   该目录不存在时语义路优雅降级（见 load_index 的 isdir 判断），
+#   关键词/字面匹配路照常工作 —— 演示库因此无需下载 543MB 本地模型即可跑。
+CHROMA_PATH = os.environ.get('MEM_STORE') or os.path.join(os.path.dirname(DB), 'mem0_store')
+if not os.path.isabs(CHROMA_PATH):
+    CHROMA_PATH = os.path.join(HUB, CHROMA_PATH)
 COLLECTION = 'facts_active'
 EMBED_MODEL = 'embedding-3'
 

@@ -101,3 +101,12 @@ _[!_]*.py
 *.bak
 *.bak_*
 cleanup_tmp.py
+
+# 生成物一律不入库（2026-09-16）
+# 演示库由 scripts/make_demo_db.py 用固定随机种子产出，逐字节可复现；
+# 向量索引（demo/mem0_store）也在这里面。理由：生成物入库必然与生成脚本**漂移**
+#   —— 改一句模板、库没重新生成，别人拿到的就是旧内容。
+# 跑一次 `python scripts/make_demo_db.py` 即可（自带三项自检）。
+demo/
+# 拒答判据的停用二元组缓存（refuse_live.py 生成，含本机语料用词分布，属"数据"）
+_refuse_stop.json

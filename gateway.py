@@ -42,7 +42,14 @@ import argparse
 from pathlib import Path
 
 HUB = os.path.dirname(os.path.abspath(__file__))
-DB = os.path.join(HUB, 'memory.db')
+# ★真源库路径可被 MEM_DB 覆盖（默认仍是 HUB/memory.db，不设环境变量时行为完全不变）。
+#   用途：仓库不发布真实 memory.db（含真名/学号/本机路径/密钥，见 .gitignore），
+#   但开源版需要「clone 下来就能跑」——指向合成演示库即可：
+#       MEM_DB=demo/memory_demo.db python mem.py search "演示查询"
+#   演示库由 scripts/make_demo_db.py 生成（固定随机种子，逐字节可复现，零真实串）。
+DB = os.environ.get('MEM_DB') or os.path.join(HUB, 'memory.db')
+if not os.path.isabs(DB):
+    DB = os.path.join(HUB, DB)
 SINK = os.path.join(HUB, 'sink.json')
 
 # ---- SQLite schema ----
