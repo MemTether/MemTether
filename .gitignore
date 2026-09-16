@@ -95,7 +95,9 @@ robocopy*_progress.txt
 *.db
 
 # 开发残留
-_*.py
+# ★注意是 `_[!_]*` 而不是 `_*`：`__init__.py` 这类 dunder 文件必须保留。
+#   （曾经用 `_*.py`，结果 filter-branch 把 packaging/src/memtether/__init__.py 一起删了）
+_[!_]*.py
 *.bak
 *.bak_*
 cleanup_tmp.py
