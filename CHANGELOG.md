@@ -17,10 +17,13 @@
 ### 新增
 
 **核心**
-- `gateway.py`：唯一写入入口，强制 `--source <来源名>` 归属；支持
+- `gateway.py`：记忆条目的唯一写入入口，每条记忆都带 `--source <来源名>`
+  归属标记（默认 `workbuddy`）；支持
   `remember / correct / retire / record_tool / incident / search / rebuild` 等子命令。
-- 双时间轴（bi-temporal）治理：有效时间 `T` 与摄录时间 `T′` 分离，支持
-  `as_of` 与 `timeline` 时序查询。
+- 双时间轴（bi-temporal）治理：有效时间 `T` 与摄录时间 `T′` 分离。
+  命令行入口在 `mem.py`：`asof`（某时刻什么为真 / 系统当时认为什么为真）
+  与 `timeline`（沿替代链还原一条事实的演化过程），
+  由 `gateway.py` 的 `as_of()` / `timeline()` 实现。
 - 事实与**工具资产同池检索**，每条资产可带可执行校验命令。
 - 混合检索：向量 + 关键词 + 字面，RRF 融合后精排。
 - 本地 embedding 兜底（`bge-m3 int8`，1024 维），断网可跑；
