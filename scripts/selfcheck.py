@@ -392,7 +392,9 @@ def update_baseline(ctx, out=sys.stdout):
     old = {k: str(files[k]).lower() for k in files}
     new = {}
     changed, absent = [], []
-    for rel in sorted(old):
+    # ★按原文件里的键序遍历（不 sorted）：刷新基线时只该改「值」，
+    #   顺手把键重排一遍会让 git diff 里多出一堆与本次改动无关的噪声行。
+    for rel in old:
         p = os.path.join(ctx['repo'], rel)
         if not os.path.isfile(p):
             absent.append(rel)
