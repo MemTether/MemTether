@@ -673,7 +673,7 @@ def cmd_distill(a) -> None:
     """蒸馏：把若干散条记忆提炼成 1~3 条结论，用最强模型（默认 gptx_astra）。
 
     用法:
-      python mem.py distill --source workbuddy --since "2026-09-01" --model gptx_astra
+      python mem.py distill --source my_agent --since "2026-09-01" --model gptx_astra
     产出：提炼出的结论（不自动写回，打印给你审；加 --commit 才写入中枢）。
     调用模型走 ai-audit/consilium.call_llm（复用成熟通道 + 记账 + 超时 + 空回复重试）。
     """
@@ -771,13 +771,13 @@ def cmd_distill(a) -> None:
             if not txt:
                 continue
             # 进程内直接写入（走锁 + 脱敏 + 去重），避免子进程 spawn 超时
-            ok = _add_inproc(txt, a.source or 'workbuddy', tg, force=True)
+            ok = _add_inproc(txt, a.source or _gw().DEFAULT_SOURCE, tg, force=True)
             if ok:
                 n += 1
             else:
                 print('  [写入失败] %s' % txt[:60])
         render_all(quiet=True)
-        print('已写入 %d 条结论（source=%s）' % (n, a.source or 'workbuddy'))
+        print('已写入 %d 条结论（source=%s）' % (n, a.source or _gw().DEFAULT_SOURCE))
     else:
         print('（预览模式。加 --commit 才会写回中枢）')
 

@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-gateway.py — Memory Gateway（唯一记忆入口，astra 终版架构 2026-09-13）
+gateway.py — Memory Gateway（唯一记忆入口）
 
-定位：三个 agent（WorkBuddy/DeepSeek、OpenClaw/grok🦞、豆包）统一读写记忆的唯一入口。
-分层（astra 裁决）：
+定位：多个异构 AI 客户端（各厂商、各版本、各账号）统一读写记忆的唯一入口。
+分层：
   - SQLite memory.db  = 权威事实账本（唯一真源）
   - Mem0              = 自动提取 + 冲突消解 + 语义检索引擎
   - sink.json         = 兼容导出（不再是运行时真源）
@@ -55,6 +55,15 @@ try:
     import hubguard as HG
 except Exception:                       # pragma: no cover - 无 hubguard 时照旧跑
     HG = None
+
+# ---------------------------------------------------------------------------
+# 默认来源标识（source）
+#   中性值 `local` —— 与本机部署无关，陌生人装完即用，不会把记忆归到一个
+#   他不认识的名字下。单机/自建环境可用环境变量覆盖，例如：
+#       export MEM_DEFAULT_SOURCE=workbuddy
+#   ★这是默认值，不是限制：每条记忆都仍应显式传 --source（多 agent 归属的前提）。
+# ---------------------------------------------------------------------------
+DEFAULT_SOURCE = os.environ.get('MEM_DEFAULT_SOURCE', 'local')
 
 
 def _hg_fact_line(date10, typ, source, lead):
@@ -278,7 +287,7 @@ def _mem0_add(content, user_id='wzj'):
         return {'error': str(e)[:120]}
 
 
-def _vec_upsert(uid, content, type_='fact', source='workbuddy'):
+def _vec_upsert(uid, content, type_='fact', source=DEFAULT_SOURCE):
     """把事实同步进 ChromaDB facts_active 向量索引（2026-09-13 自动同步）。失败不阻塞。"""
     try:
         sys.path.insert(0, HUB)
@@ -307,7 +316,7 @@ def _vec_delete(uid):
         return {'error': str(e)[:120]}
 
 
-def remember(content, type='fact', source='workbuddy', scope='shared', subject='user',
+def remember(content, type='fact', source=DEFAULT_SOURCE, scope='shared', subject='user',
              confidence=0.8, tags='', status='active', mem0=False, valid_from=None):
     """写入/更新一条事实。若内容高度相似则更新，若冲突则 supersede。
     可选 mem0=True 时同步写入 Mem0 语义索引（自动提取+冲突消解）。
@@ -381,7 +390,7 @@ def remember(content, type='fact', source='workbuddy', scope='shared', subject='
         conn.close()
 
 
-def correct(old_uid, new_content, reason, by_agent='workbuddy', valid_from=None):
+def correct(old_uid, new_content, reason, by_agent=DEFAULT_SOURCE, valid_from=None):
     """用户纠正：旧事实 supersede，新事实 active。
 
     双时间轴处理：
@@ -422,7 +431,7 @@ def correct(old_uid, new_content, reason, by_agent='workbuddy', valid_from=None)
         conn.close()
 
 
-def retire(uid, reason, by_agent='workbuddy'):
+def retire(uid, reason, by_agent=DEFAULT_SOURCE):
     """退役机制/工具。双时间轴：valid_to 与 invalidated_at 都记当前时刻
     （退役是"现在就判定不再有效"的动作，两轴在此重合；若某条事实是
      事后才补记退役，则应改用 governance.retire 并另行指定 valid_to）。"""
@@ -536,7 +545,7 @@ def timeline(uid, max_hops=20):
 
 
 def record_tool(name, path=None, entrypoint=None, aliases='', type='local_tool',
-                capabilities='', known_failures='[]', prerequisites='', source='workbuddy'):
+                capabilities='', known_failures='[]', prerequisites='', source=DEFAULT_SOURCE):
     init_db()
     conn = get_conn()
     try:
@@ -847,7 +856,7 @@ def process_events(limit=10):
         conn.close()
 
 
-def incident(step, error, workaround='', result='', run_id=None, agent='workbuddy'):
+def incident(step, error, workaround='', result='', run_id=None, agent=DEFAULT_SOURCE):
     """出错事件即时记录（astra 方案占 30%）。写入 run_events，由反射器提炼。
     触发场景：命令非零退出、同一步骤重试≥2次、用户说"还是不行"、工具被策略阻断、改用替代方案。"""
     payload = {'kind': 'incident', 'step': step, 'error': error,
@@ -1206,7 +1215,7 @@ def main():
     sub = ap.add_subparsers(dest='cmd')
 
     r = sub.add_parser('remember'); r.add_argument('content'); r.add_argument('--type', default='fact')
-    r.add_argument('--source', default='workbuddy'); r.add_argument('--scope', default='shared')
+    r.add_argument('--source', default=DEFAULT_SOURCE); r.add_argument('--scope', default='shared')
     r.add_argument('--subject', default='user'); r.add_argument('--tags', default='')
 
     s = sub.add_parser('search'); s.add_argument('query'); s.add_argument('--limit', type=int, default=10)
@@ -1235,7 +1244,7 @@ def main():
     ic = sub.add_parser('incident')
     ic.add_argument('--step', required=True); ic.add_argument('--error', required=True)
     ic.add_argument('--workaround', default=''); ic.add_argument('--result', default='')
-    ic.add_argument('--run-id', default=None); ic.add_argument('--agent', default='workbuddy')
+    ic.add_argument('--run-id', default=None); ic.add_argument('--agent', default=DEFAULT_SOURCE)
 
     om = sub.add_parser('on_miss'); om.add_argument('query')
     om.add_argument('--task-type', default=''); om.add_argument('--answer-source', default='agent')
@@ -1283,7 +1292,7 @@ def main():
         print(json.dumps(retire(a.uid, a.reason), ensure_ascii=False))
     elif a.cmd == 'record_tool':
         print(json.dumps(record_tool(a.name, a.path, a.entrypoint, a.aliases, a.type,
-                                     a.capabilities, a.known_failures, source='workbuddy'), ensure_ascii=False))
+                                     a.capabilities, a.known_failures, source=DEFAULT_SOURCE), ensure_ascii=False))
     elif a.cmd == 'resolve_task':
         print(json.dumps(resolve_task(a.task), ensure_ascii=False))
     elif a.cmd == 'event':
