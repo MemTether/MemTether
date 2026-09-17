@@ -16,9 +16,13 @@ publish_pypi.py — MemTether 发布到 PyPI 的一键上传器（A2 收口）
 
 用法：
   set TWINE_PASSWORD=pypi-xxxx...
-  python publish_pypi.py                 # 正式 PyPI
+  python publish_pypi.py                 # 正式 PyPI（从环境变量读 token）
   python publish_pypi.py --test          # TestPyPI（需单独账号的 token）
   python publish_pypi.py --dry-run       # 只做检查+名单，不上传
+  python publish_pypi.py --clipboard     # token 从 Windows 剪贴板读
+                                         # （PyPI 显示 token 后点复制按钮
+                                         # 立即跑这条；上传成功后剪贴板自动清空）
+                                         # token 优先顺序: 环境变量 > --clipboard
 """
 import os
 import sys
@@ -27,6 +31,33 @@ import time
 import shutil
 import hashlib
 import subprocess
+
+# Windows 剪贴板支持：subprocess 调 PowerShell Get/Set-Clipboard
+# —— ctypes 在某些 Windows 配置上会让 Python 进程 SIGSEGV(exit 139)
+# —— subprocess 路线慢一点(1-2s), 但稳定且不会崩进程
+_clipboard = None
+if sys.platform == "win32":
+    try:
+        def _clipboard_text():
+            r = subprocess.run(["powershell", "-NoProfile", "-Command",
+                                "Get-Clipboard -Raw"],
+                               capture_output=True, encoding="utf-8",
+                               errors="replace", creationflags=CREATE_NO_WINDOW,
+                               timeout=5)
+            if r.returncode != 0:
+                return ""
+            return (r.stdout or "").rstrip("\r\n")
+
+        def _clipboard_clear():
+            subprocess.run(["powershell", "-NoProfile", "-Command",
+                            "Set-Clipboard -Value $null"],
+                           capture_output=True, encoding="utf-8",
+                           errors="replace", creationflags=CREATE_NO_WINDOW,
+                           timeout=5)
+
+        _clipboard = {"get": _clipboard_text, "clear": _clipboard_clear}
+    except Exception:
+        _clipboard = None
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 DIST = os.path.join(ROOT, "dist")
@@ -110,6 +141,7 @@ def main():
     args = [a for a in sys.argv[1:]]
     use_test = "--test" in args
     dry = "--dry-run" in args
+    use_clipboard = "--clipboard" in args
 
     log("=== MemTether 发布器 ===")
     log("目标：%s" % ("TestPyPI（演练）" if use_test else "正式 PyPI"))
@@ -167,13 +199,30 @@ def main():
         return 0
 
     token = os.environ.get("TWINE_PASSWORD", "").strip()
+    src = "环境变量 TWINE_PASSWORD"
+    if not token and use_clipboard and _clipboard:
+        try:
+            clip = _clipboard["get"]()
+        except Exception as e:
+            clip = ""
+            log("      读剪贴板失败：%s" % e)
+        clip = (clip or "").strip()
+        if clip.startswith("pypi-") and len(clip) >= 30:
+            token = clip
+            src = "Windows 剪贴板"
     if not token:
-        log("[4/4] !! 未检测到环境变量 TWINE_PASSWORD —— 中止")
-        log("      请先执行： set TWINE_PASSWORD=pypi-xxxxxxxxxxxxxxxx")
+        log("[4/4] !! 未拿到 token —— 中止")
+        if use_clipboard:
+            log("         --clipboard：剪贴板内容不是 pypi- 开头或太短")
+            log("         可改用: set TWINE_PASSWORD=pypi-xxx && python publish_pypi.py")
+        else:
+            log("         请先执行： set TWINE_PASSWORD=pypi-xxxxxxxxxxxxxxxx")
+            log("         或: python publish_pypi.py --clipboard")
         return 4
     if not token.startswith("pypi-"):
-        log("      !! token 不以 pypi- 开头，请确认你复制完整（含前缀）")
+        log("      !! token 不以 pypi- 开头（来源：%s），请确认你复制完整（含前缀）" % src)
         return 4
+    log("      token 来源：%s（上传成功后自动清剪贴板）" % src)
 
     env["TWINE_USERNAME"] = "__token__"
     env["TWINE_PASSWORD"] = token
@@ -202,6 +251,13 @@ def main():
     log("上传成功。")
     log("  查看：%s" % ("https://test.pypi.org/project/memtether/"
                         if use_test else "https://pypi.org/project/memtether/"))
+    # 上传成功后：剪贴板来源则清剪贴板；环境变量来源不动
+    if src == "Windows 剪贴板" and _clipboard:
+        try:
+            _clipboard["clear"]()
+            log("  剪贴板已清空。")
+        except Exception as e:
+            log("  清剪贴板失败（不影响上传结果）：%s" % e)
     return 0
 
 
