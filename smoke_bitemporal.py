@@ -10,6 +10,7 @@
   - retire 后 valid_to 与 invalidated_at 都有值。
 用法：python smoke_bitemporal.py（打印每条断言结果，末尾自清测试数据）
 """
+import os
 import sqlite3
 import sys
 

@@ -108,12 +108,16 @@ py-modules = [
     "hubguard",             # 并发治理（跨进程锁 + 写函数包装 + 原子写）
     "attach_hubguard",      # hubguard 零侵入接入器（check / patch / apply / revert）
     "preflight",            # 发布前置闸门
+    "publish_pypi",         # PyPI 发布（token 只从环境变量读，绝不落盘）
     "bootstrap",            # 初始化
     "board",                # 待办看板
     "approve",              # 审批
     "enrich_caps",          # 资产能力补全
     "sync_memory",          # 同步
     "skill_forge",          # 技能沉淀
+    # —— 跨客户端协作（同一份物理文件被多个客户端共写时的安全工具）
+    "wslog_append",         # 共写日志的原子追加（不读全文、不 seek，0 丢行）
+    "slot_update",          # 共享注入槽位原地更新（锚点唯一 + 预算闸门 + 原子写）
     # —— 迁移 / 一次性工具
     "migrate_bitemporal",   # 双时间轴回填
     "migrate_sink",         # 投影迁移
