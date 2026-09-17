@@ -68,8 +68,8 @@ CREATE_NO_WINDOW = 0x08000000
 
 # 显式上传名单：只认这两个正式产物
 TARGETS = [
-    "memtether-0.1.0a1-py3-none-any.whl",
-    "memtether-0.1.0a1.tar.gz",
+    "memtether-0.1.0a2-py3-none-any.whl",
+    "memtether-0.1.0a2.tar.gz",
 ]
 
 PYPI_URL = "https://upload.pypi.org/legacy/"

@@ -10,6 +10,43 @@
 
 ---
 
+## [0.1.0a2] — 2026-09-17
+
+修复重发，无新功能。`0.1.0a1` 的发布包**不含**下列修复。
+
+### 修复
+
+- **发布泄露面**：`.gitignore` 原先只写 `*.bak` 与 `*.bak_*`（下划线），
+  **匹配不到** `<file>.bak-<YYYYMMDD-HHMMSS>`（连字符）这种快照名 ——
+  审计工具自己产生的快照会漏进发布集。现合并为 `*.bak*`。
+- **默认归属中性化**：`gateway.py remember` 的 `--source` 缺省值由
+  `workbuddy` 改为中性值 `local`；开源仓库不预设任何客户端名。
+- **打包闸门**：`py-modules` 补齐至 52 项（`hubguard` / `attach_hubguard`
+  等此前漏列，`scripts/check_packaging.py` 会报红）。
+- **冒烟脚本**：`smoke_bitemporal.py` 用了 `os` 却没 `import os`，
+  直接运行会 `NameError`。
+
+### 变更（脱敏）
+
+- 清除 6 处硬编码本机路径，改为环境变量 + 相对推导：
+  `attach_hubguard.py`（`--target` 缺省取 `$MEM_HUBGUARD_TARGET`，
+  未设则推导为同级 `memory_hub/gateway.py`；注入块查找 `hubguard.py`
+  走 `$MEM_HUBGUARD_PATH`）、`hubguard.py` 文档、
+  `patch-memory_hub-hubguard.diff`（按 `7bb566b` 基线重新生成）、
+  `.release-baseline.json`、`scripts/scan_leaks.py` 注释。
+- `ARCHITECTURE.md` 重写为开源架构文档并脱敏；README 新增「仓库里的文件地图」。
+
+### 验证方式（可复现）
+
+```bash
+python scripts/scan_leaks.py            # 发布集脱敏扫描（缺词表 exit 2）
+python scripts/scan_history_leaks.py    # git 历史扫描
+python scripts/check_packaging.py       # 打包清单与版本号闸门
+python hubguard.py selftest             # 7 组并发 / 原子性自检
+```
+
+---
+
 ## [0.1.0a1] — 2026-09-17
 
 首个 alpha。研究原型，接口未冻结。
@@ -99,7 +136,8 @@ Apache-2.0（含专利授权）。第三方归属见 `NOTICE`。
 
 ## 版本路线图（非承诺）
 
-- `0.1.0a2`：一键安装脚本；把自检收敛成单条命令并输出报告。
+- `0.1.0a2`：修复重发（无新功能），见上。
+- 后续 alpha：一键安装脚本；把自检收敛成单条命令并输出报告。
 - `0.2.0`：MCP Server 封装（`add_memories` / `search_memory` /
   `list_memories` / `delete_all_memories`）；技能自动沉淀闭环。
 - 接口在 `0.1.x` 期间可能变动，`1.0` 前不做兼容承诺。
