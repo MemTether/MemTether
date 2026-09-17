@@ -18,6 +18,13 @@ wheel 里就没有它。而这个错误在 `pip install` 时**不会有任何提
   · **排除 `_` 开头**：这是本仓库既有约定（.gitignore 用 `_[!_]*.py` 忽略临时脚本），
     所以"临时脚本必须以 `_` 开头"这条约定现在被强制了；
   · `memtether.py`（门面）也在其中，**不需要特例** —— 规则越少越不会忘。
+  · **`.pyw` 单独一条规则**（2026-09-17 补）：往 `py-modules` 里写 `.pyw` 是**假动作**。
+    实测 setuptools 84.0.0 的 `build_py.find_modules()` 只认 `.py` 源码，`.pyw` 会被
+    **静默跳过**（不报错、不警告），于是清单看着像打包了、wheel 里其实没有。
+    所以本脚本对 `.pyw` 另立两条：
+      ① 任何被 git 跟踪的根 `.pyw` 必须在 NON_PACKAGED_PYW 里**显式登记**
+         —— 它是"刻意不随包分发"的一份**决定**，不是扫描的盲区；
+      ② 任何 `.pyw` 都不允许出现在 `py-modules` 里（会制造"已打包"的错觉）。
 
 用法
 ----
@@ -34,6 +41,15 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 PYPROJECT = os.path.join(ROOT, 'pyproject.toml')
 NOTICE_PATH = os.path.join(ROOT, 'NOTICE')
+
+# ★2026-09-17：`.pyw` 是 Windows 专用启动器（由 pythonw.exe 执行、不建控制台窗口），
+#   不能作为 py-modules 进 wheel —— 实测 setuptools 84.0.0 的 build_py.find_modules()
+#   只认 `.py` 源，`.pyw` 会被**静默跳过**。所以它们**刻意不随包分发**。
+#   但"刻意不打包"必须是一份**显式决定**，不是扫描盲区 —— 新增 .pyw 而不登记，
+#   本脚本就报错（否则又是一个"跑起来不报错、但结果全错"）。
+NON_PACKAGED_PYW = {
+    'hidden_run': '计划任务的无窗口运行器（Windows 专用；用户按需从仓库取用）',
+}
 
 
 def load_toml(path):
@@ -73,6 +89,45 @@ def tracked_root_modules():
             continue                      # 本仓库约定：临时脚本以 _ 开头，不进包
         mods.add(name)
     return mods
+
+
+def tracked_root_pyw():
+    """被 git 跟踪的、仓库根的 .pyw（去掉扩展名）。子目录的不算。"""
+    r = subprocess.run(['git', 'ls-files', '*.pyw'], cwd=ROOT,
+                       capture_output=True, text=True)
+    if r.returncode != 0:
+        print('★%s 不是 git 仓库（或 git 不可用）：%s'
+              % (ROOT, (r.stderr or '').strip()))
+        raise SystemExit(2)
+    names = set()
+    for line in r.stdout.splitlines():
+        line = line.strip()
+        if not line or '/' in line:
+            continue
+        names.add(line[:-4] if line.lower().endswith('.pyw') else line)
+    return names
+
+
+def check_pyw(declared, problems):
+    """`.pyw` 三条规则：必须登记 / 登记不许过期 / 不许进 py-modules。"""
+    pyw = tracked_root_pyw()
+    unregistered = sorted(n for n in pyw if n not in NON_PACKAGED_PYW)
+    if unregistered:
+        problems.append(
+            '仓库新增了根 .pyw 但未登记：%s —— 若它应随包分发请改 pyproject，'
+            '若刻意不打包请加进 check_packaging.NON_PACKAGED_PYW'
+            % ', '.join(unregistered))
+    stale = sorted(n for n in NON_PACKAGED_PYW if n not in pyw)
+    if stale:
+        problems.append('NON_PACKAGED_PYW 里登记的 .pyw 在仓库里已不存在：%s'
+                        % ', '.join(stale))
+    conflict = sorted(n for n in pyw if n in declared)
+    if conflict:
+        problems.append(
+            '这些 .pyw 同时出现在 py-modules 里：%s —— 实测 setuptools 只认 .py 源，'
+            '会**静默漏掉**（看着像打包了其实没有），请从 py-modules 移除'
+            % ', '.join(conflict))
+    return pyw
 
 
 def check_notice(cfg, problems):
@@ -163,6 +218,8 @@ def main():
     if 'memtether' not in declared:
         problems.append('清单缺 memtether（门面 / CLI 入口）')
 
+    pyw = check_pyw(declared, problems)
+
     # ★版本漂移：pyproject 的 version 与 memtether.py 的 __version__ 必须一致。
     #   2026-09-16 实测踩到：pyproject 写 "0.1.0-pre"（不是合法 PEP 440），
     #   setuptools 静默归一化成 "0.1.0rc0" —— 于是 `memtether --version`
@@ -196,6 +253,8 @@ def main():
 
     print('✓ 打包清单与仓库一致：%d 个根模块 + packages=%s + 入口 memtether:main + 版本 %s'
           % (len(declared), packages, ver_pj))
+    print('✓ .pyw 已显式登记（刻意不打包 %d 个：%s）'
+          % (len(pyw), ', '.join(sorted(pyw)) or '无'))
     print('✓ NOTICE 归属声明完整（%s）' % (notice_note or '已登记'))
     return 0
 

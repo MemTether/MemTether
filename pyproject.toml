@@ -107,7 +107,7 @@ py-modules = [
     "hub_selfcheck",        # 定时巡检
     "hubguard",             # 并发治理（跨进程锁 + 写函数包装 + 原子写）
     "attach_hubguard",      # hubguard 零侵入接入器（check / patch / apply / revert）
-    "preflight",            # 发布前置闸门
+    "preflight",            # 每轮回答前的记忆预取（[MEMORY_PREFLIGHT] 区块）
     "publish_pypi",         # PyPI 发布（token 只从环境变量读，绝不落盘）
     "bootstrap",            # 初始化
     "board",                # 待办看板
