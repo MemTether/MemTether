@@ -125,7 +125,7 @@ python mem.py timeline <uid>
 |---|---|---|---|
 | **对外接口** | 5 | ✅ **装完即用的就是这几个** | `memtether`（包门面 + CLI）· `gateway`（唯一写入入口）· `mem`（共享总线 + CLI）· `memsearch`（混合检索）· `mcp_server`（MCP Server） |
 | 引擎核心 | 13 | ⚠️ 被上面调用，一般不直接用 | `embed_local` `rerank` `governance` `project` `refuse_live` `refuse_gate` `tool_audit` `memory_sink` `memory_maintenance` `pair_superseded` `mem0_config` `post_turn` `demo_gateway` |
-| 运维 / 自检 | 12 | 🔧 自建环境才用 | `hub_score`（四维评分卡）`hub_selfcheck` `hubguard`（并发治理）`attach_hubguard` `preflight`（发布前置闸门）`publish_pypi` `bootstrap` `board` `approve` `enrich_caps` `sync_memory` `skill_forge` |
+| 运维 / 自检 | 12 | 🔧 自建环境才用 | `hub_score`（四维评分卡）`hub_selfcheck` `hubguard`（并发治理）`attach_hubguard` `preflight`（每轮回答前预取记忆）`publish_pypi` `bootstrap` `board` `approve` `enrich_caps` `sync_memory` `skill_forge` |
 | 跨客户端协作 | 2 | 🔧 多个客户端共写同一份文件时才用 | `wslog_append`（共写日志原子追加）`slot_update`（共享槽位原地更新） |
 | 迁移 / 一次性 | 6 | ⛔ 一般不用碰 | `migrate_bitemporal` `migrate_sink` `import_mem0` `sync_reflector_mem0` `astra_dialogue` `astra_memory_closure` |
 | 评测 / 回归 | 14 | 🔬 想复跑卷子时 | `asset_bench` `asset_bench_holdout` `asset_selfcheck` `bench_longmemeval` `e2e_verify` `hard_bench` `hard_holdout` `judge_selfcheck` `refuse_bench` `regression_test` `rerank_k_bench` `smoke_bitemporal` `test_autosync` `test_triggers` |
