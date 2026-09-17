@@ -103,8 +103,9 @@ robocopy*_progress.txt
 # ★注意是 `_[!_]*` 而不是 `_*`：`__init__.py` 这类 dunder 文件必须保留。
 #   （曾经用 `_*.py`，结果 filter-branch 把 packaging/src/memtether/__init__.py 一起删了）
 _[!_]*.py
-*.bak
-*.bak_*
+# ★用 `*.bak*` 而不是 `*.bak` + `*.bak_*`：快照名形如 `<file>.bak-<YYYYMMDD-HHMMSS>`（连字符），
+#   旧的两条规则都匹配不到 —— 实测 9 个快照漏网、其中含内部代号与本机路径，会被 `git add -A` 一并发布。
+*.bak*
 cleanup_tmp.py
 
 # 生成物一律不入库（2026-09-16）
