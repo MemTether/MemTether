@@ -122,13 +122,22 @@ def run(cmd, env=None, cwd=None):
                           env=env, cwd=cwd or ROOT)
 
 
-# twine 装在中枢 venv 里，不在随便哪个 python 上 —— 必须探测，不能假设
-CANDIDATE_PY = [
-    os.environ.get("PUBLISH_PY", ""),
-    r"E:/RUANJIAN/memory_hub/.venv-memory/Scripts/python.exe",
-    r"E:/RUANJIAN/memory_hub/.venv-mem/Scripts/python.exe",
-    sys.executable,
-]
+# twine 装在中枢 venv 里，不在随便哪个 python 上 —— 必须探测，不能假设。
+# 本机盘符/目录布局属个人隐私，绝不硬编码进开源包：
+#   PUBLISH_PY   —— 直接指定解释器（最高优先级）
+#   MEM_HUB_DIR  —— 记忆中枢根目录，自动拼 .venv-memory/Scripts/python.exe
+def _candidate_py():
+    cands = [os.environ.get("PUBLISH_PY", "")]
+    hub = os.environ.get("MEM_HUB_DIR", "").strip()
+    if hub:
+        for v in (".venv-memory", ".venv-mem", ".venv", "venv"):
+            cands.append(os.path.join(hub, v, "Scripts", "python.exe"))
+            cands.append(os.path.join(hub, v, "bin", "python"))
+    cands.append(sys.executable)
+    return cands
+
+
+CANDIDATE_PY = _candidate_py()
 
 
 def find_twine_py():
