@@ -21,8 +21,8 @@
   审计工具自己产生的快照会漏进发布集。现合并为 `*.bak*`。
 - **默认归属中性化**：`gateway.py remember` 的 `--source` 缺省值由
   `workbuddy` 改为中性值 `local`；开源仓库不预设任何客户端名。
-- **打包闸门**：`py-modules` 补齐至 52 项（`hubguard` / `attach_hubguard`
-  等此前漏列，`scripts/check_packaging.py` 会报红）。
+- **打包闸门**：`py-modules` 补齐至 52 项（`publish_pypi` / `wslog_append` /
+  `slot_update` 此前漏列，`scripts/check_packaging.py` 会报红）。
 - **冒烟脚本**：`smoke_bitemporal.py` 用了 `os` 却没 `import os`，
   直接运行会 `NameError`。
 
