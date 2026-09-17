@@ -89,7 +89,12 @@ def sha256(path):
 
 
 def archive_strays():
-    """把 dist/ 里非上传目标的杂物改名归档（不删除）。"""
+    """把 dist/ 里非上传目标的杂物改名归档（不删除）。
+
+    目录也要归档：python -m build 会在 dist/ 下留 .tmp-* 目录，里面躺着
+    上一轮的同名 tar.gz。本发布器用显式名单上传所以不受影响，但只要有人
+    改成 dist/* 就会把旧包一起传上去。
+    """
     if not os.path.isdir(DIST):
         return 0
     keep = set(TARGETS)
@@ -98,7 +103,7 @@ def archive_strays():
     ts = time.strftime("%Y%m%d-%H%M%S")
     for name in sorted(os.listdir(DIST)):
         p = os.path.join(DIST, name)
-        if not os.path.isfile(p) or name in keep:
+        if name in keep:
             continue
         dst = os.path.join(ARCHIVE_DIR, "%s.arch-%s" % (name, ts))
         try:
