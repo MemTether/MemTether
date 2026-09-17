@@ -41,6 +41,9 @@ import datetime as dt
 HERE = os.path.dirname(os.path.abspath(__file__))
 DB = os.path.join(HERE, 'memory.db')
 
+# 默认操作者标识（中性值 local；单机/自建环境可用 MEM_DEFAULT_SOURCE 覆盖）
+DEFAULT_SOURCE = os.environ.get('MEM_DEFAULT_SOURCE', 'local')
+
 
 # ---------------- ① 冲突检测 ----------------
 # 思路：同一"主题键"下出现多条 active，且它们的**极性相反**（一条肯定、一条否定）。
@@ -540,7 +543,7 @@ def _norm_pair(a, b):
     return (a, b) if a <= b else (b, a)
 
 
-def record_conflict_review(uid_a, uid_b, verdict, note='', by_agent='workbuddy'):
+def record_conflict_review(uid_a, uid_b, verdict, note='', by_agent=DEFAULT_SOURCE):
     """记录一次冲突的人工复核结论。
 
     ★为什么需要这张表：detect_explicit_conflicts 定位是"误报率低的确定性检测"，

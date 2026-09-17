@@ -73,7 +73,7 @@ TOOLS = [
                     "default": "fact",
                     "description": "fact 事实 / decision 决策 / incident 故障 / experience 经验教训",
                 },
-                "source": {"type": "string", "default": "workbuddy", "description": "来源 agent 标识"},
+                "source": {"type": "string", "default": gateway.DEFAULT_SOURCE, "description": "来源 agent 标识"},
                 "tags": {"type": "string", "default": "", "description": "逗号分隔标签，便于检索"},
             },
             "required": ["content"],
@@ -191,7 +191,7 @@ def tool_add(args):
         gateway.remember,
         args.get("content", ""),
         type=args.get("type", "fact"),
-        source=args.get("source", "workbuddy"),
+        source=args.get("source", gateway.DEFAULT_SOURCE),
         tags=args.get("tags", ""),
         scope="shared",
     )
