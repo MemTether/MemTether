@@ -105,9 +105,22 @@ def _count_tagged(text):
     return sum(1 for _l in (text or '').split('\n') if _TAG_RE.match(_l))
 
 
-def _hg_write(path, text):
-    """投影落盘。有 hubguard 走原子写（★跟随目标现有换行风格，见下）。"""
+def _hg_write(path, text, before=None, on_conflict='abort', tag=''):
+    """投影落盘。有 hubguard 走原子写（★跟随目标现有换行风格，见下）。
+
+    ★2026-09-17（问题③收口）：带 `before` 时改走 `commit_guarded` —— 先证明
+      "我读到的还是现在这个"，被别人改过就**拒写**（抛 ConcurrentModification）。
+      只做 `atomic_write` 是不够的：原子替换只保证"不写半截"，**不保证不覆盖别人的更新**
+      —— 两个实例同时 rebuild，后者会把前者刚写的内容整体盖掉，而且**双方都不报错**。
+      这是"同一 inode 整体重写互覆"，只有"读—改—写"三段式的冲突检测能挡住它。
+
+    ★`before=None` 时保持原子写（用于 sidecar 另存等"不基于旧内容"的写入）。
+    ★`HG is None` 时仍是裸写 —— 调用方（rebuild）负责在此之前 fail-closed。
+    """
     if HG is not None:
+        if before is not None:
+            return HG.commit_guarded(path, text, before,
+                                     on_conflict=on_conflict, tag=tag)
         return HG.atomic_write(path, text)
     with open(path, 'w', encoding='utf-8') as f:
         f.write(text)
@@ -123,7 +136,12 @@ HUB = os.path.dirname(os.path.abspath(__file__))
 DB = os.environ.get('MEM_DB') or os.path.join(HUB, 'memory.db')
 if not os.path.isabs(DB):
     DB = os.path.join(HUB, DB)
-SINK = os.path.join(HUB, 'sink.json')
+# ★sink.json 同样可被 MEM_SINK_PATH 覆盖（2026-09-17 加，理由与 MEM_DB 完全一样）：
+#   sink.json 落在**仓库内**，而 rebuild 每次都会把它**整体重写**。
+#   用 MEM_DB 指向隔离库做演练时，若不隔离 sink.json，就会把仓库里那份真实导出
+#   （实测 354945 B）整体覆盖成演练内容 —— 又是"跑起来不报错、但结果错"。
+#   ★不设该变量时路径与原来**逐字节相同**（HUB/sink.json），行为不变。
+SINK = os.environ.get('MEM_SINK_PATH') or os.path.join(HUB, 'sink.json')
 
 # ---- SQLite schema ----
 SCHEMA = """
@@ -1104,9 +1122,29 @@ def rebuild():
         #   设了就写到隔离路径 —— 否则"想验证 rebuild 的改动"就必然要动线上投影，等于不能安全地测。
         _wb_targets = _proj_targets()
         wb = _wb_targets[0]
+        # ★2026-09-17（问题③）：`MEM_PROJ_PATH` 是"我明确要求写到隔离路径"的信号。
+        #   没设它 ⇒ 目标就是**线上共享投影**（两个实例共写同一 inode）。
+        _redirected = bool(os.environ.get('MEM_PROJ_PATH'))
         _writes = []
+        _refused = []
         for _t in _wb_targets:
+            # ★fail-closed：没有守卫却要写**共享槽位** ⇒ 拒写，绝不裸写。
+            #   原实现在 `HG is None` 时退化成 `open(w,'w')` —— 等于"最需要保护的时刻
+            #   （守卫缺失）反而毫无保护"，而且**完全静默**。
+            #   2026-09-17 实测踩到过它的另一面：演练里把 HG 置 None，结果直接覆盖了线上投影。
+            #   故：只有调用方**显式**指定了隔离路径（MEM_PROJ_PATH）才允许无守卫落盘。
+            if HG is None and not _redirected:
+                _why = ('无 hubguard 且目标是共享投影（未设 MEM_PROJ_PATH）—— '
+                        '拒写，以免静默覆盖另一实例的更新')
+                _refused.append({'kind': 'no-guard', 'path': _t, 'why': _why})
+                _writes.append({'path': _t, 'refused': True, 'why': _why})
+                sys.stderr.write('[rebuild][warn] ★拒绝写入共享投影 %s：%s\n' % (_t, _why))
+                continue
             os.makedirs(os.path.dirname(_t), exist_ok=True)
+            # ★并发判据的基准必须在**读之前**取：先 snapshot，再读 _old。
+            #   反过来（先读 _old 再 snapshot）会把"我读 _old 与 snapshot 之间"发生的
+            #   改动算成"没变" —— 冲突检测被自己的读取顺序抹掉，变成假通过。
+            _before = HG.snapshot(_t) if HG is not None else None
             # ★问题③/②回归闸门（2026-09-17）：
             #   投影是**两个实例共写的同一物理文件**（实测 .workbuddy 与 .workbuddy-ai
             #   是同一 inode），而两侧 gateway.py **不同源**。所以"修好来源标记"这件事
@@ -1129,8 +1167,26 @@ def rebuild():
                             '已把对方版本另存为 %s\n' % (_n_old, _side))
                 except Exception as _e:
                     sys.stderr.write('[rebuild][warn] 格式回退检查跳过：%s\n' % _e)
-            _r = _hg_write(_t, mem_text)
-            _w = {k: _r.get(k) for k in ('path', 'bytes', 'atomic', 'newline', 'why')
+            _cm = getattr(HG, 'ConcurrentModification', None) if HG is not None else None
+            try:
+                _r = _hg_write(_t, mem_text, before=_before,
+                               on_conflict='abort', tag='gateway.rebuild')
+            except Exception as _e:
+                if _cm is None or not isinstance(_e, _cm):
+                    raise
+                # 对方在我们"读投影"之后写了一次。对方那版**同样是刚生成的有效投影**
+                # （同一份库、同一时刻），所以这不是故障而是**保护生效**：本次让位、不覆盖。
+                # 投影因此不会变陈旧；万一对方写的是更旧的格式，下一次 rebuild 的
+                # "格式回退闸门"会照旧把它另存并重写 —— 可自愈，故不做重试（避免活锁）。
+                _why = ('另一实例在本次 rebuild 的"读—写"之间更新了投影，本次让位'
+                        '（对方版本已落盘；投影未变陈旧，无需重试）')
+                _refused.append({'kind': 'concurrent', 'path': _t, 'why': _why,
+                                 'detail': str(_e)})
+                _writes.append({'path': _t, 'refused': True, 'why': _why})
+                sys.stderr.write('[rebuild][warn] ★并发让位 %s：%s\n%s\n' % (_t, _why, _e))
+                continue
+            _w = {k: _r.get(k) for k in ('path', 'bytes', 'atomic', 'newline', 'why',
+                                        'symlink', 'hardlink', 'real')
                   if _r.get(k) is not None}
             if _downgrade:
                 _w['format_downgrade_from'] = _downgrade
@@ -1167,11 +1223,21 @@ def rebuild():
         if _headroom < 100:
             _warnings.append('余量仅 %d 字符（预算 %d）—— 再写一条记忆就会触发裁剪'
                              % (_headroom, _BUDGET))
+        # ★2026-09-17：拒写/让位必须进**返回结构**，不能只写 stderr
+        #   —— 否则调用方（mcp_server / 维护脚本）读到的仍是"一切正常"。
+        for _r0 in _refused:
+            if _r0.get('kind') == 'no-guard':
+                _warnings.append('★★拒绝写入共享投影 %s：%s' % (_r0['path'], _r0['why']))
+            else:
+                _warnings.append('并发让位 %s：%s' % (_r0['path'], _r0['why']))
         for _w in _warnings:
             sys.stderr.write('[rebuild][warn] %s\n' % _w)
 
         conn.commit()
-        return {'ok': True, 'sink': SINK, 'mem': wb, 'facts': len(sink['fact']),
+        # ★"无守卫拒写"是**硬失败**（没有任何一方写成功）⇒ ok=False，调用方能看出来；
+        #   "并发让位"是软事件（对方已写好一版）⇒ ok 仍为 True，只进 warnings。
+        _hard = [r for r in _refused if r.get('kind') == 'no-guard']
+        return {'ok': not _hard, 'sink': SINK, 'mem': wb, 'facts': len(sink['fact']),
                 'tools': len(conn.execute("SELECT id FROM tool_assets WHERE status='active'").fetchall()),
                 # —— 预算可观测字段（2026-09-16 新增，供 hub_selfcheck / 维护脚本消费）
                 'budget': _BUDGET, 'used': _used, 'headroom': _headroom,
@@ -1182,7 +1248,8 @@ def rebuild():
                 # —— 并发治理可观测字段（2026-09-17 新增）
                 #   'writes' 里 atomic=False 表示 os.replace 被拒/目标有硬链接而降级就地写，
                 #   调用方**必须**把这个字段报出去，否则又是"跑起来不报错但结果错"。
-                'writes': _writes, 'guarded': bool(HG is not None)}
+                'writes': _writes, 'guarded': bool(HG is not None),
+                'refused': _refused}
     finally:
         conn.close()
 

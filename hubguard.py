@@ -179,6 +179,25 @@ def workspace_memory_paths():
     return out
 
 
+def slot_budget(path):
+    """这个共享槽位的**字符硬顶**。
+
+    ★两个数不一样、绝不能混用（实测 2026-09-16）：
+      用户级 `~/.workbuddy/MEMORY.md`（国际版 `~/.workbuddy-ai/MEMORY.md`）
+        → 官方约 4000，中枢侧再自留 20 字符余量 → `proj_budget()`（默认 3980）。
+      工作区级 `<工作区>/.workbuddy[-ai]/memory/MEMORY.md` → 8000。
+
+    ★判据是**路径形状**而不是"谁在调用"：同一份物理文件会被两个客户端各自注入，
+      预算取的是**槽位**的属性，与调用方无关。按调用方判会得到"同一个文件两个预算"。
+
+    ★这两个数都是**硬截断**（不是截末尾、是整篇丢弃/截断），越线是静默的
+      —— 所以本函数只用来"报余量"，绝不用来"自动裁剪"。
+    """
+    if os.sep + 'Work' in path:
+        return int(os.environ.get('MEM_WS_BUDGET', '8000'))
+    return proj_budget()
+
+
 # ============================================================================
 # ① 跨进程独占锁
 # ============================================================================
@@ -544,6 +563,21 @@ def _detect_newline(path):
     return '\n'
 
 
+def detect_newline(path):
+    """公开入口：跟随目标文件现有的换行风格（`'\\r\\n'` 或 `'\\n'`）。
+
+    ★为什么要有公开别名（2026-09-17）：`slot_update` / `wslog_append` / `atomic_write`
+      三处都要做"换行跟随"。规则一旦有第二份实现，就迟早出现"同一个文件、两个工具、
+      两种换行"——内容没变、字节全变，属最典型的静默失败。规则本体在 `_detect_newline`
+      （前 64KB 里出现 CRLF 就用 CRLF），本函数只是把它变成可被其它模块复用的公开 API。
+
+    ★目标不存在/读不到时返回 `os.linesep` 的归一形式（Windows = `'\\r\\n'`）。
+      需要"文件不存在时由调用方决定"的语义（如 `wslog_append` 的 CLI），
+      请调用方自己先判 `exists()`。
+    """
+    return _detect_newline(path)
+
+
 def atomic_write(path, text, encoding='utf-8', fsync=True, newline=None):
     """临时文件 + os.replace。
 
@@ -556,12 +590,28 @@ def atomic_write(path, text, encoding='utf-8', fsync=True, newline=None):
          替换成普通文件，互通被静默打断 —— 先解析到 realpath 再原子替换，
          返回体带 `symlink=True / real=`。
     ★newline 默认 None = 跟随目标现状（见 _detect_newline），不要随手改成 ''。
+      newline=None 时本函数会**先把 text 的行尾统一成 LF、再展开成目标风格**，
+      因此传进来的 text 是 LF 还是已含 CRLF 都无所谓（不会出现 '\r\r\n'）。
+      newline 显式给值时按 Python 原生语义翻译，调用方自负其责。
     """
     path = os.path.abspath(path)
     d = os.path.dirname(path) or '.'
     os.makedirs(d, exist_ok=True)
     if newline is None:
         newline = _detect_newline(path)
+        # ★归一化：调用方给的文本可能是 LF，也可能是**已含 CRLF** 的。
+        #   先把行尾统一成 LF，再按目标既有风格展开，最后用 newline='' 写入（不再翻译）。
+        #   若直接把探测到的 '\r\n' 交给 fdopen，已含 CRLF 的文本会被**二次翻译**
+        #   成 '\r\r\n' —— 内容看着没错、字节全变，是最典型的静默失败。
+        #   （2026-09-17 实测：slot_update 接入后，"CRLF 跟随"用例就是这么挂的。）
+        #   注：只把 '\r\n' 折成 '\n'，**不碰孤立 '\r'** —— 原生语义从不改写孤立 CR，
+        #   能不改的字节就不改（纯 LF / 纯 CRLF 输入下本步是恒等变换）。
+        text = text.replace('\r\n', '\n')
+        if newline == '\r\n':
+            text = text.replace('\n', '\r\n')
+        write_nl = ''
+    else:
+        write_nl = newline
     # ★★符号链接必须在硬链接检查**之前**处理：
     #   `~/.workbuddy-ai/MEMORY.md` 是指向 `~/.workbuddy/MEMORY.md` 的符号链接
     #   （双版本互通就靠它）。os.stat 会跟随链接 → nlink 看起来是 1，
@@ -571,8 +621,10 @@ def atomic_write(path, text, encoding='utf-8', fsync=True, newline=None):
     if os.path.islink(path):
         real = os.path.realpath(path)
         if os.path.abspath(real) != path:
+            # ★递归时必须传 write_nl 而不是 newline：text 在上面已经被展开成目标
+            #   风格了，再交给 fdopen 翻译一次就会变成 '\r\r\n'。
             r = atomic_write(real, text, encoding=encoding, fsync=fsync,
-                             newline=newline)
+                             newline=write_nl)
             r.update(symlink=True, real=real, path=path)
             return r
     nlink = 0
@@ -581,14 +633,14 @@ def atomic_write(path, text, encoding='utf-8', fsync=True, newline=None):
     except Exception:
         pass
     if nlink > 1:
-        r = _write_inplace(path, text, encoding, newline)
+        r = _write_inplace(path, text, encoding, write_nl)
         r.update(atomic=False, hardlink=True,
                  why='目标有 %d 个硬链接，os.replace 会断开链接 → 改成就地写' % nlink)
         sys.stderr.write('[hubguard][warn] %s：%s\n' % (path, r['why']))
         return r
     fd, tmp = tempfile.mkstemp(prefix='.hg-', suffix='.tmp', dir=d)
     try:
-        with os.fdopen(fd, 'w', encoding=encoding, newline=newline) as f:
+        with os.fdopen(fd, 'w', encoding=encoding, newline=write_nl) as f:
             f.write(text)
             f.flush()
             if fsync:
@@ -601,7 +653,7 @@ def atomic_write(path, text, encoding='utf-8', fsync=True, newline=None):
             os.unlink(tmp)
         except Exception:
             pass
-        r = _write_inplace(path, text, encoding, newline)
+        r = _write_inplace(path, text, encoding, write_nl)
         r.update(atomic=False, why='os.replace 被拒（%s）→ 就地写' % e.__class__.__name__)
         sys.stderr.write('[hubguard][warn] %s：%s\n' % (path, r['why']))
         return r
@@ -614,6 +666,12 @@ def atomic_write(path, text, encoding='utf-8', fsync=True, newline=None):
 
 
 def _write_inplace(path, text, encoding, newline):
+    """就地写（无法原子替换时的降级路径）。
+
+    ★契约：这里的 `newline` 必须是 **已解析** 的写入参数，而不是 None/探测值 ——
+      调用方（atomic_write）在 newline=None 时已经把 text 归一化并按目标风格展开，
+      传进来的是 `''`（不翻译）。本函数**不再做任何换行推断**，否则会二次翻译。
+    """
     with open(path, 'w', encoding=encoding, newline=newline) as f:
         f.write(text)
     return {'ok': True, 'path': path, 'bytes': os.path.getsize(path),
@@ -674,7 +732,7 @@ def commit_guarded(path, text, before, on_conflict='abort', tag=''):
     return r
 
 
-def _win_append(path, data):
+def _win_append(path, data, retries=30, sleep_base=0.002, sleep_max=0.05):
     """Windows 原生原子追加：CreateFileW(FILE_APPEND_DATA) + WriteFile。
 
     ★为什么不能用 `os.open(..., O_APPEND)` + `os.write`：
@@ -689,6 +747,20 @@ def _win_append(path, data):
       （同一探针第一轮曾 0 丢失：间歇性发作，所以"跑一次没事"不能作为证据。）
 
       FILE_APPEND_DATA 打开时，系统保证"定位到末尾 + 写"是一个原子动作。
+
+    ★为什么必须重试（2026-09-17 从 wslog_append.atomic_append 收编，勿删）：
+      实测 8 进程并发各自 CreateFileW 时会**偶发打开失败**（安全软件/索引器短暂持锁）。
+      单次失败就抛出 = 把一次瞬时争用变成**永久丢数据**；演练里的表现是
+      「正好丢掉某个进程的一整帧（50 行）」，而不是丢几行。
+    ★重试的边界（fail-closed，别放宽）：**只有"打开失败"才重试**。
+      一旦拿到句柄后 WriteFile 失败，立即抛出、绝不重试 —— 因为 Windows 在
+      WriteFile 返回 FALSE 时并不保证 lpNumberOfBytesWritten 有效，我们无法知道
+      已落了多少字节；按 done 续写或按 0 重发**都可能产出重复内容**（长度对得上、
+      格式也对，只是多了半条），比丢行难发现得多。
+      而真实故障形态恰恰是"打开就失败"（安全软件/索引器短暂持锁），
+      所以这条边界不影响主要保护效果 —— 见 `_probe_append_retry()` 的确定性验证。
+    ★FILE_APPEND_DATA 下每次打开都从**当时的 EOF** 开始写，所以重试重发整段
+      在"未写入任何字节"时天然正确（不可能覆盖别人已追加的内容）。
     """
     import ctypes
     from ctypes import wintypes
@@ -710,34 +782,186 @@ def _win_append(path, data):
     ATTR_NORMAL = 0x80
     INVALID = ctypes.c_void_p(-1).value
 
-    h = CreateFileW(str(path), FILE_APPEND_DATA, SHARE_ALL, None,
-                    OPEN_ALWAYS, ATTR_NORMAL, None)
-    if h is None or h == INVALID:
-        raise ctypes.WinError(ctypes.get_last_error())
-    try:
-        buf = ctypes.create_string_buffer(data, len(data))
-        done = 0
-        while done < len(data):
-            w = wintypes.DWORD(0)
-            if not WriteFile(h, ctypes.byref(buf, done), len(data) - done,
-                             ctypes.byref(w), None):
-                raise ctypes.WinError(ctypes.get_last_error())
-            if w.value == 0:
-                raise IOError('WriteFile 写入 0 字节')
-            done += w.value
+    done = 0
+    attempts = max(1, int(retries))
+    last = 'unknown'
+    for attempt in range(attempts):
+        h = CreateFileW(str(path), FILE_APPEND_DATA, SHARE_ALL, None,
+                        OPEN_ALWAYS, ATTR_NORMAL, None)
+        if h is None or h == INVALID:
+            last = 'CreateFileW 失败 err=%d' % ctypes.get_last_error()
+            if attempt + 1 < attempts:
+                time.sleep(min(sleep_base * (attempt + 1), sleep_max))
+            continue
+        try:
+            buf = ctypes.create_string_buffer(data, len(data))
+            while done < len(data):
+                w = wintypes.DWORD(0)
+                if not WriteFile(h, ctypes.byref(buf, done), len(data) - done,
+                                 ctypes.byref(w), None):
+                    # ★已拿到句柄、写失败 → **立即抛出，绝不重试**。
+                    #   WriteFile 返回 FALSE 时 Windows 不保证 lpNumberOfBytesWritten 有效，
+                    #   我们无法知道到底落了多少字节：按 done 续写可能**重复**，
+                    #   按 0 重发整段同样可能**重复**。两种猜法都会产出"长度对得上、
+                    #   格式也对、就是多了半条"的脏数据 —— 比丢行难发现得多。
+                    #   所以 fail-closed：让调用方看见异常，自己决定怎么处置。
+                    raise IOError('原子追加写入失败（err=%d）：已写入 %d/%d 字节 -> %s；'
+                                  '已获得句柄后写失败，无法确定已落盘字节数，'
+                                  '拒绝重试以免内容重复'
+                                  % (ctypes.get_last_error(), done, len(data), path))
+                if w.value == 0:
+                    raise IOError('WriteFile 写入 0 字节 -> %s' % path)
+                done += w.value
+        finally:
+            CloseHandle(ctypes.c_void_p(h))
         return done
-    finally:
-        CloseHandle(ctypes.c_void_p(h))
+    raise IOError('原子追加失败（重试 %d 次均无法打开文件）：%s -> %s'
+                  % (attempts, last, path))
 
 
-def safe_append(path, text, expect=None, encoding='utf-8'):
-    """向共享文件追加一段文本。**不与别的进程交错、不丢行**。
+def _probe_append_retry():
+    """**确定性**证明 `_win_append` 的重试语义（不靠"多跑几次看运气"）。
+
+    做法：临时把 `ctypes.WinDLL` 换成假 kernel32，注入两种真实故障：
+      ① 打开失败 K 次 —— 模拟安全软件/索引器短暂持锁（这是线上真实故障形态）
+      ② 写了一半就返回失败 —— 模拟部分落盘后报错
+    期望：
+      ① 重试后**成功**，且内容**只出现一次**（不重复）
+      ② **直接抛出**，不静默续写 —— 否则就是内容重复（长度对得上，最难发现）
+      ③ 打开一直失败 → 抛错，文件保持空（不假装成功）
+    """
+    import ctypes as _ct
+    import types
+    tmpd = tempfile.mkdtemp(prefix='hg-retry-')
+    target = os.path.join(tmpd, 'retry.log')
+    data = b'ABCDEFGHIJ' * 3
+    real_WinDLL = _ct.WinDLL
+    out = {'dir': tmpd, 'data_len': len(data)}
+
+    def make_fake(open_fails=0, partial_then_fail=False):
+        """造一个假 kernel32。
+
+        ★注意：`_win_append` 会给 `CreateFileW.argtypes` / `.restype` 赋值，
+          所以这两个属性必须是**普通函数**（可挂属性），不能是绑定方法
+          —— 绑定方法没有 __dict__，赋值会直接 AttributeError。
+        """
+        st = {'opens': 0, 'writes': 0, 'fh': None,
+              'open_fails': open_fails, 'partial': partial_then_fail}
+
+        def CreateFileW(*a):
+            st['opens'] += 1
+            if st['open_fails'] > 0:
+                st['open_fails'] -= 1
+                _ct.set_last_error(32)          # ERROR_SHARING_VIOLATION
+                return None
+            st['fh'] = open(target, 'ab')
+            return 0x4242                       # 非 None、非 INVALID
+
+        def WriteFile(h, buf, n, pwritten, ov):
+            st['writes'] += 1
+            if st['partial'] and st['writes'] == 1:
+                half = max(1, n // 2)
+                st['fh'].write(_ct.string_at(buf, half))
+                st['fh'].flush()
+                _ct.set_last_error(112)         # ERROR_DISK_FULL
+                return 0                        # FALSE（且 lpNumberOfBytesWritten 无意义）
+            st['fh'].write(_ct.string_at(buf, n))
+            st['fh'].flush()
+            pwritten._obj.value = n
+            return 1
+
+        def CloseHandle(h):
+            if st['fh'] is not None:
+                st['fh'].close()
+                st['fh'] = None
+            return 1
+
+        ns = types.SimpleNamespace(CreateFileW=CreateFileW, WriteFile=WriteFile,
+                                   CloseHandle=CloseHandle)
+        return st, ns
+
+    def rd():
+        try:
+            with open(target, 'rb') as f:
+                return f.read()
+        except OSError:
+            return b''
+
+    def run(ns):
+        """用假 kernel32 跑一次 `_win_append`，返回 (状态, 明细)。
+
+        ★入参是 `make_fake()` 返回的 **namespace**（不是 (st, ns) 元组）——
+          因为 `_win_append` 内部会访问 `k32.CreateFileW` 等属性，
+          这里把 `ctypes.WinDLL` 整个替换掉，让它"以为"自己拿到了 kernel32。
+        """
+        if os.path.exists(target):
+            os.unlink(target)
+        _ct.WinDLL = lambda *a, **k: ns
+        try:
+            n = _win_append(target, data, retries=5, sleep_base=0, sleep_max=0)
+            return ('ok', n)
+        except Exception as e:                                  # noqa: BLE001
+            return ('raise', '%s: %s' % (e.__class__.__name__, e))
+        finally:
+            _ct.WinDLL = real_WinDLL
+
+    # ① 打开失败 3 次后成功
+    st1, ns1 = make_fake(open_fails=3)
+    status1, det1 = run(ns1)
+    c1 = rd()
+    out['retry_then_ok'] = {
+        'status': status1, 'detail': det1,
+        'opens': st1['opens'], 'writes': st1['writes'],
+        'content_ok': c1 == data, 'content_len': len(c1), 'dup': c1.count(data) > 1,
+        'ok': status1 == 'ok' and c1 == data and st1['opens'] == 4,
+        'expect': '打开失败 3 次后仍成功；内容 == 原文且只出现一次（opens=4）',
+    }
+
+    # ② 写一半就失败 —— 必须抛错，绝不能变成"内容重复"
+    st2, ns2 = make_fake(partial_then_fail=True)
+    status2, det2 = run(ns2)
+    c2 = rd()
+    out['partial_then_fail'] = {
+        'status': status2, 'detail': det2,
+        'opens': st2['opens'], 'writes': st2['writes'],
+        'content_len': len(c2), 'is_prefix_of_data': data.startswith(c2),
+        'ok': (status2 == 'raise' and c2 != data
+               and not data.startswith(c2 + data)
+               and not c2.endswith(data)),
+        'expect': '部分落盘后必须抛出（拒绝续写）；磁盘上只留那半截，不得重复整段',
+    }
+
+    # ③ 打开一直失败 —— 抛错且文件为空
+    st3, ns3 = make_fake(open_fails=99)
+    status3, det3 = run(ns3)
+    c3 = rd()
+    out['always_fail'] = {
+        'status': status3, 'detail': det3,
+        'opens': st3['opens'], 'writes': st3['writes'], 'content_len': len(c3),
+        'ok': status3 == 'raise' and c3 == b'' and st3['opens'] == 5,
+        'expect': '重试 5 次用尽 -> 抛出，文件保持空（不假装成功）',
+    }
+
+    out['ok'] = all(out[k]['ok'] for k in ('retry_then_ok', 'partial_then_fail',
+                                           'always_fail'))
+    return out
+
+
+def safe_append_bytes(path, data, expect=None, retries=30):
+    """向共享文件原子追加一段**字节**。返回结果 dict。**不与别的进程交错、不丢行**。
 
     ① Windows 走 `_win_append`（FILE_APPEND_DATA，系统级原子追加）；
        失败则降级回 CRT 追加，但**标出来**（`atomic_append=False` + stderr 告警），
        绝不假装成功 —— 降级后是真的可能丢行，调用方必须知道。
     ② POSIX 用 `O_APPEND` + 单次 `os.write`（内核保证原子，无需降级）。
     ③ `expect` 非空时，追加前报告"我上次读到的版本是否已被改过"。
+    ④ `retries`：瞬时争用（安全软件/索引器持锁）导致 CreateFileW 偶发失败时的重试次数，
+       默认 30（退避）。**这是承载行为，别调成 1** —— 见 `_win_append` docstring。
+
+    ★这是**字节级**入口；`safe_append` 是它的文本版（= `encode` 后调本函数）。
+      `wslog_append.atomic_append` 也委托到本函数 —— 保证"原子追加"在仓库里只有一份实现
+      （2026-09-17：`wslog_append` 旧版自带一份，且那份在 WriteFile 失败时也重试，
+      可能产出**内容重复**；两份实现分叉的代价已经出现过一次，故收归此处）。
     """
     path = os.path.abspath(path)
     d = os.path.dirname(path) or '.'
@@ -745,10 +969,9 @@ def safe_append(path, text, expect=None, encoding='utf-8'):
     changed = False
     if expect is not None:
         changed = not same_snapshot(expect, snapshot(path))
-    data = text.encode(encoding)
     if os.name == 'nt':
         try:
-            n = _win_append(path, data)
+            n = _win_append(path, data, retries=retries)
             return {'ok': True, 'path': path, 'bytes': n,
                     'atomic_append': True, 'concurrent_change': changed}
         except Exception as e:
@@ -763,6 +986,17 @@ def safe_append(path, text, expect=None, encoding='utf-8'):
         os.close(fd)
     return {'ok': True, 'path': path, 'bytes': n,
             'atomic_append': (os.name != 'nt'), 'concurrent_change': changed}
+
+
+def safe_append(path, text, expect=None, encoding='utf-8', retries=30):
+    """向共享文件追加一段**文本**。**不与别的进程交错、不丢行**。
+
+    实现 = `text.encode(encoding)` 之后交给 `safe_append_bytes`。
+    语义、降级规则、`retries` 含义**全在那边的 docstring**（此处不重复，
+    否则同一段说明写两处、迟早只改一处）。
+    """
+    return safe_append_bytes(path, text.encode(encoding),
+                             expect=expect, retries=retries)
 
 
 # ============================================================================
@@ -1429,6 +1663,12 @@ def selftest(db=None):
                        'expect': '本机无法创建符号链接（需 SeCreateSymbolicLinkPrivilege），本组跳过'})
     results['F_symlink'] = f_info
 
+    # H：追加重试语义（确定性注入故障，不靠碰运气）
+    #    ★为什么要单列一组：重试是"承载行为"（丢的是一整个进程的一整帧），
+    #      而"重试写错方向"会变成内容重复 —— 比丢行更难发现。两种错都必须被钉死。
+    h_info = _probe_append_retry()
+    results['H_append_retry'] = h_info
+
     A, B, C, D, E = (results['A_no_lock'], results['B_with_lock'], results['C_busy'],
                      results['D_wrap'], results['E_append'])
     allow_live = os.environ.get('MEM_SELFTEST_ALLOW_LIVE') == '1'
@@ -1443,6 +1683,7 @@ def selftest(db=None):
         'E_追加不撕裂': E['lines'] == E['expect_n'] and E['intact'] == E['expect_n'],
         'F_符号链接不被替换': bool(f_info.get('ok')),
         'G_自检不碰线上库': bool(g_isolated),
+        'H_追加重试不重发': bool(h_info.get('ok')),
     }
     env = {'db': resolved_db, 'isolated': isolated, 'live_guess': live_guess,
            'touches_live_db': touches_live, 'allow_live_override': allow_live,
@@ -1462,16 +1703,174 @@ def selftest(db=None):
             E['cleaned'] = True
             shutil.rmtree(tmpf, ignore_errors=True)
             f_info['cleaned'] = True
+            shutil.rmtree(h_info['dir'], ignore_errors=True)
+            h_info['cleaned'] = True
             if isolated:
                 shutil.rmtree(os.path.dirname(db), ignore_errors=True)
                 env['cleaned'] = True
         except Exception:
             E['cleaned'] = False
             f_info['cleaned'] = False
+            h_info['cleaned'] = False
             env['cleaned'] = False
     print(json.dumps({'ok': ok, 'env': env, 'detail': results, 'verdict': verdict},
                      ensure_ascii=False, indent=2))
     return ok
+
+
+def _alias_kind(path, real):
+    """这个路径是**怎么**指向别人的？返回 `(kind, note)`。
+
+    ★为什么必须分清楚（2026-09-17 本机实测，两种机制**同时存在**）：
+      · `symlink` —— 文件级符号链接，`os.path.islink(path)` 为 True。
+        用户级槽位就是这种：`~/.workbuddy-ai/MEMORY.md` → `~/.workbuddy/MEMORY.md`。
+        `os.replace` 会把**链接本身**换成普通文件 → `atomic_write` 必须先 realpath。
+      · `junction` —— **目录级**联接：文件自己 `islink=False`、`reparse_tag=0`、
+        `st_file_attributes=32`（纯 ARCHIVE），**但父目录是 junction**，
+        所以 `realpath(path) != abspath(path)`。本机 15 条工作区路径全是这种。
+        ★**光看 `islink` 会把它判成"普通文件、无风险"** —— 而它其实是共享文件，
+          正是"看起来没问题、实际会互相覆盖"的典型。必须靠 `abspath != realpath` 才识破。
+      · `hardlink` —— `st_nlink > 1`。`os.replace` 会让别的链接**静默指向旧 inode**。
+      · `plain` —— 独立文件，与别人无关。
+
+    ★`real` 由调用方传进来（已算过 realpath，避免重复解析）。
+    """
+    if os.path.islink(path):
+        return 'symlink', '文件级符号链接：os.replace 会把链接换成普通文件，必须先 realpath'
+    if os.path.normcase(os.path.abspath(path)) != os.path.normcase(real):
+        return 'junction', ('★共享文件，但 islink=False（父目录是 junction）—— '
+                            '判据是 realpath≠abspath；重写前必须 snapshot+commit_guarded')
+    try:
+        n = os.stat(path).st_nlink
+    except Exception:
+        n = 1
+    if n > 1:
+        return 'hardlink', '硬链接 nlink=%d：os.replace 会让别的链接指向旧 inode' % n
+    return 'plain', ''
+
+
+def shared_report(as_json=False):
+    """**只读**体检：把"跨客户端共享的注入槽位"逐个列清楚，供动手前核对。
+
+    ★为什么单独做一条命令（2026-09-17）：`doctor` 里已有"共享 inode"的**汇总**判定
+      （只报"实测 N 组路径指向同一物理文件"）。但真要动手改这些文件之前，需要的是
+      **逐文件明细**，少任何一项都可能写出静默失败：
+        · `st_ino / st_dev` —— 两个路径是不是同一份物理文件（互通是否真的成立）；
+        · `nlink`         —— 有硬链接时 `os.replace` 会让别的链接**静默指向旧 inode**
+                              （`atomic_write` 会据此降级为就地写）；
+        · `islink`        —— 是符号链接时 `os.replace` 会把**链接本身**换成普通文件，
+                              双版本互通被静默打断（必须先 realpath）；
+        · `newline`       —— 写回时用 CRLF 还是 LF。写错则"内容没变、字节全变"；
+        · `chars / 预算`  —— 越线是**整篇截断**且静默，必须动手前就知道余量。
+
+    ★**本命令严格只读**：不建目录、不写快照、不碰锁、不改任何文件、不碰数据库。
+      退出码：0 = 全部路径可读**且都在预算内**；1 = 有路径读不到，**或有文件已超预算**
+      （**fail-closed**：读不到不假装"文件不存在所以没问题"；超预算不假装"只是大了点"
+      —— 超预算是**整篇截断**，属于同一类静默失败）。口径与 `doctor`（verdict=fail → 1）一致。
+
+    ★别名判据见 `_alias_kind`：**光看 `islink` 会漏掉目录级 junction**
+      （本机 15 条工作区路径全是这种：`islink=False` 但共享同一 inode）。
+    """
+    cands = [os.path.expanduser(os.path.join('~', '.workbuddy', 'MEMORY.md')),
+             os.path.expanduser(os.path.join('~', '.workbuddy-ai', 'MEMORY.md'))]
+    cands += workspace_memory_paths()
+
+    items, seen, bad = [], set(), 0
+    for p in cands:
+        # ★去重只能用**字面路径**，绝不能用 realpath：
+        #   本命令存在的意义就是报"哪几条路径其实是同一份文件"。用 realpath 去重会把
+        #   15 个别名塌缩成 1 条，再得出与事实**相反**的结论 —— 初版实测就是这样报出
+        #   "未发现同 inode 的路径对"，而真相是 15 条路径共享同一 inode。
+        key = os.path.normcase(os.path.abspath(p))
+        if key in seen:
+            continue
+        seen.add(key)
+        snap = snapshot(p)
+        rec = {'path': p, 'exists': bool(snap.get('exists'))}
+        if not rec['exists']:
+            bad += 1
+            rec['error'] = snap.get('error') or '文件不存在'
+            items.append(rec)
+            continue
+        real = os.path.realpath(p)
+        rec['alias_kind'], rec['alias_note'] = _alias_kind(p, real)
+        rec['islink'] = os.path.islink(p)
+        rec['realpath'] = real if rec['alias_kind'] != 'plain' else None
+        rec['size'] = snap.get('size')
+        rec['chars'] = snap.get('chars')
+        rec['nlink'] = snap.get('nlink')
+        rec['st_ino'] = snap.get('st_ino')
+        rec['st_dev'] = snap.get('st_dev')
+        rec['sha256_12'] = (snap.get('sha256') or '')[:12]
+        rec['newline'] = 'CRLF' if detect_newline(p) == '\r\n' else 'LF'
+        rec['budget'] = slot_budget(p)
+        rec['headroom'] = rec['budget'] - (rec['chars'] or 0)
+        items.append(rec)
+
+    # 按 (dev, ino) 归组 —— 这是"是不是同一份物理文件"的**唯一**判据。
+    groups = {}
+    for rec in items:
+        if rec.get('exists'):
+            groups.setdefault((rec['st_dev'], rec['st_ino']), []).append(rec['path'])
+    shared = [{'dev': k[0], 'ino': k[1], 'n': len(v), 'paths': v}
+              for k, v in groups.items() if len(v) > 1]
+    shared.sort(key=lambda g: -g['n'])
+
+    # 风险点（写回时会不会触发降级 / 会不会被静默截断）—— 归组之后再算，便于后续扩展
+    for rec in items:
+        if not rec.get('exists'):
+            continue
+        risk = []
+        if rec['alias_kind'] != 'plain':
+            risk.append(rec['alias_note'])
+        if rec['headroom'] < 0:
+            risk.append('已超预算 %d 字符→注入时会被整篇截断' % -rec['headroom'])
+        elif rec['headroom'] < 100:
+            risk.append('余量仅 %d→再写几条即触发截断' % rec['headroom'])
+        rec['risk'] = risk
+
+    over = [r['path'] for r in items if r.get('exists') and r['headroom'] < 0]
+    out = {'ok': bad == 0 and not over, 'count': len(items), 'unreadable': bad,
+           'over_budget': over, 'shared_groups': shared, 'files': items,
+           'note': '只读命令：不建目录、不写快照、不碰锁、不改文件'}
+
+    if as_json:
+        print(json.dumps(out, ensure_ascii=False, indent=2))
+        return 0 if out['ok'] else 1
+
+    print('共享槽位体检（只读）—— %d 条路径，%d 条读不到' % (len(items), bad))
+    print('-' * 78)
+    for rec in items:
+        if not rec['exists']:
+            print('  [MISS] %s  （%s）' % (rec['path'], rec['error']))
+            continue
+        tag = {'symlink': 'LINK', 'junction': 'JUNC',
+               'hardlink': 'HARD', 'plain': 'FILE'}[rec['alias_kind']]
+        print('  [%s] %s' % (tag, rec['path']))
+        print('        ino=%s nlink=%s size=%s chars=%s/%s 余 %s nl=%s sha=%s'
+              % (rec['st_ino'], rec['nlink'], rec['size'],
+                 rec['chars'], rec['budget'], rec['headroom'], rec['newline'],
+                 rec['sha256_12']))
+        if rec['realpath']:
+            print('        -> %s' % rec['realpath'])
+        for r in rec['risk']:
+            print('        ! %s' % r)
+    print('-' * 78)
+    if shared:
+        print('同一物理文件（%d 组，共 %d 条路径 / 全量 %d 条）：'
+              % (len(shared), sum(g['n'] for g in shared), len(items)))
+        for g in shared:
+            print('  ino=%s × %d 条：' % (g['ino'], g['n']))
+            for x in g['paths']:
+                print('      %s' % x)
+    else:
+        print('未发现同 inode 的路径对 —— 跨客户端互通**当前不成立**（别急着改文件）')
+    if over:
+        print('★超预算 %d 个（注入时会被**整篇截断**）：' % len(over))
+        for r in items:
+            if r.get('exists') and r['headroom'] < 0:
+                print('  %s  %d/%d' % (r['path'], r['chars'], r['budget']))
+    return 0 if out['ok'] else 1
 
 
 # ============================================================================
@@ -1483,7 +1882,10 @@ def main():
     ap.add_argument('--db', default=None, help='真源库路径（默认取 MEM_DB）')
     sub = ap.add_subparsers(dest='cmd')
 
-    for n in ('status', 'doctor', 'gen'):
+    # `shared` 与 status/doctor 同类：只读体检报告，故同组注册（自动带 --json）。
+    #   ★它刻意**不依赖 --db**：查的是"跨客户端共享的注入槽位"（文件系统层面），
+    #     与真源库无关；传了 --db 也不会去连库。
+    for n in ('status', 'doctor', 'gen', 'shared'):
         s = sub.add_parser(n)
         s.add_argument('--json', action='store_true')
 
@@ -1540,6 +1942,9 @@ def main():
     elif a.cmd == 'gen':
         fp = db_fingerprint(db)
         print(json.dumps(fp, ensure_ascii=False, indent=2) if a.json else fp.get('fp'))
+    elif a.cmd == 'shared':
+        # ★只读；退出码必须真的传出去（有路径读不到 = 1），否则脚本里 `&&` 会继续往下跑。
+        return shared_report(a.json)
     elif a.cmd == 'lock':
         rest = [x for x in a.rest if x != '--']
         if not rest:
