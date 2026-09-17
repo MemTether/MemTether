@@ -55,6 +55,11 @@
     python attach_hubguard.py apply  [--target <gateway.py>] --yes
     python attach_hubguard.py revert [--target <gateway.py>] --yes [--expect-sha <sha>]
 
+    ★`--target` 缺省 = `$MEM_HUBGUARD_TARGET`；未设时按「本脚本所在目录的
+      上级目录下 `memory_hub/gateway.py`」推导（即与 memtether 同级）—— **零硬编码盘符**。
+    ★注入块查找 `hubguard.py` 的顺序 = `$MEM_HUBGUARD_PATH` → 目标文件的
+      上级目录下 `memtether/`（同上，零硬编码）。
+
     check  —— 只读：报告锚点命中数、是否已接入、缺什么。`--self-prove`
               额外对目标目录做前后 sha256 清单对比，自证**零落盘**。
     patch  —— 生成 unified diff（不碰目标文件）。★用 git 打时必须带
@@ -79,7 +84,9 @@ import sys
 import time
 
 MARK = 'hubguard-attach'
-DEFAULT_TARGET = r'E:\RUANJIAN\memory_hub\gateway.py'
+DEFAULT_TARGET = os.environ.get('MEM_HUBGUARD_TARGET') or os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    'memory_hub', 'gateway.py')
 CREATE_NO_WINDOW = 0x08000000
 
 
@@ -97,6 +104,14 @@ def _warn_autocrlf(cwd: str) -> None:
       **补丁文件自身是纯 LF、内容完全正确**，错的是 apply 那一刻的行尾转换。
       正确姿势：`git -c core.autocrlf=false apply <diff>`（实测得到
       sha 366dab29b14358f7 / 76700 B，与接入器**字节一致**）。
+
+    ★仓库内 `patch-memory_hub-hubguard.diff` 的**基线** = memory_hub 仓库的
+      `7bb566b:gateway.py`（1400 行，未接入版）。复现方式：
+          git -C <memory_hub> cat-file blob 7bb566b:gateway.py > gw.py
+          python attach_hubguard.py patch --target gw.py \
+                 --out patch-memory_hub-hubguard.diff
+      要给**别的版本**接入，直接跑 `apply --target <该文件>`；
+      **不要**拿这份 diff 硬打（行号对不上会失败）。
 
     ★只读：仅执行 `git config --get`，不写文件、不创建文件。
     """
@@ -172,7 +187,9 @@ except Exception:                                   # pragma: no cover
     _hg_sys = None
 
 HG = None
-for _hg_p in (os.environ.get('MEM_HUBGUARD_PATH'), r'E:\\RUANJIAN\\memtether'):
+for _hg_p in (os.environ.get('MEM_HUBGUARD_PATH'),
+              os.path.join(os.path.dirname(os.path.dirname(
+                  os.path.abspath(__file__))), 'memtether')):
     if not _hg_p:
         continue
     _hg_f = os.path.join(_hg_p, 'hubguard.py')
@@ -591,7 +608,9 @@ def mode_revert(target: str, yes: bool, expect_sha: str = None):
 def main(argv=None):
     ap = argparse.ArgumentParser(description='把 hubguard 零侵入接入 gateway.py')
     ap.add_argument('mode', choices=('check', 'patch', 'apply', 'revert'))
-    ap.add_argument('--target', default=DEFAULT_TARGET)
+    ap.add_argument('--target', default=DEFAULT_TARGET,
+                    help='目标 gateway.py；缺省取 $MEM_HUBGUARD_TARGET，'
+                         '未设则推导为同级 memory_hub/gateway.py')
     ap.add_argument('--out', default=None, help='patch 模式输出文件')
     ap.add_argument('--yes', action='store_true', help='apply/revert 必须显式确认')
     ap.add_argument('--self-prove', action='store_true', help='check 模式自证零落盘')

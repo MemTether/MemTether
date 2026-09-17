@@ -60,7 +60,7 @@
  
          # ★2026-09-16 六修：把"被砍了多少 / 哪类被饿死 / 余量还剩多少"全部显式化。
          #   验收口径不是"跑通了"，而是**故意制造超预算，看它报不报**。
-@@ -1419,5 +1455,75 @@
+@@ -1396,5 +1432,77 @@
                           ensure_ascii=False, indent=2))
  
  
@@ -75,7 +75,9 @@
 +    _hg_sys = None
 +
 +HG = None
-+for _hg_p in (os.environ.get('MEM_HUBGUARD_PATH'), r'E:\RUANJIAN\memtether'):
++for _hg_p in (os.environ.get('MEM_HUBGUARD_PATH'),
++              os.path.join(os.path.dirname(os.path.dirname(
++                  os.path.abspath(__file__))), 'memtether')):
 +    if not _hg_p:
 +        continue
 +    _hg_f = os.path.join(_hg_p, 'hubguard.py')
