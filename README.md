@@ -124,6 +124,7 @@ python mem.py timeline <uid>
 # 1) 生成演示库（自带三项自检，任一不通过即返回非 0）
 python scripts/make_demo_db.py      # 源码方式
 memtether demo                      # 装成包之后（等价入口，输出到 ~/.memtether/）
+python scripts/make_demo_db.py --strict   # 更严：没词表 / 冒烟有告警都直接判失败
 
 # 2) 用 MEM_DB 指向它 —— gateway / memsearch / mem.py 会一起切过去
 export MEM_DB=demo/memory_demo.db
@@ -135,14 +136,17 @@ python mem.py search "跨客户端共享"
 
 | 检查 | 口径 |
 |---|---|
-| 泄密检查 | 正则逐表扫全文，要求**零命中**（本机路径 / 密钥 / 姓名 / 学号 / 账号） |
+| 泄密检查 | 正则逐表扫全文。**有词表时才说「零命中」**；没词表时只说「**无法判定**」，绝不把"没查"说成"干净" |
 | 表结构一致性 | 演示库列集与 `gateway.SCHEMA` **逐表比对**，不一致即失败 |
-| 功能冒烟 | 子进程 `MEM_DB=…` 真跑 `gateway.stats` + `memsearch.asset_text` + `gateway.search` |
+| 功能冒烟 | 子进程 `MEM_DB=…` 真跑 `gateway.stats` + `memsearch.asset_text` + `gateway.search`；**子进程打了告警就不算通过** |
 
-> **会看到一行「⚠ 降级：本地敏感词表缺失」，属预期** —— 词表（`scripts/leak_terms.local.json`）
-> 记录的是"本项目要防哪些真实串"，本身含真实信息，**不在仓库里**。
+> **词表不在仓库里，所以默认会看到「⚠ 无法判定」而不是「✓ 零命中」，这是故意的** ——
+> 词表（`scripts/leak_terms.local.json`）记录的是"本项目要防哪些真实串"，本身含真实信息。
 > 缺失时"姓名 / 安全事件"两类规则为空，脚本会**显式说明哪几类没参与检查**，
 > 而不是假装"扫出 0 处 = 很干净"。
+>
+> 两个开关：`MEM_SCAN_TERMS=<词表路径>` 指向真词表（与 `scan_leaks.py` 同一口径）；
+> `--strict` 让"没词表"或"冒烟有告警"**直接失败退出**（CI / 发布前用这个）。
 
 > **为什么演示库不进版本库**：它是**生成物**。入库必然与生成脚本**漂移**
 > —— 改一句模板、库没重新生成，别人拿到的就是旧内容。现场生成顺带证明「可复现」本身。
