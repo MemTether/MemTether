@@ -38,7 +38,8 @@
 - `wslog_append.py`：多写者共写同一日志的原子追加器。用
   `CreateFileW(FILE_APPEND_DATA)` + `WriteFile` 实现真正的原子追加
   （Windows CRT 的 `O_APPEND` 是 seek + write，非原子，多进程会互覆）。
-  并发演练 8 进程 × 50 行：原子追加丢行 0，对照的读-改-写丢 374 行。
+  并发演练 8 进程 × 50 行：原子追加丢行 0；对照的读-改-写大量丢行
+  （数百条，随竞态波动，不固定）。
 
 **并发与一致性**
 - `hubguard.py`：跨进程写锁（`hub_lock`）+ 写函数包装（`install_guards`）；
