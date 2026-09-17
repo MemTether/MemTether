@@ -57,7 +57,7 @@ HERE = os.environ.get('MEM_SCAN_REPO') or os.path.dirname(os.path.dirname(os.pat
 # ★2026-09-16：加 MEM_SCAN_REPO 环境变量 —— 扫描器不该只能扫"自己所在的仓库"。
 #   实际需求：用 memory_hub 里这一份，去扫**发布库 memtether** 的历史。
 #   没有这个开关时，把脚本拷过去会让 HERE 指到 memtether 的父目录，扫错仓库还看不出来。
-#   （踩坑：第一版直接 cp 过去跑，HERE 变成 E:\RUANJIAN，静默扫错目标。）
+#   （踩坑：第一版直接 cp 过去跑，HERE 变成仓库的父目录，静默扫错目标。）
 HERE = os.path.abspath(HERE)
 
 # ★2026-09-16：项目专属敏感词（真名 / 班级 / 安全事件词）改为**外部加载**。
