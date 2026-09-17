@@ -47,88 +47,100 @@ def check(name, cond, detail=''):
     print('[%s] %s %s' % ('PASS' if cond else 'FAIL', name, detail))
 
 
-print('=' * 70)
-print('三 agent 端到端验证   探针=%s' % PROBE)
-print('=' * 70)
+# ★2026-09-17：本脚本顶层直接执行验证并 sys.exit()。
+#   被 import 时会**静默向真源写探针事实** —— 实测踩到：
+#   dump_bench_patterns.py 误 `import e2e_verify`，向线上 memory.db 写入了探针事实
+#   （#525，source 被错记为 doubao_a），而探针只在脚本末尾才被清理。
+#   加 __main__ 守卫后：import 它只做「建常量 + 定义函数」，零 IO、零写库。
+#   不要把本守卫当「模块化洗白」—— 它仍是脚本，请用
+#   `python e2e_verify.py` 或 subprocess 跑，不要 import 它。
+def main():
+    print('=' * 70)
+    print('三 agent 端到端验证   探针=%s' % PROBE)
+    print('=' * 70)
 
-# ---------- A. WorkBuddy: preflight.py ----------
-print('\n--- A. WorkBuddy/DeepSeek: preflight.py ---')
-rc, out = run(['preflight.py', '豆包数据转移到E盘junction'])
-check('A1 preflight 返回区块', rc == 0 and 'MEMORY_PREFLIGHT' in out, 'rc=%d' % rc)
-check('A2 preflight 命中豆包转移结论', ('Junction' in out or 'junction' in out or 'E:' in out), '')
+    # ---------- A. WorkBuddy: preflight.py ----------
+    print('\n--- A. WorkBuddy/DeepSeek: preflight.py ---')
+    rc, out = run(['preflight.py', '豆包数据转移到E盘junction'])
+    check('A1 preflight 返回区块', rc == 0 and 'MEMORY_PREFLIGHT' in out, 'rc=%d' % rc)
+    check('A2 preflight 命中豆包转移结论', ('Junction' in out or 'junction' in out or 'E:' in out), '')
 
-rc, out = run(['preflight.py', '记忆中枢检索引擎'])
-check('A3 preflight 第二次查询正常', rc == 0 and 'MEMORY_PREFLIGHT' in out, 'rc=%d' % rc)
+    rc, out = run(['preflight.py', '记忆中枢检索引擎'])
+    check('A3 preflight 第二次查询正常', rc == 0 and 'MEMORY_PREFLIGHT' in out, 'rc=%d' % rc)
 
-# ---------- B. OpenClaw: mem.py recall / drain ----------
-print('\n--- B. OpenClaw/grok: mem.py recall / drain ---')
-rc, out = run(['mem.py', 'recall', '--agent', 'openclaw'])
-check('B1 mem.py recall 正常', rc == 0, 'rc=%d' % rc)
+    # ---------- B. OpenClaw: mem.py recall / drain ----------
+    print('\n--- B. OpenClaw/grok: mem.py recall / drain ---')
+    rc, out = run(['mem.py', 'recall', '--agent', 'openclaw'])
+    check('B1 mem.py recall 正常', rc == 0, 'rc=%d' % rc)
 
-rc, out = run(['mem.py', 'drain', '--agent', 'openclaw', '--limit', '5'])
-check('B2 drain 返回水位信息', rc == 0 and '水位' in out, '')
+    rc, out = run(['mem.py', 'drain', '--agent', 'openclaw', '--limit', '5'])
+    check('B2 drain 返回水位信息', rc == 0 and '水位' in out, '')
 
-rc, out = run(['mem.py', 'search', 'STM32 烧录'])
-check('B3 mem.py search 走混合引擎', rc == 0 and 'engine=' in out, '')
+    rc, out = run(['mem.py', 'search', 'STM32 烧录'])
+    check('B3 mem.py search 走混合引擎', rc == 0 and 'engine=' in out, '')
 
-rc, out = run(['mem.py', 'stats'])
-check('B4 mem.py stats 读到 memory.db', rc == 0 and 'memory.db（唯一真源）' in out, '')
+    rc, out = run(['mem.py', 'stats'])
+    check('B4 mem.py stats 读到 memory.db', rc == 0 and 'memory.db（唯一真源）' in out, '')
 
-# ---------- C. 豆包: mem.py add / search ----------
-print('\n--- C. 豆包(账号A): mem.py add / search ---')
-rc, out = run(['mem.py', 'add', '--type', 'fact', '--text', PROBE, '--source', 'doubao_a', '--force'])
-check('C1 mem.py add 写入成功', rc == 0 and '已沉淀到 memory.db' in out, 'rc=%d' % rc)
+    # ---------- C. 豆包: mem.py add / search ----------
+    print('\n--- C. 豆包(账号A): mem.py add / search ---')
+    rc, out = run(['mem.py', 'add', '--type', 'fact', '--text', PROBE, '--source', 'doubao_a', '--force'])
+    check('C1 mem.py add 写入成功', rc == 0 and '已沉淀到 memory.db' in out, 'rc=%d' % rc)
 
-# 用 Python API 严谨校验（避免回显假阳性）
-import gateway  # noqa: E402
-r = gateway.search(PROBE, limit=5)
-res = r.get('results', [])
-hit = any(PROBE[:20] in str(x.get('content', '')) for x in res)
-check('C2 新增事实可被检索（自动同步向量）', hit, 'hits=%d' % len(res))
+    # 用 Python API 严谨校验（避免回显假阳性）
+    import gateway  # noqa: E402
+    r = gateway.search(PROBE, limit=5)
+    res = r.get('results', [])
+    hit = any(PROBE[:20] in str(x.get('content', '')) for x in res)
+    check('C2 新增事实可被检索（自动同步向量）', hit, 'hits=%d' % len(res))
 
-rc, out = run(['gateway.py', 'search', PROBE])
-check('C3 gateway 命令搜到同一条', rc == 0 and 'hits' not in out.lower() and str(len(res)) != '0', '')
+    rc, out = run(['gateway.py', 'search', PROBE])
+    check('C3 gateway 命令搜到同一条', rc == 0 and 'hits' not in out.lower() and str(len(res)) != '0', '')
 
-# 直接查 db 校验落库
-conn = sqlite3.connect(DB)
-row = conn.execute("SELECT uid,status FROM facts WHERE content LIKE ?",
-                   ('%' + PROBE[:16] + '%',)).fetchone()
-conn.close()
-check('D2 探针事实确实落在 memory.db', row is not None, str(row))
+    # 直接查 db 校验落库
+    conn = sqlite3.connect(DB)
+    row = conn.execute("SELECT uid,status FROM facts WHERE content LIKE ?",
+                       ('%' + PROBE[:16] + '%',)).fetchone()
+    conn.close()
+    check('D2 探针事实确实落在 memory.db', row is not None, str(row))
 
-# ---------- D. 单一真源一致性 ----------
-print('\n--- D. 单一真源一致性 ---')
-rc, out = run(['gateway.py', 'stats'])
-check('D1 gateway stats 正常', rc == 0 and '"active"' in out, '')
+    # ---------- D. 单一真源一致性 ----------
+    print('\n--- D. 单一真源一致性 ---')
+    rc, out = run(['gateway.py', 'stats'])
+    check('D1 gateway stats 正常', rc == 0 and '"active"' in out, '')
 
-# mem.py 与 gateway 读到同一个 active 数
-rc1, o1 = run(['mem.py', 'stats'])
-rc2, o2 = run(['gateway.py', 'stats'])
-import re
-m1 = re.search(r"'active':\s*(\d+)", o1)
-m2 = re.search(r'"active":\s*(\d+)', o2)
-n1 = int(m1.group(1)) if m1 else None
-n2 = int(m2.group(1)) if m2 else None
-check('D3 mem.py 与 gateway 的 active 数一致', n1 is not None and n1 == n2, 'mem=%s gw=%s' % (n1, n2))
+    # mem.py 与 gateway 读到同一个 active 数
+    rc1, o1 = run(['mem.py', 'stats'])
+    rc2, o2 = run(['gateway.py', 'stats'])
+    import re
+    m1 = re.search(r"'active':\s*(\d+)", o1)
+    m2 = re.search(r'"active":\s*(\d+)', o2)
+    n1 = int(m1.group(1)) if m1 else None
+    n2 = int(m2.group(1)) if m2 else None
+    check('D3 mem.py 与 gateway 的 active 数一致', n1 is not None and n1 == n2, 'mem=%s gw=%s' % (n1, n2))
 
-# ---------- 汇总 ----------
-print('\n' + '=' * 70)
-passed = sum(1 for _, o, _ in results if o)
-print('通过: %d/%d' % (passed, len(results)))
-for n, o, d in results:
-    if not o:
-        print('  未通过:', n, d)
-print('=' * 70)
+    # ---------- 汇总 ----------
+    print('\n' + '=' * 70)
+    passed = sum(1 for _, o, _ in results if o)
+    print('通过: %d/%d' % (passed, len(results)))
+    for n, o, d in results:
+        if not o:
+            print('  未通过:', n, d)
+    print('=' * 70)
 
-# ---------- 清理探针 ----------
-conn = sqlite3.connect(DB)
-r = conn.execute("SELECT uid FROM facts WHERE content LIKE ?", ('%' + PROBE[:16] + '%',)).fetchall()
-conn.close()
-for (uid,) in r:
-    try:
-        gateway.retire(uid, reason='e2e 验证探针清理')
-        print('探针已退役:', uid)
-    except Exception as e:
-        print('探针退役失败:', uid, e)
+    # ---------- 清理探针 ----------
+    conn = sqlite3.connect(DB)
+    r = conn.execute("SELECT uid FROM facts WHERE content LIKE ?", ('%' + PROBE[:16] + '%',)).fetchall()
+    conn.close()
+    for (uid,) in r:
+        try:
+            gateway.retire(uid, reason='e2e 验证探针清理')
+            print('探针已退役:', uid)
+        except Exception as e:
+            print('探针退役失败:', uid, e)
 
-sys.exit(0 if passed == len(results) else 1)
+    return 0 if passed == len(results) else 1
+
+
+if __name__ == '__main__':
+    sys.exit(main())
