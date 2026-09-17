@@ -146,9 +146,18 @@ def main():
                     })
                     break   # 同一行同一规则只报一次
 
+    # ★2026-09-17：降级必须失败闭锁，与 scan_leaks.py 对齐。
+    #   原实现：词表缺失 → 打一行 ⚠ 降级，然后照样「✓ 零命中」+ return 0。
+    #   调用方（含 CI / 发布闸门）看到 exit 0 就会把「这几类没查」当成「查过且干净」
+    #   —— 实测正是这么发生的：发布库副本没有词表，历史扫描一路绿灯，
+    #     而真名/班级学号/安全事件三类**一条都没查**。
+    #   scan_leaks.py 早就修成 exit 2 了，这个历史扫描器漏了同一刀。
+    DEGRADED = bool(getattr(SL, '_MISSING', None))
+    EXIT_DEGRADED = 2   # 与 scan_leaks.main() 的降级码保持一致
+
     if as_json:
         print(json.dumps(findings, ensure_ascii=False, indent=2))
-        return 0
+        return EXIT_DEGRADED if DEGRADED else 0
 
     print('=' * 96)
     print('git 历史泄密扫描（含已删除路径 —— scan_leaks.py 的盲区）')
@@ -157,8 +166,13 @@ def main():
     print('  去重后 blob %d 个 → 实扫 %d 个文本 blob' % (len(seen), n_scanned))
     print('  跳过：扩展名不可搜 %d · 超过 %.1f MB %d' % (skipped_ext, max_mb, skipped_big))
     if SL._MISSING:
-        print('  ⚠ 降级：本地敏感词表缺失，以下类别**未参与扫描**：%s'
+        # ★不能用 ⚠（看起来像"提示"）—— 这是**结论不可信**，不是"稍微注意下"。
+        #   与 scan_leaks.report() 同一口径：打 ✗ + 「无法判定」，且不打 ✓ 零命中。
+        print('  ✗ 无法判定（降级）：本地敏感词表缺失，以下类别**未参与扫描**：%s'
               % ' / '.join(SL._MISSING))
+        print('     期望位置：%s' % getattr(SL, '_TERMS', '(未取到)'))
+        print('     ★这不是「零命中」，是「这几类没查」。用 MEM_SCAN_TERMS '
+              '指向真源词表后重跑，结论才成立。')
 
     # 大对象单独点名（不进文本扫描，但发布前必须处理）
     big = sorted(((s, p) for _, p, s in objs if s > 1024 * 1024), reverse=True)
@@ -168,6 +182,10 @@ def main():
             print('    %8.2f MB  %s' % (s / 1024 / 1024, p or '(无路径)'))
 
     if not findings:
+        if DEGRADED:
+            print('\n  — 已扫类别零命中（整体结论仍为「无法判定」，词表缺失）')
+            print('=' * 96)
+            return EXIT_DEGRADED
         print('\n  ✓ 历史文本 blob 零命中')
         print('=' * 96)
         return 0
@@ -182,7 +200,10 @@ def main():
     print('=' * 96)
     print('★提示：历史里的命中**无法靠改文件消除** —— 必须重写历史（git filter-repo）。')
     print('  改文件只改"最新快照"，历史快照原样保留，clone 照样拿得到。')
-    return 1 if blocks else 0
+    if blocks:
+        return 1
+    # 无 BLOCK 但降级 → 仍是「无法判定」，不能报成功
+    return EXIT_DEGRADED if DEGRADED else 0
 
 
 if __name__ == '__main__':
