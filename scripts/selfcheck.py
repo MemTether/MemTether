@@ -629,12 +629,21 @@ def c09_packaging(ctx):
 
 
 def _resolve_terms(ctx):
-    """找敏感词表。★词表外置是刻意的：扫描器本身要开源，把真名写死在代码里
-    = 用泄密清单去泄密（实测它自己贡献了 3 处 BLOCK 命中）。"""
-    cands = []
-    env = os.environ.get('MEM_SCAN_TERMS')
+    """找敏感词表 → (路径 or None, 错误说明 or None)。
+
+    ★词表外置是刻意的：扫描器本身要开源，把真名写死在代码里
+      = 用泄密清单去泄密（实测它自己贡献了 3 处 BLOCK 命中）。
+    ★MEM_SCAN_TERMS 一旦被显式设置就是**权威口径**：指到不存在的文件必须报错，
+      **不能**悄悄退回其它候选 —— 那等于换了词表还宣称「扫过了」。
+      （这就是「口径要与审计目标匹配」那条铁律，栽过一次就该写进代码里。）
+    """
+    env = (os.environ.get('MEM_SCAN_TERMS') or '').strip()
     if env:
-        cands.append(env)
+        if os.path.isfile(env):
+            return os.path.abspath(env), None
+        return None, ('MEM_SCAN_TERMS 指向的文件不存在：%s'
+                      '（显式指定的词表是权威口径，不退回其它候选）' % env)
+    cands = []
     cands.append(os.path.join(ctx['repo'], 'scripts', 'leak_terms.local.json'))
     cands.append(os.path.join(ctx['repo'], 'leak_terms.local.json'))
     # 兄弟仓库（真源在别处时：发布库副本旁边没有词表 → 需指回真源那份）
@@ -647,8 +656,8 @@ def _resolve_terms(ctx):
         pass
     for c in cands:
         if c and os.path.isfile(c):
-            return os.path.abspath(c)
-    return None
+            return os.path.abspath(c), None
+    return None, None
 
 
 def _loc_label(f, key_file):
@@ -695,7 +704,11 @@ def _leak_evidence(out, key_level, key_cat, key_file):
 
 def c10_leaks(ctx):
     """引擎侧泄密扫描（当前发布集）。"""
-    terms = _resolve_terms(ctx)
+    terms, terr = _resolve_terms(ctx)
+    if terr:
+        return _res('C10', '引擎侧泄密扫描（scan_leaks）', 'DEGRADED', terr,
+                    ['修法：去掉 MEM_SCAN_TERMS，或把它指向真实存在的词表',
+                     '★退回其它候选 = 换了词表口径还宣称扫过了 —— 宁可报降级'])
     env = {}
     if terms:
         env['MEM_SCAN_TERMS'] = terms
@@ -714,7 +727,10 @@ def c10_leaks(ctx):
 
 def c11_history(ctx):
     """git 历史泄密扫描（scan_leaks 的盲区：曾跟踪过、后来删掉的文件）。"""
-    terms = _resolve_terms(ctx)
+    terms, terr = _resolve_terms(ctx)
+    if terr:
+        return _res('C11', 'git 历史泄密扫描（scan_history_leaks）', 'DEGRADED', terr,
+                    ['修法：去掉 MEM_SCAN_TERMS，或把它指向真实存在的词表'])
     env = {}
     if terms:
         env['MEM_SCAN_TERMS'] = terms
