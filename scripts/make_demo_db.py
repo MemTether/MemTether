@@ -39,7 +39,12 @@ SEED = 20260916
 #   —— 实测它自己就贡献了 1 处 BLOCK 命中（`(r'<真名>', '真实姓名')`），
 #     而 `scan_leaks.py` 早就因为同一个原因改成外置了，这里当时漏改。
 #   词表缺失 → 这几类降级为空（只跑通用规则），不报错，也不假装"很干净"。
-_TERMS = os.path.join(HERE, 'leak_terms.local.json')
+# ★2026-09-17：与 scan_leaks.py 对齐口径，允许用 MEM_SCAN_TERMS 指向外部词表。
+#   意义：外部用户 clone 下来也能挂自己的词表；本机预览时指向真源，不必把含真名的
+#   词表复制进发布库目录（scripts/leak_terms.local.json 虽被 .gitignore 挡住，
+#   但复制进去等于在发布根目录下放一份真名清单，风险不该冒）。
+_TERMS = (os.environ.get('MEM_SCAN_TERMS') or '').strip() or os.path.join(
+    HERE, 'leak_terms.local.json')
 
 
 def _local_terms():
@@ -53,6 +58,16 @@ def _local_terms():
 
 
 _NAMES, _INCIDENTS = _local_terms()
+
+# --------------------------------------------------------- 失败闭锁开关（可 opt-in）
+# ★2026-09-17：词表缺失时「只跑通用规则、真名/安全事件没查」是**无法判定**，
+#   绝不可以说成"零命中/干净"（原实现第 340 行刚承认未参与检查，第 356 行又宣称
+#   「零命中（…姓名…）」——自相矛盾的假绿，而这个脚本正是**用来证明没泄露**的那个
+#   交付物生成器，外部用户看到 ✓ 会当真）。
+#   但不能无脑照抄 scan_history_leaks.py 的硬闭锁：demo 库是脚本合成的虚构数据，
+#   外部用户 clone 后本来就没有词表，硬闭锁会让他连 demo 都生成不了。
+#   折中：默认**诚实降级**（措辞改准 + 退出码保持可用），--strict 才失败闭锁（exit 2）。
+STRICT = False
 
 # ----------------------------------------------------------------- 虚构词表
 # 全部为编造名称：客户端、工具、路径、账号。刻意与真实产品名保持距离。
@@ -313,7 +328,10 @@ def smoke(out_path):
                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                        creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
     out = p.stdout.decode('utf-8', 'replace').strip()
-    return (p.returncode == 0), out
+    # ★告警必须单独挑出来：子进程把 [warn] 打进同一条流、退出码仍是 0，
+    #   只看 returncode 会把"能力实际没生效"当成"通过" —— 那是假绿。
+    warns = [ln.strip() for ln in out.split('\n') if '[warn]' in ln.lower()]
+    return (p.returncode == 0), out, warns
 
 
 def selfcheck(out_path):
@@ -336,15 +354,20 @@ def selfcheck(out_path):
     # ★真名 / 安全事件词来自外置词表（见文件头「敏感词外置」），不写死在源码里
     bad_pat += [(re.escape(x), '真实姓名') for x in _NAMES]
     bad_pat += [(x, '安全事件标记') for x in _INCIDENTS]
-    if not (_NAMES or _INCIDENTS):
+    degraded = not (_NAMES or _INCIDENTS)
+    if degraded:
         print('  ⚠ 降级：本地敏感词表缺失（%s），真名/安全事件两类**未参与检查**' % _TERMS)
+        if STRICT:
+            print('  ★--strict：缺词表即**无法判定**，拒绝给出"干净"结论（exit 2）')
+            print('=' * 78)
+            return 2
     hits = []
     for pat, why in bad_pat:
         m = re.findall(pat, text)
         if m:
             hits.append((why, len(m), sorted(set(m))[:3]))
     par_ok, par_bad = schema_parity(out_path)
-    sm_ok, sm_out = smoke(out_path)
+    sm_ok, sm_out, sm_warns = smoke(out_path)
     print('=' * 78)
     print('演示库自检：%s' % out_path)
     print('  行数 %d · 文本 %d 字符' % (len(blob), len(text)))
@@ -353,21 +376,37 @@ def selfcheck(out_path):
         for why, n, sample in hits:
             print('     %-22s %d 处  %s' % (why, n, sample))
     else:
-        print('  ✓ 泄密检查 零命中（无真实路径 / 密钥 / 姓名 / 学号 / 本机账号）')
+        if degraded:
+            # ★关键：缺词表时**绝不可以说"零命中"** —— 那两类是"没查"，不是"查了没有"
+            print('  ⚠ 泄密检查 **无法判定**：通用规则零命中，但真名/安全事件**没查**')
+            print('     补齐词表 %s 后重跑才是完整结论（或用 --strict 让它直接报错）' % _TERMS)
+        else:
+            print('  ✓ 泄密检查 零命中（无真实路径 / 密钥 / 姓名 / 学号 / 本机账号）')
     if par_ok:
         print('  ✓ 表结构一致性 与 gateway.SCHEMA 完全一致')
     else:
         print('  ★表结构不一致：')
         for b in par_bad:
             print('     %s' % b)
-    if sm_ok:
+    if sm_warns:
+        # ★告警必须显式列出，且绝不能出现在"✓ 通过"后面 —— 那是最典型的假绿
+        print('  ⚠ 功能冒烟 告警 %d 条（能力未生效，不算通过）：' % len(sm_warns))
+        for ln in sm_warns:
+            print('     %s' % ln)
+        if STRICT:
+            print('  ★--strict：有告警即判失败')
+    if sm_ok and not sm_warns:
         print('  ✓ 功能冒烟 通过：%s' % sm_out)
-    else:
+    elif not sm_ok:
         print('  ★功能冒烟失败：')
         for ln in sm_out.split('\n')[-8:]:
             print('     %s' % ln)
     print('=' * 78)
-    return 0 if (not hits and par_ok and sm_ok) else 1
+    if hits or not par_ok or not sm_ok:
+        return 1
+    if sm_warns and STRICT:
+        return 2
+    return 0
 
 
 def main():
@@ -375,7 +414,11 @@ def main():
     ap.add_argument('--out', default=os.path.join(ROOT, 'demo', 'memory_demo.db'))
     ap.add_argument('--seed', type=int, default=SEED)
     ap.add_argument('--selfcheck', action='store_true', help='只对已存在的库自检')
+    ap.add_argument('--strict', action='store_true',
+                    help='词表缺失即失败闭锁（exit 2）；CI / 本机发布前用')
     a = ap.parse_args()
+    global STRICT
+    STRICT = a.strict
     if a.selfcheck:
         sys.exit(selfcheck(a.out))
     os.makedirs(os.path.dirname(a.out) or '.', exist_ok=True)
