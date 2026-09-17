@@ -14,9 +14,20 @@ slot_update.py —— 共享注入槽位（MEMORY.md / 工作区 MEMORY.md）的
   ① 锚点唯一化 —— 每处替换先断言 count(old)==1，不唯一即中止
   ② 预算闸门   —— 先只算 len(str) 试算，超硬顶即中止（只读，不动盘）
   ③ 同目录备份 —— .bak-<时间戳>（shutil.copy2）
-  ④ 原子写     —— 同目录 tempfile.mkstemp + os.replace
+  ④ 原子写     —— hubguard.commit_guarded（并发检测 + 符号链接/硬链接保护）
   ⑤ 换行跟随   —— 目标 CRLF 就写 CRLF，绝不静默改写全文件行尾
   ⑥ 回读断言   —— 重新读盘逐字节比对 + 关键词探针
+
+为什么 ④ 必须走 hubguard（2026-09-17 实测，E:/Temp/verify_symlink_risk.py）：
+  本机 `~/.workbuddy-ai/MEMORY.md` 是指向 `~/.workbuddy/MEMORY.md` 的**文件符号链接**
+  （双版本互通就靠它）。裸 `tempfile.mkstemp + os.replace` 会把它替换成普通文件 ——
+  链接消失、真身收不到内容、两个客户端从此各写各的，**且全程不报错**。
+  实测三组对照：
+      裸 os.replace  + 符号链接 → islink True→False，真身内容纹丝不动（★结构被静默打断）
+      hubguard.atomic_write     → islink 保持 True，内容写进真身（✔）
+      裸 os.replace  + 目录 junction → 结构安全（os.replace 对目录联接透明）
+  另外 ①②③⑤⑥ 之间仍有一条时间窗：我读盘之后、写盘之前，对方可能改过。
+  commit_guarded 用读盘指纹把这条窗堵上，默认 abort（拒写）而不是覆盖。
 
 用法：
   python slot_update.py <path> --budget 8000 --patch patch.json
@@ -27,6 +38,7 @@ patch.json 格式（UTF-8，列表）：
   [{"name":"§0 状态行", "old":"...", "new":"..."}, ...]
 
 退出码：0 成功 / 2 锚点不唯一 / 3 超预算 / 4 回读不一致 / 5 其他
+        6 并发冲突（对方在我读盘之后改过 -> 拒写，一个字节都没写）
 """
 
 import io
@@ -34,10 +46,59 @@ import os
 import sys
 import json
 import shutil
+import hashlib
 import tempfile
 import datetime
 
 CREATE_NO_WINDOW = 0x08000000
+
+# ---- hubguard 接入（同仓库；拿不到就显式降级，绝不静默）----
+try:
+    import hubguard as _hg
+    _HG_ERR = None
+except Exception as _e:          # noqa: BLE001 - 任何 import 失败都要能跑起来
+    _hg = None
+    _HG_ERR = _e
+
+
+def _warn(msg):
+    sys.stderr.write("[slot_update][warn] %s\n" % msg)
+
+
+def _hg_snapshot(path, raw):
+    """取「我读到的这一版」的指纹。
+
+    返回 None 表示：在 read_bytes() 与 snapshot() 这两次读之间，文件已被改动 ——
+    此时宁可中止重来，也不要拿一份可能已经过期的内容去覆盖。
+    """
+    mine = hashlib.sha256(raw).hexdigest()
+    if _hg is None:
+        _warn("hubguard 不可用（%s）-> 并发检测降级为「仅比 sha256」" % _HG_ERR)
+        return {"path": os.path.abspath(path), "exists": True, "sha256": mine}
+    s = _hg.snapshot(path)
+    if s.get("sha256") != mine:
+        return None
+    return s
+
+
+def _hg_commit(path, body, before):
+    """把 body 写进共享文件。有 hubguard 走 commit_guarded（带链接保护 + 并发检测）。"""
+    if _hg is not None:
+        return _hg.commit_guarded(path, body, before, on_conflict="abort")
+
+    _warn("hubguard 不可用（%s）-> 降级为裸 mkstemp+os.replace："
+          "**符号链接保护与并发检测均缺失**，目标若是指向真身的符号链接会被替换成普通文件" % _HG_ERR)
+    d = os.path.dirname(os.path.abspath(path)) or "."
+    fd, tmp = tempfile.mkstemp(prefix=".slot_update-", dir=d)
+    try:
+        with os.fdopen(fd, "wb") as f:
+            f.write(body.encode("utf-8"))
+        os.replace(tmp, path)
+    except Exception:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+        raise
+    return {"ok": True, "atomic": True, "degraded": True}
 
 
 # ---------------------------------------------------------------- 基础工具
@@ -78,6 +139,13 @@ def apply_patch(path, reps, budget, probes=None, do_bak=True, verbose=True):
     nl = detect_newline(raw)
     txt = raw.decode("utf-8")
 
+    # ⓪ 读盘指纹 —— 证明「我读到的就是现在盘上这个」，④ 用它挡并发覆盖
+    before = _hg_snapshot(path, raw)
+    if before is None:
+        print("!! 读盘瞬间就被改动过（read 与 snapshot 之间）-> 拒写（一个字节都没写）")
+        print("   请重新执行；若对方正在持续写入，等它停下来再改。")
+        return 6, None
+
     # ① 锚点唯一化
     for item in reps:
         name = item.get("name", "?")
@@ -110,17 +178,26 @@ def apply_patch(path, reps, budget, probes=None, do_bak=True, verbose=True):
         if verbose:
             print("  备份 -> %s" % bak)
 
-    # ④ 原子写（同目录 mkstemp + os.replace）
-    d = os.path.dirname(os.path.abspath(path)) or "."
-    fd, tmp = tempfile.mkstemp(prefix=".slot_update-", dir=d)
+    # ④ 原子写（★走 hubguard.commit_guarded：并发检测 + 符号链接/硬链接保护）
+    #    注意：③ 的 .bak 已经落盘，所以即使这里中止，原文件仍可从 .bak 恢复。
     try:
-        with os.fdopen(fd, "wb") as f:
-            f.write(body.encode("utf-8"))
-        os.replace(tmp, path)
-    except Exception:
-        if os.path.exists(tmp):
-            os.unlink(tmp)
+        res = _hg_commit(path, body, before)
+    except Exception as e:                                   # noqa: BLE001
+        if _hg is not None and isinstance(e, _hg.ConcurrentModification):
+            print("!! 并发冲突：另一客户端在我读盘之后改过这个文件 -> 拒写（一个字节都没写）")
+            print("   %s" % e)
+            return 6, None
         raise
+    if res.get("atomic") is False:
+        _warn("目标无法原子替换（%s）-> 已就地写。并发读方可能读到半截内容。"
+              % res.get("why", "未知原因"))
+    if verbose:
+        mode = "原子替换"
+        if res.get("symlink"):
+            mode = "原子替换(经符号链接->真身)"
+        elif res.get("atomic") is False:
+            mode = "就地写(降级)"
+        print("  写盘方式 -> %s" % mode)
 
     # ⑥ 回读断言
     raw2 = read_bytes(path)
@@ -152,6 +229,18 @@ def selftest():
         with open(p, "wb") as f:
             f.write(content.replace("\n", nl).encode("utf-8"))
         return p
+
+    def _try_symlink(link, target):
+        """造文件符号链接。返回 (是否成功, 说明)。"""
+        try:
+            os.symlink(target, link)
+            return True, "os.symlink"
+        except OSError as e:
+            r = subprocess.run(["cmd", "/c", "mklink", link, target],
+                               capture_output=True, creationflags=CREATE_NO_WINDOW)
+            if r.returncode == 0:
+                return True, "mklink"
+            return False, "%s / mklink rc=%d" % (e.__class__.__name__, r.returncode)
 
     # 用例 1：正常替换（LF）
     p1 = mk("a.md", "# 标题\n- 旧状态行\n- 保持行\n")
@@ -216,6 +305,61 @@ def selftest():
     ok = got == 24 and norm == 22 and (got - norm) == 2
     print("  [7] 保守口径(CRLF计\\r)    %s  保守=%d 归一=%d 差=%d (期望 24/22/2)"
           % ("PASS" if ok else "FAIL", got, norm, got - norm))
+    results.append(ok)
+
+    # 用例 8：目标是指向真身的符号链接 -> 改完链接必须还在、内容进的是真身
+    #   （2026-09-17 实测：裸 os.replace 会把链接换成普通文件，真身收不到内容且不报错）
+    real8 = mk("h-real.md", "- 旧状态行\n")
+    link8 = os.path.join(base, "h-link.md")
+    made8, how8 = _try_symlink(link8, real8)
+    if made8:
+        r, n = apply_patch(link8, [{"name": "状态行", "old": "- 旧状态行", "new": "- 新状态行"}],
+                           budget=8000, probes=["新状态行"], verbose=False)
+        ok = (r == 0 and os.path.islink(link8) and B("新状态行") in read_bytes(real8))
+        print("  [8] 符号链接不被替换      %s  rc=%d 链接仍在=%s 真身已更新=%s"
+              % ("PASS" if ok else "FAIL", r, os.path.islink(link8),
+                 B("新状态行") in read_bytes(real8)))
+    else:
+        ok = True
+        print("  [8] 符号链接不被替换      SKIP（本机造不出符号链接：%s）" % how8)
+    results.append(ok)
+
+    # 用例 9：并发冲突 -> commit_guarded 必须拒写、原文件保持对方版本
+    #   这就是 apply_patch ④ 走的同一函数、同一参数（on_conflict='abort'）
+    p9 = mk("i.md", "- 原行\n")
+    if _hg is not None:
+        before9 = _hg.snapshot(p9)
+        with open(p9, "wb") as f:                      # 模拟「对方在我读盘之后写入」
+            f.write(B("- 对方改过的行\n"))
+        try:
+            _hg.commit_guarded(p9, "- 我算出来的行\n", before9, on_conflict="abort")
+            ok = False
+            why = "没抛冲突"
+        except _hg.ConcurrentModification:
+            ok = read_bytes(p9) == B("- 对方改过的行\n")
+            why = "拒写且对方版本完好" if ok else "拒写了但文件被改"
+    else:
+        ok = True
+        why = "跳过(hubguard 不可用)"
+    print("  [9] 并发冲突->拒写        %s  %s" % ("PASS" if ok else "FAIL", why))
+    results.append(ok)
+
+    # 用例 10：读盘瞬间即冲突（read 与 snapshot 之间被改）-> apply_patch 必须 rc=6
+    p10 = mk("j.md", "- 行\n")
+    if _hg is not None:
+        orig = _hg.snapshot
+        try:
+            _hg.snapshot = lambda p: {"path": p, "exists": True, "sha256": "0" * 64}
+            r, n = apply_patch(p10, [{"name": "换", "old": "- 行", "new": "- 新行"}],
+                               budget=8000, verbose=False)
+            ok = r == 6 and read_bytes(p10) == B("- 行\n")
+        finally:
+            _hg.snapshot = orig
+    else:
+        ok = True
+    print("  [10] 读盘瞬间冲突->rc=6   %s  rc=%d 原文件未变=%s"
+          % ("PASS" if ok else "FAIL", r if _hg is not None else -1,
+             read_bytes(p10) == B("- 行\n")))
     results.append(ok)
 
     shutil.rmtree(base, ignore_errors=True)
