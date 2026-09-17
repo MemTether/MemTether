@@ -42,6 +42,9 @@ MemTether 的答案更简单：**让它们指向同一份文件**。
 **关键约定**：所有写入只经 `gateway.py`，且必须带 `--source <来源名>`。
 同一份物理文件被多个 agent 写，没有归属就是灾难。
 
+> **想深入**：分层图、组件选型、9 条硬规则、事件驱动闭环、混合检索四路融合的完整说明
+> 见 **[ARCHITECTURE.md](ARCHITECTURE.md)**。
+
 ---
 
 ## 快速开始
@@ -110,6 +113,31 @@ python mem.py timeline <uid>
 > （前者装完即用，后者无需安装）。
 
 **写入约定**：每条记忆的**第一句必须把结论说完** —— 投影只保留首句，结论写在后面等于白写。
+
+---
+
+## 仓库里的文件地图
+
+顶层平铺 **52 个 `.py`**。平铺是为了「方式 B」下能 `python gateway.py …` 直接跑；
+代价是根目录很长。先看这张表，再决定要读哪几个：
+
+| 分组 | 数量 | 你需要它吗 | 模块 |
+|---|---|---|---|
+| **对外接口** | 5 | ✅ **装完即用的就是这几个** | `memtether`（包门面 + CLI）· `gateway`（唯一写入入口）· `mem`（共享总线 + CLI）· `memsearch`（混合检索）· `mcp_server`（MCP Server） |
+| 引擎核心 | 13 | ⚠️ 被上面调用，一般不直接用 | `embed_local` `rerank` `governance` `project` `refuse_live` `refuse_gate` `tool_audit` `memory_sink` `memory_maintenance` `pair_superseded` `mem0_config` `post_turn` `demo_gateway` |
+| 运维 / 自检 | 12 | 🔧 自建环境才用 | `hub_score`（四维评分卡）`hub_selfcheck` `hubguard`（并发治理）`attach_hubguard` `preflight`（发布前置闸门）`publish_pypi` `bootstrap` `board` `approve` `enrich_caps` `sync_memory` `skill_forge` |
+| 跨客户端协作 | 2 | 🔧 多个客户端共写同一份文件时才用 | `wslog_append`（共写日志原子追加）`slot_update`（共享槽位原地更新） |
+| 迁移 / 一次性 | 6 | ⛔ 一般不用碰 | `migrate_bitemporal` `migrate_sink` `import_mem0` `sync_reflector_mem0` `astra_dialogue` `astra_memory_closure` |
+| 评测 / 回归 | 14 | 🔬 想复跑卷子时 | `asset_bench` `asset_bench_holdout` `asset_selfcheck` `bench_longmemeval` `e2e_verify` `hard_bench` `hard_holdout` `judge_selfcheck` `refuse_bench` `regression_test` `rerank_k_bench` `smoke_bitemporal` `test_autosync` `test_triggers` |
+
+- **只想用，不想读源码** → 看第一行那 5 个就够；`pip` 装完之后它们都在 `memtether` 命令背后。
+- **想复跑评测 / 想核对我们说的数** → 最后一行是给你的：卷子、判分口径、评分卡源码都在仓库里。
+- **想自己搭一套** → 中间两行（运维 / 自检 + 跨客户端协作）。
+
+`scripts/` 放辅助脚本（合成演示库生成、打包清单闸门、泄密扫描）；`docs/` 放文档索引。
+名字以 `_` 开头的 `.py` 是本地临时脚本，**不进版本库**（`.gitignore` 已排除）。
+
+> 这份清单由 `scripts/check_packaging.py` 与仓库实际文件核对 —— 不是手抄的。
 
 ---
 
