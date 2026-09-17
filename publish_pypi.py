@@ -1,0 +1,209 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""
+publish_pypi.py — MemTether 发布到 PyPI 的一键上传器（A2 收口）
+
+设计要点（都是踩过的坑）：
+1. token 只从环境变量读，绝不落盘、绝不进 git
+   —— 本机 git 历史里已出过「提交身份泄露」事件，凭据更不能写进文件
+2. 上传名单显式给出，绝不用 dist/*
+   —— dist/ 里混着 .pre-hubguard 归档包，dist/* 会连它们一起传上去
+3. 归档用改名（os.rename），绝不用 os.remove/rmtree
+   —— 本机 safe-delete 是 fail-closed，删除动作一律不被允许
+4. 子进程一律 CREATE_NO_WINDOW(0x08000000) 且捕获回显
+   —— 屏幕占用铁律：不弹窗、不占屏
+5. 先 twine check 再 upload，check 不过绝不上传
+
+用法：
+  set TWINE_PASSWORD=pypi-xxxx...
+  python publish_pypi.py                 # 正式 PyPI
+  python publish_pypi.py --test          # TestPyPI（需单独账号的 token）
+  python publish_pypi.py --dry-run       # 只做检查+名单，不上传
+"""
+import os
+import sys
+import glob
+import time
+import shutil
+import hashlib
+import subprocess
+
+ROOT = os.path.dirname(os.path.abspath(__file__))
+DIST = os.path.join(ROOT, "dist")
+ARCHIVE_DIR = os.path.join(ROOT, "_archive")
+CREATE_NO_WINDOW = 0x08000000
+
+# 显式上传名单：只认这两个正式产物
+TARGETS = [
+    "memtether-0.1.0a1-py3-none-any.whl",
+    "memtether-0.1.0a1.tar.gz",
+]
+
+PYPI_URL = "https://upload.pypi.org/legacy/"
+TEST_URL = "https://test.pypi.org/legacy/"
+
+
+def log(msg=""):
+    print(msg, flush=True)
+
+
+def sha256(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(65536), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def archive_strays():
+    """把 dist/ 里非上传目标的杂物改名归档（不删除）。"""
+    if not os.path.isdir(DIST):
+        return 0
+    keep = set(TARGETS)
+    moved = 0
+    os.makedirs(ARCHIVE_DIR, exist_ok=True)
+    ts = time.strftime("%Y%m%d-%H%M%S")
+    for name in sorted(os.listdir(DIST)):
+        p = os.path.join(DIST, name)
+        if not os.path.isfile(p) or name in keep:
+            continue
+        dst = os.path.join(ARCHIVE_DIR, "%s.arch-%s" % (name, ts))
+        try:
+            os.rename(p, dst)
+        except FileExistsError:
+            dst = os.path.join(ARCHIVE_DIR, "%s.arch-%s-%d" % (name, ts, moved))
+            os.rename(p, dst)
+        log("  归档 %s -> _archive/%s" % (name, os.path.basename(dst)))
+        moved += 1
+    return moved
+
+
+def run(cmd, env=None, cwd=None):
+    return subprocess.run(cmd, capture_output=True, encoding="utf-8",
+                          errors="replace", creationflags=CREATE_NO_WINDOW,
+                          env=env, cwd=cwd or ROOT)
+
+
+# twine 装在中枢 venv 里，不在随便哪个 python 上 —— 必须探测，不能假设
+CANDIDATE_PY = [
+    os.environ.get("PUBLISH_PY", ""),
+    r"E:/RUANJIAN/memory_hub/.venv-memory/Scripts/python.exe",
+    r"E:/RUANJIAN/memory_hub/.venv-mem/Scripts/python.exe",
+    sys.executable,
+]
+
+
+def find_twine_py():
+    """返回第一个 import twine 成功的解释器；找不到返回 None。"""
+    env = dict(os.environ)
+    env["PYTHONIOENCODING"] = "utf-8"
+    for py in CANDIDATE_PY:
+        if not py or not os.path.isfile(py):
+            continue
+        r = run([py, "-c", "import twine"], env=env)
+        if r.returncode == 0:
+            return py
+    return None
+
+
+def main():
+    args = [a for a in sys.argv[1:]]
+    use_test = "--test" in args
+    dry = "--dry-run" in args
+
+    log("=== MemTether 发布器 ===")
+    log("目标：%s" % ("TestPyPI（演练）" if use_test else "正式 PyPI"))
+    log("模式：%s" % ("dry-run 只检查不上传" if dry else "正式上传"))
+    log()
+
+    # 1. 归档杂物
+    log("[1/4] 清理 dist/ 杂物（改名归档，绝不删除）")
+    n = archive_strays()
+    log("      归档 %d 个" % n)
+
+    # 2. 校验上传名单
+    log()
+    log("[2/4] 校验上传产物")
+    files = []
+    for name in TARGETS:
+        p = os.path.join(DIST, name)
+        if not os.path.isfile(p):
+            log("      !! 缺失：%s —— 中止（请先 python -m build --no-isolation）" % name)
+            return 2
+        h = sha256(p)
+        log("      %-42s %8d B  sha256 %s…" % (name, os.path.getsize(p), h[:16]))
+        files.append(p)
+    if len(files) != len(TARGETS):
+        return 2
+
+    # 3. twine check
+    log()
+    log("[3/4] twine check（渲染合规体检）")
+    twpy = find_twine_py()
+    if not twpy:
+        log("      !! 找不到装了 twine 的解释器 —— 中止")
+        log("         可用：pip install twine，或设环境变量 PUBLISH_PY=<python.exe>")
+        return 3
+    log("      解释器：%s" % twpy)
+    env = dict(os.environ)
+    env["PYTHONIOENCODING"] = "utf-8"
+    r = run([twpy, "-m", "twine", "check"] + files, env=env)
+    tail = (r.stdout or "").strip().splitlines()
+    for line in tail[-6:]:
+        log("      %s" % line)
+    if r.returncode != 0:
+        log("      !! twine check 未通过 —— 中止，不上传")
+        if r.stderr:
+            log("      %s" % r.stderr.strip()[:400])
+        return 3
+    log("      check 通过")
+
+    # 4. 上传
+    log()
+    if dry:
+        log("[4/4] dry-run：跳过上传。正式执行去掉 --dry-run，并先设 TWINE_PASSWORD")
+        log()
+        log("完成（未上传）。")
+        return 0
+
+    token = os.environ.get("TWINE_PASSWORD", "").strip()
+    if not token:
+        log("[4/4] !! 未检测到环境变量 TWINE_PASSWORD —— 中止")
+        log("      请先执行： set TWINE_PASSWORD=pypi-xxxxxxxxxxxxxxxx")
+        return 4
+    if not token.startswith("pypi-"):
+        log("      !! token 不以 pypi- 开头，请确认你复制完整（含前缀）")
+        return 4
+
+    env["TWINE_USERNAME"] = "__token__"
+    env["TWINE_PASSWORD"] = token
+    cmd = [twpy, "-m", "twine", "upload",
+           "--repository-url", TEST_URL if use_test else PYPI_URL] + files
+    log("[4/4] 上传中…")
+    r = run(cmd, env=env)
+    out = (r.stdout or "").strip()
+    for line in out.splitlines()[-12:]:
+        log("      %s" % line)
+    if r.returncode != 0:
+        log()
+        log("      !! 上传失败 rc=%d" % r.returncode)
+        err = (r.stderr or "").strip()
+        if err:
+            for line in err.splitlines()[-10:]:
+                log("      %s" % line)
+        if "403" in out + err:
+            log()
+            log("      403 最常见两个原因：")
+            log("        ① token 的 scope 限定了项目 —— 首次上传新项目必须全账号 token")
+            log("        ② 你还没验证邮箱，或没开 2FA")
+        return 5
+
+    log()
+    log("上传成功。")
+    log("  查看：%s" % ("https://test.pypi.org/project/memtether/"
+                        if use_test else "https://pypi.org/project/memtether/"))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -121,3 +121,8 @@ _refuse_stop.json
 *.hub.lock
 *.hub.lock.holder
 *.journal.jsonl
+
+# 发布归档包（二进制，不进 git 历史；2026-09-17 补）
+_archive/
+dist/
+*.pre-hubguard
