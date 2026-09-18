@@ -28,6 +28,13 @@
 用法：
   python migrate_qvalue.py            # 只检查，不改库（默认）
   python migrate_qvalue.py --apply    # 真的执行 ALTER
+
+退出码：
+  0  CHECK 模式：两列已齐备，无需迁移
+  1  CHECK 模式：缺列，需要迁移（本次未改动库）
+  0  APPLY 模式：加列成功
+  1  APPLY 模式：加列异常
+  2  库不存在 / 用法错误
 """
 import argparse
 import os
@@ -95,6 +102,8 @@ def main():
         print('\n加列后: facts=%d  active=%d  列数=%d' % (n_after, a_after, len(after)))
         print('  条数不变: %s' % (n_before == n_after and a_before == a_after))
 
+        # ★先算出「到底缺不缺列」，结论行必须反映**真实状态**，不能只看 ok。
+        missing = [n for n, _, _ in NEW_COLS if n not in after]
         ok = True
         for name, typ, dflt in NEW_COLS:
             c = after.get(name)
@@ -109,18 +118,32 @@ def main():
             ok = ok and hit
 
         # 实际读值校验：已有行读出来必须是默认值
-        if 'q_value' in after and 'use_count' in after:
+        if not missing:
             qv = con.execute('SELECT COUNT(*) FROM facts WHERE q_value = 0.5').fetchone()[0]
             uc = con.execute('SELECT COUNT(*) FROM facts WHERE use_count = 0').fetchone()[0]
             print('  q_value=0.5 的行数: %d / %d' % (qv, n_after))
             print('  use_count=0 的行数: %d / %d' % (uc, n_after))
             print('  integrity_check: %s' % con.execute('PRAGMA integrity_check').fetchone()[0])
             ok = ok and qv == n_after and uc == n_after
-        else:
+        elif not a.apply:
             print('\n（CHECK 模式：以上未落库。加 --apply 执行，或直接跑 gateway.py init 自动补齐）')
 
-        print('\n结论:', '加列成功 ✓' if ok else ('检查通过，待 --apply' if not a.apply else '加列异常 ✗'))
-        return 0 if ok else 1
+        # ★结论行必须与真实状态一致。
+        #   早先这里写死 `'加列成功 ✓' if ok else ...`，而 CHECK 模式下缺列时 ok 仍为 True
+        #   （`ok = ok and (not a.apply)`），于是出现「明细说未写入、结论说成功」——
+        #   典型的假成功信号。改成按模式分别给结论。
+        if a.apply:
+            verdict = '加列成功 ✓' if ok else '加列异常 ✗'
+        elif missing:
+            verdict = '需迁移：缺 %s（本次只读，未改动库）' % '、'.join(missing)
+        else:
+            verdict = '无需迁移：两列均已存在'
+        print('\n结论:', verdict)
+
+        # 退出码：0 = 无需动作 / 动作成功；1 = 需要迁移（CHECK）或加列异常（APPLY）
+        if a.apply:
+            return 0 if ok else 1
+        return 1 if missing else 0
     finally:
         con.close()
 

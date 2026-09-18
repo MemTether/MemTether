@@ -36,7 +36,13 @@ import tempfile
 import subprocess
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-PY = os.path.join(HERE, '.venv-memory', 'Scripts', 'python.exe')
+if HERE not in sys.path:
+    sys.path.insert(0, HERE)
+from interpreter import resolve_python, require_modules      # noqa: E402
+
+# ★2026-09-18 改：不再写死 `.venv-memory` —— 发布库（clone 出来的）里没有这个目录，
+#   写死等于「README 说能复跑、实际一跑就 WinError 2」。统一走 interpreter 解析。
+PY, PY_SRC = resolve_python(HERE, announce=True)
 NEG_FILE = os.path.join(HERE, 'bench_data', 'refuse_negatives.json')
 RESULT = os.path.join(HERE, 'refuse_bench_result.json')
 RAW = os.path.join(HERE, 'refuse_bench_raw.json')   # 原始召回转录，供重算阈值而不用重载模型
@@ -111,6 +117,10 @@ def verify(verbose=True):
 # ---------------------------------------------------------------- run
 def _query_all(queries, model_key, limit=10):
     """独立进程里跑全部查询（同进程模型只加载一次）。limit=10 = 生产默认值。"""
+    # ★2026-09-18：只有这里真加载模型。`verify` / `cover` / `run ...@cached`
+    #   都是零模型路径，不该被依赖拦住（缺 chromadb 的机器也该能跑它们排障）。
+    #   这里必须拦：缺依赖不报错、只静默降级成纯关键词 → 阈值标定全废。
+    require_modules(PY, 'chromadb', 'numpy')
     env = dict(os.environ)
     env['MEM_EMBED_MODEL'] = model_key
     env['MEM_EMBED_BACKEND'] = 'local'
