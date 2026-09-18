@@ -41,7 +41,26 @@ try:
 except (OSError, ValueError):
     pass
 
-PY = os.path.join(HUB, '.venv-memory', 'Scripts', 'python.exe')
+# ★2026-09-18：原为写死 `<仓库>/.venv-memory/Scripts/python.exe`。
+#   克隆形态（git clone 出来的发布库）**没有** .venv-memory（.gitignore 里 `.venv-*/` 排除了），
+#   写死等于「README 说能自检、实际一跑就报错」——而且报出来的话术是
+#   「memory.db 打不开或查不了」，把矛头指向数据库，**指错了方向**（库没问题，是解释器没找到）。
+#   与 hard_bench / refuse_bench / rerank_k_bench / e2e_verify / hidden_run.pyw 同一类缺陷，
+#   同一修法：统一走 interpreter.resolve_python()：
+#       MEM_PY（显式指定，fail-closed）→ 本目录 .venv-memory（源码形态）
+#       → 当前解释器（clone / pip 安装形态）
+#   ★这里**故意容错、不抛异常**（与那几个脚本不同）：本文件是开机自启的巡检脚本，
+#     解释器解析失败也必须把剩下几项跑完并出声，不能整个挂掉。
+#     解析不了就退回原路径，由 check_hub 的「解释器可用性」前置检查点名报出。
+if HUB not in sys.path:
+    sys.path.insert(0, HUB)
+try:
+    from interpreter import resolve_python
+    PY, PY_SRC = resolve_python(HUB, announce=False)
+except Exception as _e:                                      # noqa: BLE001
+    PY = os.path.join(HUB, '.venv-memory', 'Scripts', 'python.exe')
+    PY_SRC = '回退（interpreter 不可用：%s）' % _e
+
 OPS = _LOCAL.get('ops_dir', '')
 PUBLISH_GUARD = (os.path.join(OPS, 'publish_guard.py')
                  if OPS else '')
@@ -184,6 +203,17 @@ def check_hub(problems):
     db = os.path.join(HUB, 'memory.db')
     if not os.path.exists(db):
         problems.append(('中枢可用', 'memory.db 不存在：%s' % db))
+        return
+    # ★2026-09-18：解释器可用性前置检查 —— 不做的话，PY 不存在时 run() 只会返回
+    #   「[无法执行 FileNotFoundError: ...]」，再被下面拼成「memory.db 打不开或查不了」，
+    #   于是报出来的失败**指向数据库**，而真正的原因是解释器路径不存在（clone 形态）。
+    #   失败要说清是哪一环坏的，不能让人照着错的方向修。
+    if not os.path.isfile(PY):
+        problems.append(('中枢可用',
+                         '★找不到可用的 Python 解释器：%s\n'
+                         '      解析来源：%s\n'
+                         '      → 设 MEM_PY=<python.exe>（任意带标准库 sqlite3 的解释器即可），'
+                         '或在本目录建 .venv-memory。' % (PY, PY_SRC)))
         return
     rc, out = run([PY, '-c',
                    'import sqlite3,sys;c=sqlite3.connect(r"%s");'
