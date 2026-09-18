@@ -103,6 +103,7 @@ py-modules = [
     "post_turn",            # 每轮钩子
     "demo_gateway",         # 演示网关
     # —— 运维 / 自检
+    "interpreter",          # ★解释器解析 + 依赖校验（统一入口，绝不静默降级）
     "hub_score",            # 四维评分卡
     "hub_selfcheck",        # 定时巡检
     "hubguard",             # 并发治理（跨进程锁 + 写函数包装 + 原子写）
