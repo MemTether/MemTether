@@ -45,7 +45,10 @@ PY = os.path.join(HUB, '.venv-memory', 'Scripts', 'python.exe')
 OPS = _LOCAL.get('ops_dir', '')
 PUBLISH_GUARD = (os.path.join(OPS, 'publish_guard.py')
                  if OPS else '')
-REPORT = os.path.join(H, 'Desktop', 'MemTether-巡检报告.md')
+# ★2026-09-18 改：失败报告不再写桌面（用户明确反对往桌面丢产物）→ 改到 ops 报告目录。
+#   仍坚持「只在失败时生成 + 通过后自动删除」：不制造无失败的自证式产物。
+REPORT = (os.path.join(OPS, 'reports', 'MemTether-巡检报告.md')
+          if OPS else os.path.join(HUB, 'MemTether-巡检报告.md'))
 
 # 四层互联工具（技能里的那份是权威版本，wbdl 是临时拷贝）
 INTERCONNECT_CANDIDATES = [
@@ -93,11 +96,20 @@ SLOTS = [
 RULES = os.path.join(H, '.workbuddy', 'rules', '00-clone-bootstrap.md')
 
 
-def run(cmd, timeout=300):
-    """跑子进程，返回 (rc, 合并输出)。用 CREATE_NO_WINDOW 避免弹窗。"""
+def run(cmd, timeout=300, env=None):
+    """跑子进程，返回 (rc, 合并输出)。用 CREATE_NO_WINDOW 避免弹窗。
+
+    ★2026-09-18 修（根因层）：子进程 stdout 默认走系统 locale（GBK），
+      任何脚本 print 一个非 GBK 字符（✓/✗/⚠/🔴…）就抛 UnicodeEncodeError，
+      被本巡检误判成"该项检查失败"。逐个脚本改字符是打地鼠——
+      这里统一把子进程 IO 编码钉成 utf-8，与父进程 decode 口径一致。
+    """
+    env = dict(os.environ if env is None else env)
+    env.setdefault('PYTHONIOENCODING', 'utf-8')
+    env.setdefault('PYTHONUTF8', '1')
     try:
         p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout,
-                           cwd=HUB, encoding='utf-8', errors='replace',
+                           cwd=HUB, encoding='utf-8', errors='replace', env=env,
                            creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
         return p.returncode, ((p.stdout or '') + (p.stderr or ''))
     except subprocess.TimeoutExpired:
