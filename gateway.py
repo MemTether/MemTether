@@ -25,6 +25,8 @@ gateway.py — Memory Gateway（唯一记忆入口）
   record_tool  记录工具/路径/地址资产
   record_incident  记录故障与修复
   resolve_task 按任务名返回完整执行配方（工具+路径+命令+坑+备用）
+  pin          投影钉住：把"必须一直在"的定义类结论排除在时间竞争之外
+  qvalue       ★升级 1：回写/查看记忆的「被采纳价值分」（Q-Value）
   rebuild      从 SQLite 重建所有投影（sink.json + md + MEMORY.md）
   stats        统计
   migrate      从旧 sink.json 迁移（阶段3 用）
@@ -163,7 +165,9 @@ CREATE TABLE IF NOT EXISTS facts (
   confidence REAL DEFAULT 0.8,
   tags TEXT,                  -- 逗号分隔
   created_at TEXT,
-  updated_at TEXT
+  updated_at TEXT,
+  q_value REAL DEFAULT 0.5,   -- ★升级 1：被采纳的价值分（0~1，中性 0.5）
+  use_count INTEGER DEFAULT 0 -- ★升级 1：被采纳次数（纯计数，不参与打分）
 );
 
 CREATE TABLE IF NOT EXISTS tool_assets (
@@ -280,9 +284,32 @@ def get_conn():
     return conn
 
 
+def _ensure_columns(conn):
+    """★升级 1：给**已存在的旧库**补 q_value / use_count 两列。
+
+    为什么必须有：SCHEMA 用的是 `CREATE TABLE IF NOT EXISTS` —— 新库能拿到新列，
+    **旧库拿不到**（表已存在，整段 CREATE 被跳过）。而 memsearch 的候选池查询
+    会显式 SELECT q_value，旧库上会直接抛异常 ⇒ 检索整体降级。
+    这类"跑起来不报错、但结果全错/功能静默失效"正是本项目反复踩的坑，
+    故在这里做**幂等自动迁移**，用户升级后无需手跑任何脚本。
+
+    只做 `ALTER TABLE ADD COLUMN`（SQLite 元数据级、毫秒级、全部常量默认值），
+    不动任何既有行内容；列已存在则跳过。等价的手动工具见 migrate_qvalue.py。
+    """
+    try:
+        have = {r[1] for r in conn.execute('PRAGMA table_info(facts)')}
+    except sqlite3.Error:
+        return
+    for name, typ, dflt in (('q_value', 'REAL', '0.5'), ('use_count', 'INTEGER', '0')):
+        if name in have:
+            continue
+        conn.execute('ALTER TABLE facts ADD COLUMN %s %s DEFAULT %s' % (name, typ, dflt))
+
+
 def init_db():
     conn = get_conn()
     conn.executescript(SCHEMA)
+    _ensure_columns(conn)
     conn.commit()
     conn.close()
 
@@ -918,6 +945,142 @@ def stats():
         conn.close()
 
 
+def set_pin(uid=None, on=True):
+    """★2026-09-16 七修：把某条记忆**钉住**（tags 加 pin），使其无条件进入投影。
+
+    背景：投影本质是「最近 N 条」而非「最重要 N 条」—— 新写的 experience/incident
+    会把早先写下的定义类 fact 挤出 4000 字符槽位，表现为**同一个概念反复记不住**
+    （实测痛点：同一个定义类概念，连问三次仍答不上来）。钉住 = 把该条排除在
+    「时间竞争」之外，因为"定义"恰恰最不该随时间沉底。
+
+    设计：不新增 schema，复用 tags 字段（逗号分隔）。
+          uid 省略时**列出**当前所有已钉住条目（只读）。
+
+    用法：
+        python gateway.py pin                       # 列出已钉住
+        python gateway.py pin <uid>                 # 钉住
+        python gateway.py pin <uid> --off           # 取消钉住
+    改完必须 rebuild 才生效。
+    """
+    init_db()
+    conn = get_conn()
+    try:
+        if not uid:
+            rows = conn.execute(
+                "SELECT uid, type, substr(content,1,70) AS lead FROM facts "
+                "WHERE status='active' AND lower(tags) LIKE '%pin%' "
+                "ORDER BY COALESCE(NULLIF(updated_at,''), created_at) DESC").fetchall()
+            return {'ok': True, 'pinned_count': len(rows), 'items': [dict(r) for r in rows]}
+        r = conn.execute("SELECT uid, type, tags, content FROM facts WHERE uid=?",
+                         (uid,)).fetchone()
+        if not r:
+            return {'ok': False, 'error': 'uid 不存在', 'uid': uid}
+        tags = [t.strip() for t in (r['tags'] or '').split(',') if t.strip()]
+        has = 'pin' in [t.lower() for t in tags]
+        if on and not has:
+            tags.append('pin')
+        elif not on and has:
+            tags = [t for t in tags if t.lower() != 'pin']
+        conn.execute("UPDATE facts SET tags=? WHERE uid=?", (','.join(tags), uid))
+        conn.commit()
+        return {'ok': True, 'uid': uid, 'pinned': bool(on), 'tags': ','.join(tags),
+                'lead': (r['content'] or '')[:70],
+                'next': 'python gateway.py rebuild  # 投影不会自动更新'}
+    finally:
+        conn.close()
+
+
+# ★升级 1（Q-Value）回写参数 —— 与 memsearch.py 的检索因子 (QVALUE_BASE + QVALUE_SPAN*q) 配套。
+QVALUE_LR = 0.1      # 学习率：q += LR * (reward - q)。0.1 = 约 10 次观测收敛到长期均值
+QVALUE_INIT = 0.5    # 中性初值，也是「从未被采纳」的默认值
+
+
+def bump_qvalue(uid=None, reward=1.0, agent=DEFAULT_SOURCE, detail='', apply=True):
+    """★升级 1（Q-Value）：检索命中**被采纳后**回写价值分，让好记忆自己浮上来。
+
+    背景：本中枢的生命周期卡在 manage/update 段 —— 写入做得好、检索做一半，
+    但「哪条记忆真的有用」这个信号**从未被记录**。结果：投影与检索都只能靠
+    时间/相似度排序，历史高频复用的结论会被新写入挤下去。
+
+    公式：q_value += LR * (reward - q_value)
+        reward ∈ [0,1]：1.0=完全采纳（直接解决问题）/ 0.5=部分有用 / 0.0=检索到但没用
+        收敛性：q 单调收敛到该条被采纳的长期平均 reward，故不会无限膨胀。
+    检索侧因子：score *= (0.3 + 0.7 * q_value)
+        0.5 → 0.65（中性，也是全库默认值，故**不改变任何现有排序**）
+        1.0 → 1.00（上浮上限）
+        0.0 → 0.30（下沉下限，**不为 0**：避免误判把条目钉死，仍可被强相关救回）
+
+    ★这是**显式**接口，不自动乱写库。只有检索结果被真正采纳时，调用方才应回写。
+    uid 省略时**列出**当前分布（只读）。apply=False 时只算不写（dry-run）。
+    每次写入都落 audit_log（op='qvalue'），可追溯是谁、因为什么把分调上去的。
+
+    用法：
+        python gateway.py qvalue                     # 看分布（只读）
+        python gateway.py qvalue <uid>               # 采纳一次（reward=1.0）
+        python gateway.py qvalue <uid> --reward 0.5  # 部分有用
+        python gateway.py qvalue <uid> --dry-run     # 只算不写
+    """
+    try:
+        reward = float(reward)
+    except (TypeError, ValueError):
+        return {'ok': False, 'error': 'reward 必须是 0~1 之间的数字', 'reward': reward}
+    if not (0.0 <= reward <= 1.0):
+        return {'ok': False, 'error': 'reward 必须落在 [0,1]', 'reward': reward}
+
+    init_db()
+    conn = get_conn()
+    try:
+        if not uid:
+            r = conn.execute(
+                "SELECT COUNT(*) n,"
+                " SUM(CASE WHEN q_value IS NULL THEN 1 ELSE 0 END) nulls,"
+                " AVG(q_value) avg_q, MIN(q_value) min_q, MAX(q_value) max_q,"
+                " SUM(COALESCE(use_count,0)) uses"
+                " FROM facts WHERE status='active'").fetchone()
+            top = conn.execute(
+                "SELECT uid, type, q_value, use_count, substr(content,1,70) AS lead"
+                " FROM facts WHERE status='active'"
+                " ORDER BY COALESCE(q_value,? ) DESC, COALESCE(use_count,0) DESC LIMIT 10",
+                (QVALUE_INIT,)).fetchall()
+            return {'ok': True, 'readonly': True, 'active': r['n'],
+                    'qvalue_null': r['nulls'] or 0,
+                    'avg': round(r['avg_q'] or 0.0, 4),
+                    'min': r['min_q'], 'max': r['max_q'],
+                    'total_use': r['uses'] or 0,
+                    'lr': QVALUE_LR, 'init': QVALUE_INIT,
+                    'top': [dict(x) for x in top]}
+
+        r = conn.execute(
+            "SELECT uid, type, q_value, use_count, content FROM facts WHERE uid=?",
+            (uid,)).fetchone()
+        if not r:
+            return {'ok': False, 'error': 'uid 不存在', 'uid': uid}
+
+        q0 = QVALUE_INIT if r['q_value'] is None else float(r['q_value'])
+        q1 = max(0.0, min(1.0, q0 + QVALUE_LR * (reward - q0)))
+        n0 = int(r['use_count'] or 0)
+
+        out = {'ok': True, 'uid': uid, 'type': r['type'],
+               'q_value_before': round(q0, 6), 'q_value_after': round(q1, 6),
+               'reward': reward, 'lr': QVALUE_LR,
+               'use_count_before': n0, 'use_count_after': n0 + 1,
+               'score_factor': round(0.3 + 0.7 * q1, 6),
+               'applied': bool(apply),
+               'lead': (r['content'] or '')[:70]}
+        if apply:
+            conn.execute("UPDATE facts SET q_value=?, use_count=? WHERE uid=?",
+                         (round(q1, 6), n0 + 1, uid))
+            audit(conn, 'qvalue', uid, agent,
+                  detail or ('reward=%g  q %.4f->%.4f  use %d->%d'
+                             % (reward, q0, q1, n0, n0 + 1)))
+            conn.commit()
+        else:
+            out['next'] = '去掉 --dry-run 才会真正写库'
+        return out
+    finally:
+        conn.close()
+
+
 def rebuild():
     """从 SQLite 重建所有投影：sink.json + 各 agent 投影 + ~/.workbuddy/MEMORY.md。"""
     init_db()
@@ -974,6 +1137,25 @@ def rebuild():
                     (_typ, _q)).fetchall():
                 _picked.append((_r['updated_at'] or _r['created_at'] or '', _typ, _r))
         _picked.sort(key=lambda p: p[0], reverse=True)
+
+        # ★2026-09-16 七修（pin 钉住）：tags 含 pin 的条目**无条件**进入投影。
+        #   根因：投影本质是「最近 N 条」而非「最重要 N 条」—— 新写的 experience/incident
+        #   会把早先写下的定义类 fact 挤出槽位，表现为**同一个概念反复记不住**
+        #   （实测痛点：同一个定义类概念，连问三次仍答不上来）。而"定义"恰恰最不该随时间沉底。
+        #   机制：不新增 schema，复用既有 tags 字段（逗号分隔）。
+        #     写入侧：python gateway.py remember "…" --tags pin
+        #     选取侧：先按配额捞，再把 pin 条目**补进**（防其因配额上限/时间序被排除）。
+        #   注意：这里只负责"选中"，不负责"排在前面"—— 排序交给下方 _fill_order。
+        _pin_rows = conn.execute(
+            "SELECT * FROM facts WHERE status='active' AND lower(tags) LIKE '%pin%'"
+        ).fetchall()
+        _have_uid = {p[2]['uid'] for p in _picked}
+        for _r in _pin_rows:
+            if _r['uid'] not in _have_uid:
+                _picked.append((_r['updated_at'] or _r['created_at'] or '',
+                                _r['type'] if _r['type'] in sink else 'fact', _r))
+        _picked.sort(key=lambda p: p[0], reverse=True)
+
         #    🔴 2026-09-14 再修：注入侧按体积截断，一条动辄 1500 字的"巨型事实"会把预算吃光
         #       （实测前 8 条就把额度用完，其余全被砍）。故对单条做软截断到 700 字，
         #       让同样预算能覆盖 3~4 倍的**不同**记忆。全文仍在 memory.db，用 mem.py search 可取回。
@@ -1220,9 +1402,24 @@ def rebuild():
         elif _starved:
             _warnings.append('★类型饿死：%s 一条都没进投影（请调低 _QUOTA 或收紧 _LINE_CAP）'
                              % ' / '.join(_starved))
-        if _headroom < 100:
-            _warnings.append('余量仅 %d 字符（预算 %d）—— 再写一条记忆就会触发裁剪'
+        #   ★2026-09-17 修：旧措辞"再写一条记忆就会触发裁剪"**是错的**：新记忆时间最新、
+        #   必然入选，只会挤掉一条最老的入选条目，**总占用不变**，不触发 _hard_trimmed。
+        #   真正的裁剪信号是 _hard_trimmed / _hard_clipped（上方已有独立告警）。
+        #   故改为：只在"候选已全部装完、余量却仍很小"时才提示 ——
+        #   那才是"预算刚好够用、再涨就要开始挤"的有意义信号。
+        if _headroom < 100 and not _dropped_facts:
+            _warnings.append('预算刚好够用：候选事实已全部装完，余量仅 %d 字符'
+                             '（预算 %d）—— 下次新增内容将开始挤掉旧条目'
                              % (_headroom, _BUDGET))
+        # ★2026-09-16 八修：pin 是**稀缺资源** —— 每条 pin 都无条件占位，
+        #   代价是挤掉一条普通条目。无节制 pin 会让投影退化成"pin 版最近 N 条"，
+        #   反而丢掉"最近发生了什么"。故设软上限并显式提示（只提醒，不阻止）。
+        _pin_max = int(os.environ.get('MEM_PROJ_PIN_MAX', '10'))
+        if len(_pin_rows) > _pin_max:
+            _warnings.append('★pin 过多：已钉住 %d 条（软上限 %d）—— 每条 pin 都无条件'
+                             '挤掉一条普通条目，投影会退化成"pin 版最近 N 条"；'
+                             '释放：gateway.py pin <uid> --off'
+                             % (len(_pin_rows), _pin_max))
         # ★2026-09-17：拒写/让位必须进**返回结构**，不能只写 stderr
         #   —— 否则调用方（mcp_server / 维护脚本）读到的仍是"一切正常"。
         for _r0 in _refused:
@@ -1242,6 +1439,8 @@ def rebuild():
                 # —— 预算可观测字段（2026-09-16 新增，供 hub_selfcheck / 维护脚本消费）
                 'budget': _BUDGET, 'used': _used, 'headroom': _headroom,
                 'facts_listed': _kept, 'type_listed': _type_kept,
+                # ★2026-09-16 八修：pin 条数可观测（供自检脚本判断"pin 是否被滥用"）
+                'pinned_count': len(_pin_rows),
                 'dropped_facts': _dropped_facts, 'dropped_assets': _dropped_assets,
                 'hard_trimmed': _hard_trimmed, 'hard_clipped': _hard_clipped,
                 'warnings': _warnings,
@@ -1337,6 +1536,19 @@ def main():
     sc = sub.add_parser('selfcheck'); sc.add_argument('--days', type=int, default=30)
     sub.add_parser('stale')                        # 过期候选（只读）
 
+    # ★投影钉住（见 set_pin）：把"必须一直在"的定义类结论排除在时间竞争之外
+    pn = sub.add_parser('pin')
+    pn.add_argument('uid', nargs='?')              # 省略 = 列出当前已钉住
+    pn.add_argument('--off', action='store_true')  # 取消钉住
+
+    # ★升级 1（Q-Value，见 bump_qvalue）：记录"哪条记忆真的被采纳过"
+    qv = sub.add_parser('qvalue')
+    qv.add_argument('uid', nargs='?')              # 省略 = 只读看分布
+    qv.add_argument('--reward', type=float, default=1.0)   # 1=完全采纳 0.5=部分有用 0=没用
+    qv.add_argument('--agent', default=DEFAULT_SOURCE)     # 谁回写的（进 audit_log）
+    qv.add_argument('--detail', default='')                # 回写原因（进 audit_log）
+    qv.add_argument('--dry-run', action='store_true')      # 只算不写
+
     a = ap.parse_args()
     if not a.cmd:
         ap.print_help()
@@ -1381,6 +1593,11 @@ def main():
         sys.path.insert(0, HUB)
         import memsearch
         print(json.dumps(memsearch.rebuild_vector_index(), ensure_ascii=False))
+    elif a.cmd == 'pin':
+        print(json.dumps(set_pin(a.uid, not a.off), ensure_ascii=False))
+    elif a.cmd == 'qvalue':
+        print(json.dumps(bump_qvalue(a.uid, a.reward, a.agent, a.detail, not a.dry_run),
+                         ensure_ascii=False))
     elif a.cmd == 'stats':
         print(json.dumps(stats(), ensure_ascii=False))
     elif a.cmd == 'rebuild':

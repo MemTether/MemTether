@@ -174,7 +174,17 @@ def _is_self_referential(content, q):
         return False
     c = content
     # 情形 1：原样含整段查询（含空格）→ 几乎必然是元讨论
-    if q in c:
+    #   ★2026-09-17 修：原实现写的是 `if q in c:`，漏掉了注释里那半句「含空格」。
+    #   后果（实测，非推测）：**单词查询**（单个专有名词 —— 工具名 / 模块文件名 /
+    #   内部代号这类）只要命中的记忆里出现「实测 / 结论：/ 之前 / 必须 / 缺 / 坑」
+    #   等任意一个 _SELFREF_TELL 词 —— 而这类词在真实记忆库里几乎条条都有 —— 就被
+    #   误判成"在谈论这个查询"，score ×0.05，直接打入冷宫。
+    #   铁证（A/B，monkey-patch 对照，同库同查询）：修前该词在 Top10 命中 0 条
+    #   （工具还自报"库里可能没有这条"），补上空格门槛后命中 10 条；多个不同的
+    #   单词查询同向复现；而多词查询结果**完全不变**、Top1 仍是正确答案
+    #   → 证明此修只消误伤、不伤原意。
+    #   单词查询的真自指（如"实测：搜 XXX 返回 0 条"）仍由情形 2 兜住。
+    if q in c and ' ' in q.strip():
         return any(t in c for t in _SELFREF_TELL)
     # 情形 2：引用了**近似**的查询串（见上方注释）
     qt = _terms(q)
@@ -548,7 +558,7 @@ def rebuild_vector_index(verbose=True, reclaim=True, reuse=False):
 def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
                   rerank_w=0.4, rerank_model=None,
                   adaptive=True, adaptive_thr=0.6,
-                  decay=True):
+                  decay=True, qvalue=None):
     """混合检索：质量门禁 + 向量 + ASCII精确 + RRF 融合 + cross-encoder 精排。
 
     use_rerank : 是否启用 cross-encoder 精排（agentmemory V4 的核心增益项）
@@ -568,6 +578,13 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
       选它的理由：直白集不退化（保住 80%），改写集 Top3 +10pp（给模型看 3 条比第 1 条更关键）。
     ★更重要的实测结论：改写集 30% 的失败是「正确答案没进候选集」（见 _diag_recall.py），
       精排救不了召回 → 下一步该做查询扩展，不是继续调排序。
+
+    qvalue     : ★升级 1（2026-09-17）—— 价值分加权，让**被反复采纳**的记忆上浮。
+                 None = 读环境变量 MEM_QVALUE（缺省视为开）；True/False = 显式开关。
+                 公式 score *= (0.3 + 0.7 * q_value)，q∈[0,1]。
+                 ★全库 q_value 默认 0.5 → 因子恒为 0.65，对同批候选是同一常数，
+                   在 RRF→min-max 精排链路里被完全抵消 ⇒ **默认不改变任何现有排序**。
+                 回写不由本函数负责（走 gateway.bump_qvalue / `mem.py qvalue`）。
     """
     q = (query or '').strip()
     if not q:
@@ -592,8 +609,12 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
 
     conn = sqlite3.connect(DB)
     conn.row_factory = sqlite3.Row
+    # ★2026-09-17（升级 1）：候选池补取 q_value —— 检索末尾的 Q-Value 加权要用它。
+    #   不加这一列，加权就只能全用默认 0.5，升级等于空转。
+    #   旧库若无此列，gateway.init_db() 的 _ensure_columns() 会自动补上（幂等）。
     active = {r['uid']: dict(r) for r in conn.execute(
-        "SELECT uid, content, type, source, scope, updated_at FROM facts WHERE status='active'").fetchall()}
+        "SELECT uid, content, type, source, scope, updated_at, q_value"
+        " FROM facts WHERE status='active'").fetchall()}
     # ★2026-09-15：资产一并入候选池（kind='tool'），否则「XX装在哪」永远查不到
     assets = {}
     try:
@@ -764,6 +785,37 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
             if not getattr(search_hybrid, '_warned_dc', False):
                 search_hybrid._warned_dc = True
                 print('[warn] 时间衰减失败（排序退化为纯相关性）:', str(e)[:80], file=sys.stderr)
+
+    # 7) ★升级 1（Q-Value，2026-09-17 接入）：被反复采纳的记忆上浮。
+    #    背景：本中枢的 manage/update 段几乎空白 —— "哪条记忆真的有用"这个信号
+    #      从未被记录，检索只能靠相似度 + 时间排序，于是历史高频复用的结论
+    #      会被新写入挤下去。
+    #    因子 = 0.3 + 0.7 * q_value ∈ [0.3, 1.0]：
+    #      q=0.5（全库默认，即"从未被采纳"）→ ×0.65，对同批候选是**同一常数**，
+    #        在 RRF→min-max 精排链路里被完全抵消 ⇒ 不改变任何现有排序；
+    #      q→1.0 上浮至 ×1.0；q→0.0 下沉至 ×0.3（**不为 0**，避免把条目钉死）。
+    #    ★必须挂在时间衰减**之后**：apply_decay 是最后一道 score 改写且自带重排，
+    #      挂在它前面会被直接覆盖。也**不能塞进 decay 块内** —— 验收基准用
+    #      decay=False 调用，塞进去就测不到（等于没接上）。
+    #    开关：MEM_QVALUE=0（或 false/off/no）关闭，退回旧行为，供 A/B 对照。
+    #    回写不由这里负责（走 gateway.bump_qvalue / `mem.py qvalue`），检索侧只读不写。
+    if qvalue is None:
+        qvalue = (os.environ.get('MEM_QVALUE') or '1').strip().lower() \
+            not in ('0', 'false', 'off', 'no')
+    if qvalue and out:
+        try:
+            for x in out:
+                qv = active.get(x.get('uid'), {}).get('q_value')
+                qv = 0.5 if qv is None else float(qv)
+                x['q_value'] = round(qv, 4)
+                x['score'] = round(x['score'] * (0.3 + 0.7 * qv), 5)
+                x['reason'] = list(x.get('reason') or []) + ['q=%.2f' % qv]
+            out.sort(key=lambda x: -x['score'])
+        except Exception as e:
+            if not getattr(search_hybrid, '_warned_qv', False):
+                search_hybrid._warned_qv = True
+                print('[warn] Q-Value 加权失败（排序退化为纯相关性）:', str(e)[:80],
+                      file=sys.stderr)
 
     return {'query': q, 'results': out[:limit]}
 
