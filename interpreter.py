@@ -129,10 +129,18 @@ def require_modules(py, *modules):
         raise RuntimeError('解释器跑不起来（%s）：\n%s' % (py, (r.stderr or '')[-400:]))
     miss = [m for m in (r.stdout or '').strip().split(',') if m]
     if miss:
+        # ★本模块自己的契约（见文件头）：**那个解释器真的存在才给路径**。
+        #   克隆 / pip 安装形态下没有 .venv-memory，无条件把那个路径写进错误里
+        #   等于把人指向死路 —— 照着敲会再撞一次「系统找不到指定的文件」，
+        #   正是本次修复要消灭的那类「指错方向」错误。
+        vp = venv_python()
+        extra = (('  或用源码形态的解释器：%s\n' % vp) if os.path.isfile(vp) else
+                 '  本目录没有 .venv-memory（源码形态），故这里不给那个路径；'
+                 '要源码形态请先建它，否则按上面 pip 装齐即可。\n')
         raise RuntimeError(
             '解释器 %s 缺这些模块：%s\n'
             '  本项目的检索依赖它们。缺了**不会报错**，只会静默降级成纯关键词检索，\n'
             '  于是检索结果与评测分数都不可信 —— 所以这里直接停下。\n'
             '  装齐后重跑：pip install "memtether[vector]"\n'
-            '  或用源码形态的解释器：%s\n'
-            % (py, ', '.join(miss), venv_python()))
+            '%s'
+            % (py, ', '.join(miss), extra))
