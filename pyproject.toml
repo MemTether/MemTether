@@ -30,7 +30,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "memtether"
-version = "0.1.0a2"
+version = "0.1.0a3"
 description = "Cross-client memory hub for AI agents — one physical memory, many clients"
 readme = "README.md"
 license = {text = "Apache-2.0"}
@@ -124,6 +124,7 @@ py-modules = [
     # —— 迁移 / 一次性工具
     "migrate_bitemporal",   # 双时间轴回填
     "migrate_sink",         # 投影迁移
+    "migrate_qvalue",       # Q-Value 列迁移（旧库补 q_value / use_count，幂等）
     "import_mem0",          # mem0 导入（★需自备 cred_env.py，见 README）
     "sync_reflector_mem0",  # reflector 同步
     "astra_dialogue",       # ASTRA 对话导出
@@ -133,4 +134,6 @@ py-modules = [
     "bench_longmemeval", "e2e_verify", "hard_bench", "hard_holdout",
     "judge_selfcheck", "refuse_bench", "regression_test",
     "rerank_k_bench", "smoke_bitemporal", "test_autosync", "test_triggers",
+    "qvalue_ab",            # Q-Value 开/关 A/B 对照（分数不得下降）
+    "qvalue_upshift_test",  # Q-Value 排序上移实测（副本库 + 正本索引）
 ]
