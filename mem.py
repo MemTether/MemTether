@@ -25,6 +25,7 @@
   python mem.py verify [--fix]                            # 完整性校验（可修）
   python mem.py render                                    # 重生成 DIGEST.md 与全部投影
   python mem.py migrate                                   # 存量补 id/source/seq
+  python mem.py qvalue [<uid>] [--reward 1.0] [--dry-run]  # ★升级1：价值分查看/回写
   python mem.py stats
 
 依赖：仅标准库。敏感串（sk-…/长 key）写入前一律脱敏为 <见vault:key>。
@@ -960,11 +961,22 @@ def main() -> None:
     tl = sub.add_parser('timeline', help='沿替代链还原一条事实的演化过程')
     tl.add_argument('uid')
 
+    qv = sub.add_parser('qvalue', help='★升级1：查看/回写记忆的价值分（Q-Value）')
+    qv.add_argument('uid', nargs='?', default=None, help='省略=只读看分布；支持 uid 前缀')
+    qv.add_argument('--reward', type=float, default=1.0,
+                    help='0~1：1=完全采纳 / 0.5=部分有用 / 0=检索到但没用')
+    qv.add_argument('--agent', default=None, help='谁回写的（进 audit_log），默认取 MEM_DEFAULT_SOURCE')
+    qv.add_argument('--detail', default='', help='回写原因（进 audit_log）')
+    qv.add_argument('--dry-run', action='store_true', help='只算不写')
+
     args = ap.parse_args()
+    if args.cmd == 'qvalue' and not args.agent:
+        args.agent = _gw().DEFAULT_SOURCE
     fn = {'add': cmd_add, 'list': cmd_list, 'search': cmd_search, 'since': cmd_since,
           'drain': cmd_drain, 'agents': cmd_agents, 'verify': cmd_verify,
           'render': cmd_render, 'migrate': cmd_migrate, 'stats': cmd_stats,
-          'distill': cmd_distill, 'asof': cmd_asof, 'timeline': cmd_timeline}.get(args.cmd)
+          'distill': cmd_distill, 'asof': cmd_asof, 'timeline': cmd_timeline,
+          'qvalue': cmd_qvalue}.get(args.cmd)
     if not fn:
         ap.print_help()
         return
@@ -1025,6 +1037,66 @@ def cmd_recall(a) -> None:
     if len(text) > a.budget:
         text = text[:a.budget] + '\n…（已按 budget=%d 截断，完整内容读 %s）' % (a.budget, HUB)
     print(text)
+
+
+def cmd_qvalue(a) -> None:
+    """★升级 1（Q-Value）：查看价值分分布 / 回写某条记忆的采纳价值。
+
+    语义：检索命中后**被真正采纳**才回写。reward ∈ [0,1]。
+    不带 uid = 只读看分布；带 uid = 回写一次（--dry-run 则只算不写）。
+    """
+    gw = _gw()
+    if a.uid:
+        uid = a.uid
+        c = sqlite3.connect(str(MEMDB))
+        try:
+            if not c.execute('SELECT 1 FROM facts WHERE uid=?', (uid,)).fetchone():
+                rs = c.execute('SELECT uid FROM facts WHERE uid LIKE ?', (uid + '%',)).fetchall()
+                if len(rs) == 1:
+                    uid = rs[0][0]
+                elif len(rs) > 1:
+                    print('前缀命中 %d 条，请给更长的 uid：' % len(rs))
+                    for r in rs[:12]:
+                        print('   %s' % r[0])
+                    return
+                else:
+                    print('未找到: %s' % a.uid)
+                    return
+        finally:
+            c.close()
+
+        r = gw.bump_qvalue(uid, reward=a.reward, agent=a.agent, detail=a.detail,
+                           apply=not a.dry_run)
+        if not r.get('ok'):
+            print('回写失败: %s' % r.get('error'))
+            return
+        print('%s' % (r['lead'] or '').replace('\n', ' '))
+        print('  uid        %s  [%s]' % (r['uid'], r['type']))
+        print('  q_value    %.4f → %.4f    (reward=%.2f, lr=%.2f)'
+              % (r['q_value_before'], r['q_value_after'], r['reward'], r['lr']))
+        print('  use_count  %d → %d' % (r['use_count_before'], r['use_count_after']))
+        print('  检索因子    ×%.4f  （= 0.3 + 0.7 × q_value）' % r['score_factor'])
+        print('  %s' % ('已写入，audit_log 记 op=qvalue'
+                         if r['applied'] else '未写入（--dry-run，只算不写）'))
+        return
+
+    r = gw.bump_qvalue()
+    if not r.get('ok'):
+        print('读取失败: %s' % r.get('error'))
+        return
+    print('active %d 条   q_value 缺失 %d 条   均值 %.4f   min=%s  max=%s   累计采纳 %d 次'
+          % (r['active'], r['qvalue_null'], r['avg'], r['min'], r['max'], r['total_use']))
+    print('学习率 lr=%.2f   中性初值 %.2f   检索因子 = 0.3 + 0.7 × q_value'
+          % (r['lr'], r['init']))
+    print()
+    print('q_value Top10：')
+    for x in r['top']:
+        qv = x['q_value'] if x['q_value'] is not None else r['init']
+        print('  %.4f  use=%-4s  %-42s  %s'
+              % (qv, x['use_count'] or 0, x['uid'],
+                 (x['lead'] or '').replace('\n', ' ')[:70]))
+    print()
+    print('回写用法：mem.py qvalue <uid> [--reward 1.0] [--agent <source>] [--dry-run]')
 
 
 if __name__ == '__main__':
