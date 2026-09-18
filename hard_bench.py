@@ -30,7 +30,15 @@ import tempfile
 import subprocess
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-PY = os.path.join(HERE, '.venv-memory', 'Scripts', 'python.exe')
+if HERE not in sys.path:
+    sys.path.insert(0, HERE)
+from interpreter import resolve_python, require_modules      # noqa: E402
+
+# ★2026-09-18 改：不再写死 `.venv-memory` —— 发布库（clone 出来的）里没有这个目录，
+#   写死等于「README 说能复跑、实际一跑就 WinError 2」。统一走 interpreter 解析。
+PY, PY_SRC = resolve_python(HERE, announce=True)
+# 评测必须真跑语义路；缺 chromadb/numpy 会静默降级成纯关键词 → 分数不可信 → 直接拦。
+NEED_MODULES = ('chromadb', 'numpy')
 
 
 def cases_ipc(cases=None):
@@ -245,6 +253,15 @@ def _query_all(model_key, limit=10):
     limit 取 10 = search_hybrid 的生产默认值，别自己发明不同的 top-k，
     否则测的就不是生产行为。
     """
+    # ★2026-09-18：这里是**唯一**真加载模型的路径，也是**唯一**能兜住「外部 import 调用方」
+    #   的位置 —— hard_holdout.py / qvalue_ab.py 都是 `import hard_bench` 之后直接调
+    #   `_query_all()`，**不会**经过本文件的 `__main__` 块，所以入口那层拦截对它们无效。
+    #   实测（发布库，用缺 chromadb 的系统 3.10 跑 qvalue_ab.py）：
+    #     PY 存在 → 不报 WinError 2 → 子进程真跑起来 → 静默降级成纯关键词
+    #     → 出一份**看着正常、其实测的是别的东西**的分数。
+    #   缺依赖必须在这里就停。入口那层拦截仍然保留，作用不同：
+    #   它让 compare 在**重建索引之前**就失败（否则要等第一个模型 rebuild 完才报错）。
+    require_modules(PY, *NEED_MODULES)
     env = dict(os.environ)
     env['MEM_EMBED_MODEL'] = model_key
     env['MEM_EMBED_BACKEND'] = 'local'
@@ -406,6 +423,11 @@ def selftest():
 
 if __name__ == '__main__':
     a = sys.argv[1] if len(sys.argv) > 1 else 'run'
+    # ★2026-09-18：selftest 是「传参通道」自检（临时文件 + 仓库目录），毫秒级、不加载模型，
+    #   所以不拦依赖 —— 缺 chromadb 的机器也该能跑它来排障。
+    #   其余分支要真出分数，缺依赖会静默降级成纯关键词 → 分数不可信 → 先拦死。
+    if a != 'selftest':
+        require_modules(PY, *NEED_MODULES)
     if a == 'compare':
         models = sys.argv[2:] if len(sys.argv) > 2 else None
         compare(models)

@@ -20,11 +20,14 @@ import sqlite3
 import subprocess
 
 HUB = os.path.dirname(os.path.abspath(__file__))
-PY = os.path.join(HUB, '.venv-memory', 'Scripts', 'python.exe')
+sys.path.insert(0, HUB)
+from interpreter import resolve_python, require_modules      # noqa: E402
+
+# ★2026-09-18 改：不再写死 `.venv-memory`（发布库里没有这个目录 → WinError 2）。
+PY, PY_SRC = resolve_python(HUB, announce=True)
 DB = os.path.join(HUB, 'memory.db')
 ENV = dict(os.environ)
 ENV['PYTHONPATH'] = ''
-sys.path.insert(0, HUB)
 
 # 注意：探针必须**每次都不一样**。原来只用时间戳（%H%M%S），
 # 与上一次运行只差 6 位数字 → 被判为"近似重复"，不会作为新事实入库，
@@ -58,6 +61,11 @@ def main():
     print('=' * 70)
     print('三 agent 端到端验证   探针=%s' % PROBE)
     print('=' * 70)
+
+    # ★2026-09-18：本脚本会真的调检索（preflight/mem.py search），缺 chromadb/numpy 时
+    #   不会报错、只会静默降级成纯关键词 → 通过/失败都不可信。先拦死。
+    #   放在 main 里而不是模块级：import 本模块仍应零成本（见上面的 __main__ 守卫说明）。
+    require_modules(PY, 'chromadb', 'numpy')
 
     # ---------- A. WorkBuddy: preflight.py ----------
     print('\n--- A. WorkBuddy/DeepSeek: preflight.py ---')

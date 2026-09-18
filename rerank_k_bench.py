@@ -33,8 +33,14 @@
 """评测：精排候选数 rerank_k 对 62 题准确率与耗时的影响。"""
 import os, sys, json, re, time, subprocess
 HERE = os.path.dirname(os.path.abspath(__file__))
-PY = os.path.join(HERE, '.venv-memory', 'Scripts', 'python.exe')
 sys.path.insert(0, HERE)
+from interpreter import resolve_python, require_modules
+
+# ★2026-09-18 改：不再写死 `.venv-memory`（发布库里没有这个目录 → WinError 2）。
+PY, PY_SRC = resolve_python(HERE, announce=True)
+# 子进程脚本强制 MEM_EMBED_BACKEND=local；缺 chromadb/numpy 会静默降级成纯关键词，
+# 分数与耗时都不可信 → 直接拦死（这是评测脚本，宁可崩也不能出假数）。
+require_modules(PY, 'chromadb', 'numpy')
 from hard_bench import CASES, score, cases_ipc
 
 script = r'''
