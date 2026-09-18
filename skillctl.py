@@ -36,11 +36,20 @@ BUDGET = os.path.join(HUB, 'skill_budget.py')
 FORGE_CMDS = {'scan', 'draft', 'admit', 'status'}
 BUDGET_CMDS = {'health', 'families', 'gate', 'preflight', 'budget'}
 
-# 中立真源 + 两版客户端的技能目录（跨客户端共享的四层槽位里的第 0 层）
+# 中立真源 + 各客户端的技能目录（跨客户端共享的四层槽位里的第 0 层）
 TRUE_SOURCE = os.path.join(os.path.expanduser('~'), '.agents', 'skills')
 CLIENTS = [
     ('workbuddy(国内版)', os.path.join(os.path.expanduser('~'), '.workbuddy', 'skills')),
     ('workbuddy-ai(国际版)', os.path.join(os.path.expanduser('~'), '.workbuddy-ai', 'skills')),
+]
+# ★已发现、但**刻意不接入**的客户端（2026-09-18 实测）
+#   Codex CLI 0.154.0 有自己的 ~/.codex/skills（当前只有内置 .system）。
+#   它跑起来会打印 "Skill descriptions were shortened to fit the skills
+#   context budget" —— 说明它**自己也吃技能预算**。此时再 junction 78 个技能过去
+#   是往已经告警的槽位里再塞东西，属于帮倒忙。
+#   所以只做**观察**：报告它存在且未接入，不自动建链接（接不接由人决定）。
+WATCH_ONLY = [
+    ('codex(CLI, 未接入)', os.path.join(os.path.expanduser('~'), '.codex', 'skills')),
 ]
 
 # ★直接复用 skill_budget 的解析，不再各写一份正则。
@@ -88,6 +97,21 @@ def cmd_link(a):
         else:
             print('  %-22s -> %s   !! 未指向真源' % (label, rp))
             ok = False
+    # 只观察、不介入：报出来是让人知道有这条路，接不接由人定
+    for label, p in WATCH_ONLY:
+        rp = _realpath(p)
+        if rp is None:
+            print('  %-22s %s  ->  (不存在)' % (label, p))
+        elif os.path.normcase(rp) == os.path.normcase(ts):
+            print('  %-22s -> 真源  OK' % label)
+        else:
+            n = 0
+            try:
+                n = len([x for x in os.listdir(p)
+                         if os.path.isdir(os.path.join(p, x)) and not x.startswith('.')])
+            except OSError:
+                pass
+            print('  %-22s -> 未接入（自带 %d 个技能，未指向真源）' % (label, n))
     print()
     if ok:
         print('结论: 两版共享同一份物理技能 —— 装一处，两版生效。')
