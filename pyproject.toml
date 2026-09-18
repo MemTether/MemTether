@@ -114,7 +114,10 @@ py-modules = [
     "approve",              # 审批
     "enrich_caps",          # 资产能力补全
     "sync_memory",          # 同步
-    "skill_forge",          # 技能沉淀
+    # —— 技能层（记忆中枢的第 5 层：记忆管「我记得什么」，技能管「我怎么做」）
+    "skill_forge",          # 技能沉淀（scan / draft / admit / status）
+    "skill_budget",         # 技能预算守卫（注入成本 / 空壳检测 / 重名族）
+    "skillctl",             # 技能层统一入口（沉淀 + 预算 + 分发）
     # —— 跨客户端协作（同一份物理文件被多个客户端共写时的安全工具）
     "wslog_append",         # 共写日志的原子追加（不读全文、不 seek，0 丢行）
     "slot_update",          # 共享注入槽位原地更新（锚点唯一 + 预算闸门 + 原子写）
