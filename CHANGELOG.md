@@ -10,6 +10,88 @@
 
 ---
 
+## [0.1.0a3] — 2026-09-18
+
+新增两项记忆治理能力（**默认中性，不改变任何现有排序**），并修掉一处检索误伤。
+
+### 新增
+
+- **投影钉住 `pin`** —— 把「必须一直在」的定义类结论排除在时间竞争之外。
+  不新增 schema，复用 `tags` 字段（含 `pin` 即视为钉住）；`rebuild()` 在选条阶段把
+  pin 条目**补进**已选集合，因此不会被配额或时间序挤出。软上限
+  `MEM_PROJ_PIN_MAX`（默认 10），超限时重建会打印告警并给出释放命令。
+  **★改完必须 `rebuild` 才生效** —— 它只影响投影，不影响检索。
+  ```bash
+  python gateway.py pin <uid>        # 钉住
+  python gateway.py pin <uid> --off  # 释放
+  python gateway.py rebuild
+  ```
+
+- **被采纳价值分 Q-Value** —— 检索命中**被采纳**后回写，下次排序上浮。
+  - `facts` 新增 `q_value REAL DEFAULT 0.5` 与 `use_count INTEGER DEFAULT 0`；
+  - 回写公式 `q += LR * (reward - q)`（`LR = 0.1`，约 10 次观测收敛到长期均值）；
+  - 检索侧**只读**，因子 `score *= (0.3 + 0.7 * q)`，挂在时间衰减**之后**
+    （塞进衰减块内会被自带重排覆盖；且衰减可被调用方关掉，挂在那里会漏算）；
+  - 开关 `MEM_QVALUE=0` 关闭；回写失败只告警一次并退化为纯相关性排序，**不崩**。
+  ```bash
+  python mem.py qvalue                     # 只读：看分布 / Top 榜
+  python mem.py qvalue <uid> --reward 1    # 1=完全采纳 / 0.5=部分有用 / 0=检索到但没用
+  python mem.py qvalue <uid> --dry-run     # 只算不写
+  ```
+  > **它现在不等于"效果提升"**：全库 `q_value` 默认 0.5 → 因子恒为
+  > `0.3+0.7×0.5 = 0.65`，对同一批候选是**同一常数**，在 RRF → min-max 精排链路里
+  > 被完全抵消。而且"被采纳"目前**只能由调用方显式回写**，本项目没有自动判定机制。
+  > 所以本版能证明的是**「机制正确且零副作用」**（见下方验收台），不是效果。
+
+- **旧库自动迁移**：`gateway.init_db()` 现在会调 `_ensure_columns()` 幂等补列。
+  `CREATE TABLE IF NOT EXISTS` 对**已存在**的旧库不生效 —— 旧库缺 `q_value` 时，
+  `memsearch` 的显式 `SELECT q_value` 会直接抛异常，被外层 `except` 兜住后
+  **检索整体降级**（不报错、但结果错）。这是本次特意堵的坑。
+  另附独立迁移脚本 `migrate_qvalue.py`（**默认只读检测**，`--apply` 才落库）。
+
+- **验收台（源码在仓库里，可自行复跑）**：
+  - `qvalue_ab.py` —— 开/关 A/B 对照。判据三条：分数**不得下降**、
+    逐题 PASS/FAIL 不翻转、逐题 Top10 内容序列**逐字节一致**。
+    做法是设 `MEM_QVALUE=0/1` 各跑一遍（子进程继承 env），
+    因此两侧跑的是同一份代码、同一个索引，不改验收台、不重建索引。
+  - `qvalue_upshift_test.py` —— 排序上移实测。用**副本库 + 正本索引**
+    做单变量对照（轮 A 全库 0.5 → 轮 B 只把中位条目调到 0.99），
+    避免在生产库上写真值。找不到可用库时**显式报错**，不拿空库硬跑。
+
+### 修复
+
+- **自指误伤（检索）**：`memsearch._is_self_referential` 情形 1 原实现写的是
+  `if q in c:`，漏掉了同段注释里那半句「**含空格**」。后果是**单词查询**
+  （单个专有名词 —— 工具名 / 模块文件名 / 内部代号这类）只要命中的记忆里出现
+  任意一个 `_SELFREF_TELL` 词（「实测 / 结论：/ 之前 / 必须 / 缺 / 坑」——
+  而这类词在真实记忆库里几乎条条都有），就被误判成"在谈论这个查询"，
+  `score ×0.05` 打入冷宫。现改为 `if q in c and ' ' in q.strip():`。
+  单词查询的真自指（如"实测：搜 XXX 返回 0 条"）仍由情形 2 兜住。
+
+### 变更
+
+- 版本 `0.1.0a2` → `0.1.0a3`（`pyproject.toml` 与 `memtether.py __version__` 同步）。
+- `py-modules` 补 3 项：`migrate_qvalue` / `qvalue_ab` / `qvalue_upshift_test`
+  （`scripts/check_packaging.py` 会校验清单与仓库实际文件一致）。
+- README：补 `pin` / `qvalue` 用法与「它现在是什么水平」里的两条诚实说明。
+
+### 验证方式（可复现）
+
+```bash
+python scripts/check_packaging.py      # 打包清单 vs 仓库实际文件
+python scripts/scan_leaks.py           # 发布前泄密扫描（需 MEM_SCAN_TERMS 指向词表）
+python scripts/make_demo_db.py         # 先要有一份可检索的库
+export MEM_DB=demo/memory_demo.db
+python qvalue_ab.py                    # 判据：分数不下降 + PASS/FAIL 不翻转 + Top10 一致
+python qvalue_upshift_test.py          # 判据：被提升条目名次上升
+```
+
+> `qvalue_upshift_test.py` 若未指定 `--query`，会从库里取一段**真实存在**的连续串
+> 当查询词 —— 硬编码一个查询只在那台机器上成立，换一份库就返回 0 条，
+> 脚本会看起来"跑通了"其实什么也没测。
+
+---
+
 ## [0.1.0a2] — 2026-09-17
 
 修复重发，无新功能。`0.1.0a1` 的发布包**不含**下列修复。

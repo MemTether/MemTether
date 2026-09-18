@@ -36,7 +36,7 @@ MemTether 的答案更简单：**让它们指向同一份文件**。
         ▼
    检索（向量 + 关键词 + 字面，RRF 融合 + 精排）
         │
-   投影（注入各客户端） / 评分卡 / 时序查询 as_of·timeline
+   投影（注入各客户端，可钉住） / 评分卡 / 时序查询 as_of·timeline / 被采纳价值分 Q-Value
 ```
 
 **关键约定**：所有写入只经 `gateway.py`，且必须带 `--source <来源名>`。
@@ -148,6 +148,14 @@ python tool_audit.py verify
 # 时序查询
 python mem.py asof 2026-09-15
 python mem.py timeline <uid>
+
+# 投影钉住：把「必须一直在」的定义类结论排除在时间竞争之外（复用 tags，不新增 schema）
+python gateway.py pin <uid>            # 钉住；--off 释放
+python gateway.py rebuild              # ★改完必须重建投影才生效
+
+# 被采纳价值分：检索命中被采纳后回写，下次排序上浮（默认中性 0.5，不改变现有排序）
+python mem.py qvalue                   # 只读看分布
+python mem.py qvalue <uid> --reward 1  # 1=完全采纳 / 0.5=部分有用 / 0=检索到但没用
 ```
 
 > `memtether demo` 与 `python scripts/make_demo_db.py` 是同一件事的两种入口
@@ -159,7 +167,7 @@ python mem.py timeline <uid>
 
 ## 仓库里的文件地图
 
-顶层平铺 **54 个 `.py`**。平铺是为了「方式 B」下能 `python gateway.py …` 直接跑；
+顶层平铺 **57 个 `.py`**。平铺是为了「方式 B」下能 `python gateway.py …` 直接跑；
 代价是根目录很长。先看这张表，再决定要读哪几个：
 
 | 分组 | 数量 | 你需要它吗 | 模块 |
@@ -169,8 +177,8 @@ python mem.py timeline <uid>
 | 运维 / 自检 | 11 | 🔧 自建环境才用 | `hub_score`（四维评分卡）`hub_selfcheck` `hubguard`（并发治理）`attach_hubguard` `preflight`（每轮回答前预取记忆）`publish_pypi` `bootstrap` `board` `approve` `enrich_caps` `sync_memory` |
 | **技能层** | 3 | 🧩 想让"做法"也沉淀下来就用 | `skill_forge`（沉淀闭环）`skill_budget`（预算守卫 / 注入成本）`skillctl`（**统一入口**：沉淀 + 预算 + 分发） |
 | 跨客户端协作 | 2 | 🔧 多个客户端共写同一份文件时才用 | `wslog_append`（共写日志原子追加）`slot_update`（共享槽位原地更新） |
-| 迁移 / 一次性 | 6 | ⛔ 一般不用碰 | `migrate_bitemporal` `migrate_sink` `import_mem0` `sync_reflector_mem0` `astra_dialogue` `astra_memory_closure` |
-| 评测 / 回归 | 14 | 🔬 想复跑卷子时 | `asset_bench` `asset_bench_holdout` `asset_selfcheck` `bench_longmemeval` `e2e_verify` `hard_bench` `hard_holdout` `judge_selfcheck` `refuse_bench` `regression_test` `rerank_k_bench` `smoke_bitemporal` `test_autosync` `test_triggers` |
+| 迁移 / 一次性 | 7 | ⛔ 一般不用碰 | `migrate_bitemporal` `migrate_sink` `migrate_qvalue` `import_mem0` `sync_reflector_mem0` `astra_dialogue` `astra_memory_closure` |
+| 评测 / 回归 | 16 | 🔬 想复跑卷子时 | `asset_bench` `asset_bench_holdout` `asset_selfcheck` `bench_longmemeval` `e2e_verify` `hard_bench` `hard_holdout` `judge_selfcheck` `qvalue_ab` `qvalue_upshift_test` `refuse_bench` `regression_test` `rerank_k_bench` `smoke_bitemporal` `test_autosync` `test_triggers` |
 
 - **只想用，不想读源码** → 看第一行那 5 个就够；`pip` 装完之后它们都在 `memtether` 命令背后。
 - **想复跑评测 / 想核对我们说的数** → 最后一行是给你的：卷子、判分口径、评分卡源码都在仓库里。
@@ -252,6 +260,13 @@ python mem.py search "跨客户端共享"
   **在词形法原理上无解**。当前默认 `warn`（只提示不阻断），不改变原有输出
 - 通用能力仅在 1 个基准上跑过抽样，未跑全量
 - 双时间轴里 `native`（原生记录）占比很低，多数为回填/推定
+- **Q-Value 目前是「机制就位、数据未积累」**：回写需要调用方**显式**调
+  `mem.py qvalue <uid>`，本项目**没有**自动判断"这条记忆被采纳了"的机制。
+  所以短期内它**不会改变任何排序** —— 全库 `q_value` 默认 0.5，检索因子恒为
+  `0.3+0.7×0.5 = 0.65`，对同一批候选是同一常数，在 RRF → min-max 精排里被完全抵消。
+  它现在能证明的是**「机制正确且零副作用」**（见 `qvalue_ab.py`），**不是「效果已提升」**。
+- **投影钉住（`pin`）只是缓解、不是解决**：它让少数"必须一直在"的定义类结论
+  免于被时间序挤出，但注入槽位的总量瓶颈没变。
 
 ---
 
@@ -274,6 +289,9 @@ MemTether 的卖点是**可验证性**：评分卡源码、评测集、双判分
 - [x] 标准 `pip` 安装（wheel：平铺模块 + `memtether` 命令 + `[vector]` 可选档）
 - [x] 拒答 / 置信度门槛（**默认 warn**；实测零误拒拦截面 41%，天花板 59%）
 - [x] 评测集与评分卡源码开源（双判分口径 + 失真警告）
+- [x] 投影钉住（`pin`）—— 把定义类结论排除在时间竞争之外（缓解注入槽位瓶颈）
+- [x] 被采纳价值分（Q-Value）—— 检索命中被采纳后回写、下次上浮；**默认中性，不改变现有排序**
+- [ ] 「被采纳」的自动判定（Q-Value 的上游：现在只能靠调用方显式回写）
 - [ ] 发布到 PyPI（当前只能从仓库装）
 - [ ] 一键安装脚本（Windows 优先）
 - [ ] 注入槽位策略优化（存得多、喂得少是当前最大瓶颈）
