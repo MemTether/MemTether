@@ -1674,7 +1674,15 @@ def selftest(db=None):
     allow_live = os.environ.get('MEM_SELFTEST_ALLOW_LIVE') == '1'
     g_isolated = (not touches_live) or allow_live
     verdict = {
-        'A_并行重叠': A['wall'] < HOLD + 0.7 and A['ok_count'] == 2,
+        # ★2026-09-19 修（判据假红）：原判据 `A['wall'] < HOLD + 0.7` 隐含假设
+        #   「子进程启动开销 < 0.7s」。本机实测裸解释器冷启动 **0.748s**（min 0.702，
+        #   见 _probe_spawn_cost.py）⇒ 理论 wall = 0.748 + 1.2 = **1.95s 恒 > 1.90s**
+        #   ⇒ A 组**结构性假红**，与锁机制无关（ok_count==2 已证明两个子进程确实重叠）。
+        #   改为**相对判据**：只验「不加锁的 wall 明显短于加锁的 wall」，不依赖机器速度。
+        #   ★强度未降：若锁失效致 A 退化为串行，A.wall → B.wall，差值判据必红。
+        'A_并行重叠': (A['ok_count'] == 2
+                       and A['wall'] < B['wall'] - HOLD * 0.5
+                       and A['wall'] < HOLD * 3),
         'B_被串行化': (B['wall'] > HOLD * 2 * 0.85 and B['ok_count'] == 2
                        and B['waits'] and B['waits'][-1] >= 0.7
                        and B['wall'] - A['wall'] >= HOLD * 0.6),
