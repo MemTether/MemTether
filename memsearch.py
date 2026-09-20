@@ -622,8 +622,12 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
             doc = asset_text(a)
             if is_placeholder(doc):
                 continue
+            # ★2026-09-20：补 q_value 键 —— 没有它加权兜底 0.5（因子恒 0.65），
+            #   资产占检索结果近半却永远吃不到 Q-Value。
+            aq = a['q_value'] if 'q_value' in a.keys() else None
             assets[a['uid']] = {'uid': a['uid'], 'content': doc, 'type': 'tool',
                                 'source': 'tool_assets', 'scope': 'asset',
+                                'q_value': 0.5 if aq is None else aq,
                                 'updated_at': a['updated_at'] if 'updated_at' in a.keys() else '',
                                 '_asset': dict(a)}
     except Exception:

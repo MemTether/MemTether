@@ -251,7 +251,9 @@ CREATE TABLE IF NOT EXISTS tool_assets (
   verification_method TEXT,
   source TEXT,
   created_at TEXT,
-  updated_at TEXT
+  updated_at TEXT,
+  q_value REAL DEFAULT 0.5,   -- ★升级 1 扩展（2026-09-20）：资产也有价值分，
+  use_count INTEGER DEFAULT 0 --   此前只 facts 有，资产占检索结果近半却吃不到加权
 );
 
 CREATE TABLE IF NOT EXISTS recipes (
@@ -368,6 +370,17 @@ def _ensure_columns(conn):
         if name in have:
             continue
         conn.execute('ALTER TABLE facts ADD COLUMN %s %s DEFAULT %s' % (name, typ, dflt))
+    # ★2026-09-20 扩展：tool_assets 也补 —— 资产条目占检索结果近半，
+    #   没有这两列就永远吃不到 Q-Value 加权（bump 也无对象）。
+    try:
+        have_a = {r[1] for r in conn.execute('PRAGMA table_info(tool_assets)')}
+    except sqlite3.Error:
+        return
+    for name, typ, dflt in (('q_value', 'REAL', '0.5'), ('use_count', 'INTEGER', '0')):
+        if name in have_a:
+            continue
+        conn.execute('ALTER TABLE tool_assets ADD COLUMN %s %s DEFAULT %s'
+                     % (name, typ, dflt))
 
 
 def init_db():
@@ -1098,36 +1111,58 @@ def bump_qvalue(uid=None, reward=1.0, agent=DEFAULT_SOURCE, detail='', apply=Tru
     conn = get_conn()
     try:
         if not uid:
+            # ★2026-09-20：facts + tool_assets 合并统计（资产也有 q_value 了）
             r = conn.execute(
                 "SELECT COUNT(*) n,"
                 " SUM(CASE WHEN q_value IS NULL THEN 1 ELSE 0 END) nulls,"
                 " AVG(q_value) avg_q, MIN(q_value) min_q, MAX(q_value) max_q,"
                 " SUM(COALESCE(use_count,0)) uses"
                 " FROM facts WHERE status='active'").fetchone()
+            ra = conn.execute(
+                "SELECT COUNT(*) n,"
+                " SUM(CASE WHEN q_value IS NULL THEN 1 ELSE 0 END) nulls,"
+                " SUM(COALESCE(use_count,0)) uses"
+                " FROM tool_assets WHERE status='active'").fetchone()
+            # ★UNION 的 ORDER BY 只能引用结果集列名（不能是表达式），
+            #   故包一层子查询；COALESCE 兜底用字面量（= QVALUE_INIT 0.5）。
             top = conn.execute(
-                "SELECT uid, type, q_value, use_count, substr(content,1,70) AS lead"
+                "SELECT * FROM ("
+                " SELECT uid, type, q_value, use_count, substr(content,1,70) AS lead"
                 " FROM facts WHERE status='active'"
-                " ORDER BY COALESCE(q_value,? ) DESC, COALESCE(use_count,0) DESC LIMIT 10",
-                (QVALUE_INIT,)).fetchall()
+                " UNION ALL"
+                " SELECT uid, 'tool' AS type, q_value, use_count, substr(name,1,70) AS lead"
+                " FROM tool_assets WHERE status='active')"
+                " ORDER BY COALESCE(q_value, 0.5) DESC,"
+                " COALESCE(use_count, 0) DESC LIMIT 10").fetchall()
             return {'ok': True, 'readonly': True, 'active': r['n'],
-                    'qvalue_null': r['nulls'] or 0,
+                    'assets_active': ra['n'],
+                    'qvalue_null': (r['nulls'] or 0) + (ra['nulls'] or 0),
                     'avg': round(r['avg_q'] or 0.0, 4),
                     'min': r['min_q'], 'max': r['max_q'],
-                    'total_use': r['uses'] or 0,
+                    'total_use': (r['uses'] or 0) + (ra['uses'] or 0),
                     'lr': QVALUE_LR, 'init': QVALUE_INIT,
                     'top': [dict(x) for x in top]}
 
+        # ★2026-09-20：uid 不在 facts 时落到 tool_assets（资产也能被 bump）
         r = conn.execute(
             "SELECT uid, type, q_value, use_count, content FROM facts WHERE uid=?",
             (uid,)).fetchone()
+        table = 'facts'
         if not r:
-            return {'ok': False, 'error': 'uid 不存在', 'uid': uid}
+            r = conn.execute(
+                "SELECT uid, 'tool' AS type, q_value, use_count, name AS content"
+                " FROM tool_assets WHERE uid=?",
+                (uid,)).fetchone()
+            table = 'tool_assets'
+        if not r:
+            return {'ok': False, 'error': 'uid 不存在（facts 与 tool_assets 均无）',
+                    'uid': uid}
 
         q0 = QVALUE_INIT if r['q_value'] is None else float(r['q_value'])
         q1 = max(0.0, min(1.0, q0 + QVALUE_LR * (reward - q0)))
         n0 = int(r['use_count'] or 0)
 
-        out = {'ok': True, 'uid': uid, 'type': r['type'],
+        out = {'ok': True, 'uid': uid, 'type': r['type'], 'table': table,
                'q_value_before': round(q0, 6), 'q_value_after': round(q1, 6),
                'reward': reward, 'lr': QVALUE_LR,
                'use_count_before': n0, 'use_count_after': n0 + 1,
@@ -1135,7 +1170,7 @@ def bump_qvalue(uid=None, reward=1.0, agent=DEFAULT_SOURCE, detail='', apply=Tru
                'applied': bool(apply),
                'lead': (r['content'] or '')[:70]}
         if apply:
-            conn.execute("UPDATE facts SET q_value=?, use_count=? WHERE uid=?",
+            conn.execute("UPDATE %s SET q_value=?, use_count=? WHERE uid=?" % table,
                          (round(q1, 6), n0 + 1, uid))
             audit(conn, 'qvalue', uid, agent,
                   detail or ('reward=%g  q %.4f->%.4f  use %d->%d'

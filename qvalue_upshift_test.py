@@ -137,7 +137,12 @@ def main():
     os.environ['MEM_STORE'] = real_store
     os.environ['MEM_QVALUE'] = '1'          # 全程开着，靠 q_value 数值制造差异
 
-    sys.path.insert(0, HERE)
+    # 代码目录优先用 MEM_HUB_CODE_DIR（模型/索引/代码同源），否则 HERE。
+    # 背景：本脚本在 memtether（发布库），而模型目录在 memory_hub（生产库）；
+    # 硬编码 HERE 会让 import 拿到发布库的 embed_local、模型路径算错 →
+    # 向量检索静默降级关键词（跑起来不报错但结果失真）。
+    code_dir = os.environ.get('MEM_HUB_CODE_DIR') or HERE
+    sys.path.insert(0, code_dir)
     import memsearch as ms   # noqa: E402
 
     def order(tag):
@@ -151,8 +156,13 @@ def main():
         return rows
 
     def set_q(uid, q):
+        # ★2026-09-20：按 uid 前缀选表 —— tool- 开头是 tool_assets（资产也有
+        #   q_value 了）。此前无脑 UPDATE facts，对资产条目静默无效（0 行），
+        #   表现为「表格 q 列全 0.5、结论区却印 q=0.99」的自相矛盾。
+        table = 'tool_assets' if uid.startswith('tool-') else 'facts'
         c = sqlite3.connect(copy_db)
-        c.execute('UPDATE facts SET q_value=? WHERE uid=?', (q, uid))
+        cur = c.execute('UPDATE %s SET q_value=? WHERE uid=?' % table, (q, uid))
+        print('   set_q: %s 表命中 %d 行' % (table, cur.rowcount))
         c.commit()
         c.close()
 
