@@ -12,10 +12,28 @@
 
 ## [Unreleased]
 
-本版做了三件事：**修掉一个会让所有新装用户拿到坏 MCP 通道的问题**、
-**把客户端接入从手工变成一条命令**、**补回写入路径的来源校验**。
+本版做了五件事：**修掉一个会让所有新装用户拿到坏 MCP 通道的问题**、
+**把客户端接入从手工变成一条命令**、**补回写入路径的来源校验**、
+**Windows 一键安装套件**、**修掉 embedding 错误路径上的 AttributeError**。
+
+### 新增
+
+- **Windows 一键安装套件**（`install.ps1` / `install.bat` / `INSTALL.md`）——
+  四步流水线：探测 Python >= 3.10 → 幂等装包（版本与 `pyproject.toml` 不一致才重装）
+  → 生成演示库 → `tether_connect` 自动接入客户端 → `memtether stats` 收尾自检。
+  任一步失败即停，退出码指明死因（1=环境 2=装包 3=演示库 4=接入）。
+  路径全部相对 `$PSScriptRoot`，无本机绝对路径。核心链路已用隔离 venv
+  （Python 3.10.11）实测：装出 `0.1.0a3`、演示库就绪、stats 正常。
 
 ### 修复
+
+- **★embedding 错误路径上的 AttributeError** —— `_embed_local` 在
+  `available()=False`（模型目录缺失）时拼错误信息，引用了 `embed_local.MODEL_DIR`
+  ——该属性不存在（真实常量是 `HUB` / `MODELS`）。于是"模型文件缺失"这种
+  最需要清晰报错的场景，抛出的却是难懂的 `AttributeError`。
+  **happy path 永远测不到**（模型在位时该行不执行），只有模型目录缺失时才炸。
+  改为 `os.path.join(embed_local.HUB, 'models')`，双路实测：缺失时报可读路径、
+  模型在位时 encode 正常（dim=1024）。
 
 - **★MCP 通道「从第一天起就是坏的」（严重）** —— 旧版把重库 `import`
   （`numpy` / `chromadb` 的 C 扩展）放在**后台预热线程**里，而本进程主线程正阻塞在
@@ -101,6 +119,13 @@
 
 ### 变更
 
+- **行尾归一 LF + `.gitattributes` 入版本库** —— 本仓是开源发布库，跨平台 clone
+  是主场景。此前只靠局部 `core.autocrlf=false` 抵消 system 级 `true`
+  （未入库，换机即失效），且 4 个历史文件（`tool_audit.py` /
+  `asset_bench_holdout.py` / `rerank_k_bench.py` / `.release-baseline.json`）是 CRLF。
+  本次 `*.py/*.md/*.json/*.toml/*.cfg/*.txt` 全部 `text eol=lf` 并 renormalize
+  （内容不变仅行尾）。根治跨仓 diff 假象：09-20 审计实测 memory_hub↔memtether 的
+  `memsearch.py` 裸 diff 报 1849 行噪音，剥掉 CR 后真实差异仅 110 行——警戒线虚高 15 倍。
 - `pyproject`：`packages` 增加 `clients`（否则 `pip install` 出来的包**不带**
   适配器包，工具一跑就 `ImportError`）；`py-modules` 增加 `tether_connect`；
   新增 console script `memtether-connect`。
