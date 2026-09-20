@@ -9,6 +9,10 @@
 #   3. 失败关闭：任一步非零退出即停，后续不执行，退出码透传
 #   4. 每步可跳过（-SkipInstall / -SkipDemo / -SkipConnect / -SkipVector）
 #   5. 装包前先 `pip show memtether` 核对版本，版本不符才重装
+#   6. 客户端接入分两层，缺一不可：
+#      3  = MCP 配置层（tether_connect.py：mcp.json / 信任 / 来源注册）
+#      3.5= 指令/扩展层（integrations/auto_onboard.py：Codex 插件机制、
+#           AGENTS.md 注入、投影腐蚀修复）——没有这一层，客户端"装了工具也不会用"
 #
 # 用法：
 #   powershell -ExecutionPolicy Bypass -File install.ps1            # 全流程
@@ -22,7 +26,8 @@ param(
     [switch]$Editable,      # -e 开发模式（改了源码即时生效）；默认装正式副本
     [switch]$SkipInstall,   # 跳过装包（已装过）
     [switch]$SkipDemo,      # 跳过演示库生成（已有自己的库）
-    [switch]$SkipConnect,   # 跳过客户端自动接入
+    [switch]$SkipConnect,   # 跳过客户端自动接入（两层都跳）
+    [switch]$SkipOnboard,   # 只跳指令/扩展层（3.5 步 auto_onboard），保留 MCP 配置层
     [string]$Home = "",     # 数据目录，默认 ~/.memtether（等价环境变量 MEMTETHER_HOME）
     [string]$Python = ""    # 手动指定解释器路径；默认自动探测
 )
@@ -139,6 +144,29 @@ if ($SkipConnect) {
     }
 }
 
+# ---------- 3.5 指令/扩展层自动注入（tether_connect 不管的那层） ----------
+# MCP 配置层只保证"客户端有工具"；这一层保证"客户端知道有这回事、知道怎么用"：
+# Codex 桌面 app 的官方插件（marketplace 注册 + .mcp.json 实例化 + skills symlink）、
+# OpenClaw/dsh 的 AGENTS.md 注入、豆包投影腐蚀路径修复。幂等，可反复跑。
+if ($SkipConnect -or $SkipOnboard) {
+    Write-Step "3.5/4 指令层自动注入（已按参数跳过）"
+} else {
+    Write-Step "3.5/4 指令/扩展层自动注入（auto_onboard：detect → apply，幂等）"
+    $ao = Join-Path $RepoRoot 'integrations\auto_onboard.py'
+    if (-not (Test-Path $ao)) {
+        Write-Warn2 "未找到 integrations/auto_onboard.py，跳过指令层注入（MCP 层已就绪，不影响工具调用）"
+    } else {
+        & $Py $ao detect | Out-Host
+        & $Py $ao apply | Out-Host
+        if ($LASTEXITCODE -ne 0) {
+            # 不阻断安装：指令层失败不伤 MCP 功能底线，但必须显式告警
+            Write-Warn2 "指令层注入有失败项（退出码 $LASTEXITCODE），详见上方 [失败] 行；可随时重跑 python integrations/auto_onboard.py apply"
+        } else {
+            Write-Ok "指令层注入完成（幂等：重跑结果一致）"
+        }
+    }
+}
+
 # ---------- 4. 收尾自检 ----------
 Write-Step "4/4 收尾自检"
 & $Py -m memtether stats
@@ -147,4 +175,5 @@ Write-Host "`n安装完成。常用命令：" -ForegroundColor Green
 Write-Host "  memtether search `"关键词`"     # 混合检索"
 Write-Host "  memtether stats                # 库内统计"
 Write-Host "  python tether_connect.py detect   # 随时重看客户端接入状态"
+Write-Host "  python integrations/auto_onboard.py detect   # 随时重看指令层注入状态"
 exit 0

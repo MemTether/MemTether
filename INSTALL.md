@@ -22,7 +22,8 @@ powershell -ExecutionPolicy Bypass -File install.ps1
 | 0 | 探测 Python >= 3.10 | `-Python <路径>` 手动指定 |
 | 1 | `pip install` 本仓库（版本与 `pyproject.toml` 不一致才重装） | `-SkipInstall` |
 | 2 | 生成全合成演示库 `~/.memtether/memory.db` | `-SkipDemo` |
-| 3 | `tether_connect` 自动接入本机所有已检测到的 AI 客户端 | `-SkipConnect` |
+| 3 | `tether_connect` 自动接入本机所有已检测到的 AI 客户端（**MCP 配置层**） | `-SkipConnect` |
+| 3.5 | `auto_onboard` 注入指令/扩展层（Codex 桌面 app 官方插件、OpenClaw/dsh 的 AGENTS.md、投影腐蚀修复） | `-SkipOnboard` |
 | 4 | `memtether stats` 收尾自检 | — |
 
 常用变体：
@@ -31,10 +32,13 @@ powershell -ExecutionPolicy Bypass -File install.ps1
 install.bat -Vector            :: 加语义检索档（chromadb/onnxruntime，体积大；缺了自动降级关键词+字面）
 install.bat -Editable          :: 开发模式，改源码即时生效
 install.bat -SkipConnect       :: 只装包和演示库，不动任何客户端配置
+install.bat -SkipOnboard       :: 保留 MCP 配置层，只跳指令层注入
 install.bat -Home D:\memdata   :: 自定义数据目录（等价环境变量 MEMTETHER_HOME）
 ```
 
 退出码：`0` 成功 · `1` 环境/参数 · `2` 装包失败 · `3` 演示库失败 · `4` 客户端接入失败。
+（3.5 步指令层注入失败不阻断安装——MCP 功能底线已在第 3 步保证，但会打印 `[warn]`；
+可随时重跑 `python integrations/auto_onboard.py apply`，幂等。）
 
 ## 方式二：pip 直接装
 
@@ -80,6 +84,9 @@ python tether_connect.py plan     # 预演：将改哪些文件、改什么（�
 python tether_connect.py apply    # 落盘（自动备份 + 幂等）
 python tether_connect.py verify   # 回读校验 + 信任状态 + 在线探测
 python tether_connect.py rollback # 从备份还原（任何一步不满意都能回）
+
+python integrations/auto_onboard.py detect   # 只读：指令/扩展层缺哪些注入
+python integrations/auto_onboard.py apply    # 落盘注入（幂等，可反复跑）
 ```
 
 设计原则：只读优先（detect/plan/verify 绝不写盘）、幂等、可回滚（备份在

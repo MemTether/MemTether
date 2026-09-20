@@ -1,0 +1,3 @@
+# 本机实例化产物（auto_onboard.py 从 .mcp.json.template 生成，含本机绝对路径，不进 git）
+/.mcp.json
+/.mcp.json.bak-*

@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "memory-hub": {
+      "command": "<HUB_VENV_PY>",
+      "args": ["<HUB>/mcp_server.py"],
+      "env_vars": ["USERPROFILE", "HOME", "PATH"],
+      "omit_tools_from": ["deferred"],
+      "startup_timeout_sec": 90,
+      "tool_timeout_sec": 300
+    }
+  }
+}
