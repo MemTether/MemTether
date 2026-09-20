@@ -18,6 +18,14 @@
 
 ### 新增
 
+- **Q-Value 覆盖 tool_assets（升级 1 结构性补全）** —— 此前 Q-Value 机制只对
+  `facts` 生效：`tool_assets` 没有 q_value/use_count 列、检索候选池里资产没有
+  q_value 键（加权兜底 0.5、因子恒 0.65）、`bump_qvalue` 也只更新 facts。
+  66 条资产占检索结果近半，「哪条真有用」的信号对它们完全失效。
+  现在：① SCHEMA + `_ensure_columns` 幂等给资产补两列（老库自动迁移）；
+  ② `bump_qvalue` 双表（uid 不在 facts 时落 tool_assets，返回 `table` 字段）；
+  ③ 统计改 UNION 子查询合并 facts + assets；④ memsearch 候选池补 q_value 键。
+  实测：`qvalue_upshift_test` 名次 6→3 上升 3 位；发布版 demo 库冒烟 100+10 全绿。
 - **Windows 一键安装套件**（`install.ps1` / `install.bat` / `INSTALL.md`）——
   四步流水线：探测 Python >= 3.10 → 幂等装包（版本与 `pyproject.toml` 不一致才重装）
   → 生成演示库 → `tether_connect` 自动接入客户端 → `memtether stats` 收尾自检。
