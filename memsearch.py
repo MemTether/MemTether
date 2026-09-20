@@ -238,7 +238,7 @@ def _embed_local(texts):
     """本地 bge-m3。失败时抛异常（由 _embed 决定是否回退）。"""
     import embed_local
     if not embed_local.available():
-        raise RuntimeError('本地 embedding 模型文件缺失：%s' % embed_local.MODEL_DIR)
+        raise RuntimeError('本地 embedding 模型文件缺失：%s' % os.path.join(embed_local.HUB, 'models'))
     return embed_local.encode(texts)
 
 
