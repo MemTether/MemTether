@@ -1,0 +1,15 @@
+# ---- 行尾固化（2026-09-20 审计加入）----
+# 背景：本机 system 级 gitconfig core.autocrlf=true（便携版 Git 默认值），
+# 此前本仓库只有局部 core.autocrlf=false 抵消，且未入版本库——
+# 换一台机器 clone/checkout 时 CRLF 会渗进来，产生「同一份文件两个仓 diff 全文件」的假象
+# （09-20 审计实测：memory_hub↔memtether 的 memsearch.py 裸 diff 报 1849 行，
+#  剥掉 CR 后真实差异仅 110 行——警戒线虚高 15 倍）。
+# 本仓库是**开源发布库**，跨平台 clone 是主场景，按社区标准全局归一 LF。
+# 注意：tool_audit.py / asset_bench_holdout.py / rerank_k_bench.py / .release-baseline.json
+#  历史上是 CRLF，renormalize 后一并归一（内容不变，仅行尾）。
+*.py text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.toml text eol=lf
+*.cfg text eol=lf
+*.txt text eol=lf
