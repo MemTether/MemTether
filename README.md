@@ -93,6 +93,16 @@ python skillctl.py scan     # 从记忆库里扫候选，起草新技能
 > 当前状态：**研究原型**。已支持标准 `pip` 安装与客户端自动接入
 > （`memtether-connect`，见「接入你的客户端」一节）。
 
+### 方式 A0：一键脚本（Windows，最省事）
+
+```bat
+install.bat
+```
+
+四步一把梭（探测 Python → 装包 → 生成演示库 → 自动接入本机客户端），每步幂等可重跑、
+任一步失败即停并用退出码指明死因。要语义检索档加 `-Vector`，只装包不动客户端加
+`-SkipConnect`。完整参数表与常见问题见 [`INSTALL.md`](INSTALL.md)。
+
 ### 方式 A：装成一个包（推荐）
 
 ```bash
