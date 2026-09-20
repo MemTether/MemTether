@@ -7,8 +7,9 @@
   · MCP 配置层（mcp.json / 信任代写 / 来源注册）  → tether_connect.py
   · 投影层（MEMORY.md / sink.json）               → hub 的 gateway.py rebuild
   · **指令/扩展层**（本脚本）：
-      - Codex 桌面 app：官方插件机制（marketplace 注册 + 插件 .mcp.json 实例化
-        + ~/.codex/skills symlink）——桌面 app 不读 config.toml 的 [mcp_servers]
+      - Codex 桌面 app：官方插件机制（marketplace 注册 + `codex plugin add`
+        免 GUI 安装 + ~/.codex/skills symlink + 插件 .mcp.json 实例化）
+        ——桌面 app 不读 config.toml 的 [mcp_servers]
       - OpenClaw：workspace/AGENTS.md（会话开场注入源）
       - dsh：~/.dsh/AGENTS.md（用户级指令，所有 profile 生效）
       - 豆包：projections/*.md 腐蚀路径修复（ rebuild 不生成这些文件，是手工快照）
@@ -53,7 +54,12 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)                      # integrations/ 的上级 = 仓库根
 MARK_BEGIN = '# >>> memtether-auto-onboard'
 MARK_END = '# <<< memtether-auto-onboard'
-PLUGIN_DIR = os.path.join(REPO, 'integrations', 'codex-plugin')
+MARKETPLACE_NAME = 'memtether-local'
+PLUGIN_NAME = 'memtether-memory'
+# 插件规范位置 = marketplace 根内（官方布局：<marketplace>/plugins/<name>）。
+# ⚠️ 不能放 marketplace 外：CLI 会静默拒绝根外路径（实测 ../ 与绝对路径都列不出来）。
+PLUGIN_DIR = os.path.join(REPO, 'integrations', 'codex-marketplace', 'plugins',
+                          PLUGIN_NAME)
 MCP_TEMPLATE = os.path.join(PLUGIN_DIR, '.mcp.json.template')
 MCP_INSTANCE = os.path.join(PLUGIN_DIR, '.mcp.json')
 
@@ -294,6 +300,53 @@ def instantiate_plugin_mcp(hub, report):
     report.append(('OK', label, '已按本机 hub 路径实例化（venv 解释器）'))
 
 
+def install_codex_plugin(report):
+    """免 GUI 安装插件：codex plugin add（官方 CLI 子命令，2026-09-21 实测可用）。
+
+    没有这一步，用户必须手动进桌面 app 插件页点 Install——违反"部署即接入"。
+    幂等：已安装则 SKIP（先查状态再装，不依赖 add 的报错文案）。
+    """
+    import subprocess
+    label = 'codex/plugin-install'
+    codex = shutil.which('codex')
+    if not codex:
+        report.append(('MISS', label,
+                       'codex CLI 不在 PATH（未装 Codex？跳过；桌面 app 可仍在插件页手动装）'))
+        return
+    try:
+        r = subprocess.run([codex, 'plugin', 'list', '--marketplace', MARKETPLACE_NAME],
+                           capture_output=True, text=True, encoding='utf-8',
+                           errors='replace', timeout=60)
+        out = (r.stdout or '') + (r.stderr or '')
+    except Exception as e:
+        report.append(('WARN', label, '查询安装状态失败：%s' % e))
+        return
+    if ('installed' in out) and (PLUGIN_NAME in out):
+        report.append(('SKIP', label, '插件已安装（codex plugin list 确认）'))
+        return
+    if 'No plugins found' in out or PLUGIN_NAME not in out:
+        report.append(('FAIL', label,
+                       'marketplace 里找不到插件——检查 marketplace.json 的 path 是否在'
+                       ' marketplace 根内，以及插件 .codex-plugin/plugin.json 是否合法'))
+        return
+    if _DRY:
+        report.append(('OK', label, '将执行 codex plugin add（免 GUI 安装并启用）'))
+        return
+    try:
+        r = subprocess.run([codex, 'plugin', 'add', PLUGIN_NAME,
+                            '--marketplace', MARKETPLACE_NAME],
+                           capture_output=True, text=True, encoding='utf-8',
+                           errors='replace', timeout=120)
+        out = (r.stdout or '') + (r.stderr or '')
+    except Exception as e:
+        report.append(('FAIL', label, 'codex plugin add 执行失败：%s' % e))
+        return
+    if r.returncode == 0 and 'Added plugin' in out:
+        report.append(('OK', label, '已免 GUI 安装并启用（codex plugin add）'))
+    else:
+        report.append(('FAIL', label, 'codex plugin add 未成功：%s' % out.strip()[:200]))
+
+
 # ---------------------------------------------------------------- AGENTS.md 系
 def inject_openclaw(hub, report):
     home = os.environ.get('USERPROFILE') or os.path.expanduser('~')
@@ -375,6 +428,7 @@ def resolve_hub(arg):
 _STEPS = (
     ('Codex 桌面 app 插件机制（官方正道）', lambda hub, r: (
         inject_codex_marketplace(hub, r),
+        install_codex_plugin(r),                 # 免 GUI：codex plugin add
         inject_codex_skills(r),
         instantiate_plugin_mcp(hub, r))),
     ('OpenClaw workspace/AGENTS.md', inject_openclaw),

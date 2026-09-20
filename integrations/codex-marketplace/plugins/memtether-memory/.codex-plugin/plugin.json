@@ -1,0 +1,10 @@
+{
+  "version": "0.1.0",
+  "name": "memtether-memory",
+  "mcpServers": "./.mcp.json",
+  "description": "跨客户端 AI 记忆中枢：search_memory / add_memories / list_memories 三个 MCP 工具，读写本机共享的 memory.db。安装后 Codex app/CLI/IDE 三端通用。",
+  "author": {
+    "name": "MemTether"
+  },
+  "license": "MIT"
+}
