@@ -145,6 +145,70 @@ if not os.path.isabs(DB):
 #   ★不设该变量时路径与原来**逐字节相同**（HUB/sink.json），行为不变。
 SINK = os.environ.get('MEM_SINK_PATH') or os.path.join(HUB, 'sink.json')
 
+# ---- 来源名校验（2026-09-20 从真源移植）-------------------------------------
+# 为什么需要：写入入口原先对 source **不做任何校验** —— 脚本把自己的名字
+# （如 'tool_audit.py 2026-09-15'）当来源传进来会被照单全收，归属被写花，
+# 而且没人会注意到（与"静默覆盖"同族：出错时不报错）。
+# 校验口径与 mem.py 的 known_sources 同源，都读 <HUB>/agents.json。
+_NEUTRAL_SOURCES = ('local', 'unknown')
+
+
+def _known_sources():
+    """已注册的来源名（读 agents.json）。读不到返回 []（= 不校验，放行）。"""
+    f = os.path.join(HUB, 'agents.json')
+    try:
+        with open(f, 'r', encoding='utf-8') as fh:
+            reg = json.load(fh)
+    except Exception:
+        return []
+    out = []
+    for k, v in (reg.get('agents') or {}).items():
+        out.append(k)
+        for a in ((v or {}).get('aliases') or []):
+            out.append(a)
+    return out
+
+
+def _guard_source(source, fallback=None):
+    """写入路径的来源名必须已注册，防止脚本/agent 自造名把归属搞乱。
+
+    · 空值归一为 'unknown'。
+    · 读不到 agents.json 时**放行**（fail-open）—— 不能让"配置缺失"变成"写不进记忆"。
+      这是开源版的主要路径：发布集不含 agents.json，陌生人装完即可用。
+    · 中性默认值（local / unknown）永远放行 —— 它们是"未识别来源"的诚实标记，
+      不该因为没被登记而拒绝写入。
+    · 应急放行：环境变量 MEM_SOURCE_GUARD=0。
+    · ★软着陆：未注册时若给了 fallback（参数或 MEM_SOURCE_FALLBACK，且该值本身
+      已注册），回退到它并记 warning，**不再 raise SystemExit**。原因：SystemExit
+      不被包装层的 `except Exception` 捕获 ⇒ 长驻进程（MCP server）会**直接死掉**
+      （服务静默消失，比报错更糟）。CLI 场景不给 fallback，行为与硬报错一致。
+    """
+    src = (source or '').strip() or 'unknown'
+    if os.environ.get('MEM_SOURCE_GUARD', '1') == '0':
+        return src
+    if src in _NEUTRAL_SOURCES:
+        return src
+    reg = _known_sources()
+    if reg and src not in reg:
+        fb = (fallback or os.environ.get('MEM_SOURCE_FALLBACK') or '').strip()
+        if fb and fb in reg:
+            try:
+                sys.stderr.write(
+                    '[gateway] WARN: 未注册来源 %r，软着陆回退为 %r（避免长驻进程退出）\n'
+                    % (src, fb))
+            except Exception:
+                pass
+            return fb
+        raise SystemExit(
+            'ERROR: 未注册的来源 %r（gateway.py 写入路径校验）。\n'
+            '已注册: %s\n'
+            '如需新增，编辑 %s\n'
+            '应急放行可设 MEM_SOURCE_GUARD=0' %
+            (src, ', '.join(sorted(set(reg))), os.path.join(HUB, 'agents.json')))
+    return src
+
+
+
 # ---- SQLite schema ----
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS facts (
@@ -373,6 +437,7 @@ def remember(content, type='fact', source=DEFAULT_SOURCE, scope='shared', subjec
       ★这正是双时间轴存在的意义——让"事实何时成立"与"系统何时知道"分离，
         否则查"09-12 系统认为什么为真"会得出错误结论。
     """
+    source = _guard_source(source)
     init_db()
     conn = get_conn()
     try:
@@ -444,6 +509,7 @@ def correct(old_uid, new_content, reason, by_agent=DEFAULT_SOURCE, valid_from=No
       旧事实 invalidated_at = 当前时刻（T' 轴——**我们此刻**才判定它失效，
         可能与 valid_to 不同；若纠正的是陈年旧事，两个值会明显分离）
     """
+    by_agent = _guard_source(by_agent)
     init_db()
     conn = get_conn()
     try:
@@ -591,6 +657,7 @@ def timeline(uid, max_hops=20):
 
 def record_tool(name, path=None, entrypoint=None, aliases='', type='local_tool',
                 capabilities='', known_failures='[]', prerequisites='', source=DEFAULT_SOURCE):
+    source = _guard_source(source)
     init_db()
     conn = get_conn()
     try:

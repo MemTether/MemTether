@@ -136,3 +136,14 @@ dist/
 #     仓库内只留开发件 ⇒ 整目录归档到 dev/ 并忽略，避免"同一脚本两处漂移"。
 # ★为什么整目录忽略而不是逐个列名：逐个列名必漏（本文件 2026-09-16 已有同类教训）。
 dev/
+
+# ===== 本机渠道看门狗（2026-09-20）=====
+# ★为什么它**不**跟上面那批一起挪进 dev/：
+#   `claw_watchdog_boot.pyw`（开机自启壳，在 E:\RUANJIAN\ai-audit\）里写死
+#   WD_DIR = r"E:\RUANJIAN\memtether" 并 `import claw_channel_watchdog`
+#   ⇒ 它必须留在仓库根。挪走会静默打断开机自愈链路。
+#   ⇒ 处置是「就地忽略」：文件在，但不进对象库。
+# 判据：这些内容的价值只在「这台机器 + 这两版客户端共存」时成立，
+#   且含本机账户绝对路径，与开源包无关。
+claw_channel_watchdog.py
+.claw_watchdog_state.json

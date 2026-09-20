@@ -76,10 +76,14 @@ Security = "https://github.com/MemTether/MemTether/blob/main/SECURITY.md"
 [project.scripts]
 # 门面在 memtether.py（仓库根），它负责把平铺的引擎模块接到 sys.path 上。
 memtether = "memtether:main"
+# 客户端接入器（装完直接 `memtether-connect detect` 就能看本机有哪些客户端）
+memtether-connect = "tether_connect:main"
 
 [tool.setuptools]
 # ★不写 packages = ["memtether"]：那会指向一个不存在的包（空壳已删）。
-packages = ["scripts"]
+# clients = 客户端适配器包（tether_connect 用），必须在这里登记，
+#   否则 `pip install` 出来的包**不带** clients/，工具一跑就 ImportError。
+packages = ["scripts", "clients"]
 include-package-data = false
 py-modules = [
     # —— 引擎核心
@@ -100,6 +104,7 @@ py-modules = [
     # —— 对外接口
     "memtether",            # ★包门面 + CLI 入口
     "mcp_server",           # MCP Server（供各客户端接入）
+    "tether_connect",       # ★自动发现并接入本机所有 agent 客户端（detect/plan/apply/verify/rollback）
     "post_turn",            # 每轮钩子
     "demo_gateway",         # 演示网关
     # —— 运维 / 自检
