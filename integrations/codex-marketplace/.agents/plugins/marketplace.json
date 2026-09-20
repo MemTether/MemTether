@@ -1,0 +1,12 @@
+{
+  "name": "memtether-local",
+  "interface": { "displayName": "MemTether (local)" },
+  "plugins": [
+    {
+      "name": "memtether-memory",
+      "source": { "source": "local", "path": "../codex-plugin" },
+      "policy": { "installation": "AVAILABLE", "authentication": "NONE" },
+      "category": "Developer Tools"
+    }
+  ]
+}
