@@ -10,6 +10,129 @@
 
 ---
 
+## [Unreleased]
+
+本版做了三件事：**修掉一个会让所有新装用户拿到坏 MCP 通道的问题**、
+**把客户端接入从手工变成一条命令**、**补回写入路径的来源校验**。
+
+### 修复
+
+- **★MCP 通道「从第一天起就是坏的」（严重）** —— 旧版把重库 `import`
+  （`numpy` / `chromadb` 的 C 扩展）放在**后台预热线程**里，而本进程主线程正阻塞在
+  `for line in sys.stdin`（MCP 的 stdio 循环）。Windows 下这个组合会**永久死锁**：
+  `faulthandler` 实测 25s / 50s 两次 dump 栈完全一致、零进展。
+  后果是连锁的，且**都不报错**：
+  - `add_memories` 被**永久拒绝** → 写入通道等于不存在；
+  - `search_memory` 被**永久降级**成纯 SQLite `LIKE`（中文整串匹配，实测 `count:0`）。
+  于是 Agent 试一次「MCP 不能用」就永久退回 CLI，MCP 通道形同虚设。
+
+  修法两件：① 重库 `import` 搬回**主线程**预载（消掉死锁的触发组合）；
+  ② 预热加**硬超时**（`_WARM_HARD_TIMEOUT`，默认 25s）——万一将来又卡住，
+  也只会降级，不再永久拒绝。
+
+  最小复现（与 import 哪个模块无关，只与「主线程阻塞 stdin」有关）：
+  ```
+  主线程 time.sleep   → import numpy 0.07s / import chromadb 0.69s   ✅
+  主线程读 stdin 管道 → 两者均 HANG > 60s                            ❌
+  ```
+
+- **写入路径完全没有来源校验** —— 脚本把自己的名字当 `source` 传进来会被照单全收，
+  归属被写花且没人会注意到（与「静默覆盖」同族：出错时不报错）。
+  现补上 `_known_sources()` / `_guard_source()`，并接到
+  `remember` / `correct` / `record_tool` 三个写入入口。
+
+  行为定义（**fail-open，不 fail-closed**）：
+  - 读不到 `agents.json` ⇒ **放行**（不能让「配置缺失」变成「写不进记忆」）；
+  - 中性默认值 `local` / `unknown` ⇒ **永远放行**（它们是「未识别来源」的诚实标记）；
+  - 未注册来源 ⇒ 有 `MEM_SOURCE_FALLBACK`（且该值已注册）则**软着陆回退** + 记 warning，
+    否则硬报错；`MEM_SOURCE_GUARD=0` 可应急放行。
+  - **★为什么不直接 `raise SystemExit`**：它**不被** `except Exception` 捕获，
+    长驻进程（MCP server）会**直接死掉** —— 客户端侧表现为工具静默消失，
+    且不会自动拉起。比报错更糟。
+
+### 新增
+
+- **`memtether-connect` —— 客户端自动接入器**。MCP 本身是手动档：找配置文件、
+  照 schema 写 JSON、（Electron 系）再去 UI 点一次信任；而每个客户端的 schema
+  都不一样，漏一个就有一个客户端读不到记忆。现在是一条命令：
+
+  ```bash
+  memtether-connect detect     # 发现本机装了哪些客户端、配置在哪、接没接
+  memtether-connect plan       # 预演，不写盘
+  memtether-connect apply      # 写入（备份 + manifest，可回滚）
+  memtether-connect verify     # 校验配置内容 + 信任状态
+  memtether-connect rollback --stamp <时间戳>
+  ```
+
+  23 个适配器，分两类：`clients/standard.py`（标准客户端，路径与 schema 逐条
+  核对社区维护的 agent config 参考表）与 `clients/local.py`（本机实测的 Electron 系与 dsh 系）。
+
+  写盘的四条硬约束：
+  - **不猜** —— 找不到约定的根路径（schema 变了）就**失败关闭**，
+    绝不「大概写在这儿」。写坏用户的配置比不写更糟。
+  - **保注释** —— 配置带 `//` 注释或尾逗号时（VS Code 系常见），用 JSONC 感知的
+    编辑器**只改该改的那一处**，不整份重排。
+  - **幂等** —— 语义一致就**一个字节都不写**（路径分隔符风格、重复斜杠、空 `env`
+    先归一化再比较）。否则「每次跑都改写一遍本来正确的配置」。
+  - **只碰装了的** —— 配置落在主目录/共享目录的客户端（`~/.claude.json` 的父目录
+    必然存在）会被误判成「已安装」，故额外查安装痕迹，找不到就跳过。
+
+  另含两项此前只能手工做的事：**来源名注册**（不注册 ⇒ 写入被兜底成别的名字、
+  归属串号）与 **Electron 系信任代写**（按客户端同一算法
+  `sha256(command|sorted(args)|sorted(env keys))` 算键，省掉「UI 显示已连接、
+  Agent 拿不到工具」那一步）。
+
+- **MCP server 的来源自动识别（零配置）**。原先只认 WorkBuddy 两版
+  （硬编码两个子串），换任何别的客户端都识别不出 ⇒ 不传 `source` 的写入
+  被兜底成 `workbuddy`、归属串号。现改为**表驱动 + 两级匹配**：
+
+  1. **父进程映像全路径** —— 覆盖 Electron 系（`WorkBuddy.exe` / `ZCode.exe` / Tabbit…）；
+  2. **父进程命令行**（读 PEB）—— 覆盖「被通用宿主拉起」的情况：
+     独立 dsh / Claude Code 的父进程就是普通 `node.exe`，
+     只有命令行里才带 `@deepseek-ai/dsh` / `claude-code`。
+
+  匹配按签名长度降序（保证 `workbuddyai` 先于 `workbuddy` 命中）；
+  兜底值**中性化**为 `local`（可用 `MEM_FALLBACK_SOURCE` 覆盖）；
+  用户可在同目录放 `client_signatures.json` 扩展，不必改代码。
+
+  > **为什么不直接用 `env` 配来源**：`env` 的 key 集合参与信任 hash，
+  > 多一个 key 就掉信任，而掉信任后 server 会被客户端**静默跳过**
+  > （只有日志里一行 `skipping untrusted`）。所以能自动就别让用户配。
+
+### 变更
+
+- `pyproject`：`packages` 增加 `clients`（否则 `pip install` 出来的包**不带**
+  适配器包，工具一跑就 `ImportError`）；`py-modules` 增加 `tether_connect`；
+  新增 console script `memtether-connect`。
+- `.gitignore`：开发产物归口到已忽略的 `dev/`；忽略 `claw_channel_watchdog.py`
+  （被开机自启按**绝对路径**引用，故就地保留而非移走）。
+
+### 可复现的验证
+
+```bash
+# ① 客户端接入器自检（16 项：语义等价不写盘 / 安装判据 / Codex 原生 TOML 写法识别 / 同名表失败关闭）
+python tether_connect.py selftest
+
+# ② 本机探测与预演（只读，不写盘）
+python tether_connect.py detect --hub-dir <你的中枢目录>
+python tether_connect.py plan   --hub-dir <你的中枢目录>
+
+# ③ JSONC 编辑器自检（24 项：注释 / 尾逗号 / CRLF / 缩进风格 / 深层路径）
+python clients/jsonc.py
+
+# ④ 打包清单闸门（模块清单与 pyproject 是否一致）
+python scripts/check_packaging.py
+```
+
+本机实测结论（隔离库 stdio 探针，非推断）：`initialize 0.27s` →
+`tools/list 0.64s`（3 个工具）→ `add_memories 0.95s`（`ok:true`）→
+`search_memory 0.01s`（`engine=hybrid`，未降级）。
+来源识别对**真实进程**实测：`WorkBuddy.exe→workbuddy`、
+`WorkBuddyAI.exe→workbuddy_ai`、`ZCode.exe→zcode`、`Tabbit Browser.exe→tabbit`、
+`node.exe`（OpenClaw 网关）`→openclaw`。
+
+---
+
 ## [0.1.0a3] — 2026-09-18
 
 新增两项记忆治理能力（**默认中性，不改变任何现有排序**），并修掉一处检索误伤。

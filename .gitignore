@@ -126,6 +126,11 @@ _refuse_stop.json
 # 发布归档包（二进制，不进 git 历史；2026-09-17 补）
 _archive/
 dist/
+# ★2026-09-20 补：L3 发布验收会临时建一个 dist_test/ 构建 wheel。
+#   实测它会被 `git ls-files --others --exclude-standard` 算进发布集
+#   （扫描器报「+ dist_test/memtether-0.1.0a3-...whl」）⇒ 构建产物入库。
+#   判据来自技能 oss-release-preflight 检查 5「生成物不入库」。
+dist_test/
 *.pre-hubguard
 
 # ===== 跨端实验件归档（2026-09-19）=====

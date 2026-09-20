@@ -90,7 +90,8 @@ python skillctl.py scan     # 从记忆库里扫候选，起草新技能
 
 ## 快速开始
 
-> 当前状态：**研究原型**。已支持标准 `pip` 安装；一键安装脚本在路线图中（见文末）。
+> 当前状态：**研究原型**。已支持标准 `pip` 安装与客户端自动接入
+> （`memtether-connect`，见「接入你的客户端」一节）。
 
 ### 方式 A：装成一个包（推荐）
 
@@ -165,16 +166,76 @@ python mem.py qvalue <uid> --reward 1  # 1=完全采纳 / 0.5=部分有用 / 0=�
 
 ---
 
+## 接入你的客户端（一条命令）
+
+MCP 本身是「手动档」：你得自己找到每个客户端的配置文件、照它的 schema 写一段 JSON、
+再（Electron 系）去 UI 里点一次信任。**每个客户端的 schema 都不一样**，
+漏一个就有一个客户端读不到记忆。
+
+`memtether-connect` 把这段变成一条命令：
+
+```bash
+memtether-connect detect     # 发现本机装了哪些客户端、各自配置在哪、接没接
+memtether-connect plan       # 预演：只打印将要改什么，不写盘
+memtether-connect apply      # 写入（先备份 + 生成 manifest，可回滚）
+memtether-connect verify     # 校验：配置内容 + 信任状态
+memtether-connect rollback --stamp <时间戳>
+```
+
+设计要点：
+
+- **不猜**：找不到约定的根路径（客户端 schema 变了）就**失败关闭**，
+  绝不「大概写在这儿」。写坏用户的配置文件比不写更糟。
+- **保注释**：配置里带 `//` 注释或尾逗号时（VS Code 系常见），用 JSONC 感知的编辑器
+  **只改该改的那一处**，不整份重排。
+- **幂等**：语义一致就一个字节都不写 —— 路径分隔符风格、重复斜杠、空 `env`
+  都先归一化再比较。否则「每次跑都改写一遍本来正确的配置」。
+- **只碰装了的**：配置落在主目录/共享目录的客户端（`~/.claude.json` 的父目录
+  必然存在）会误判成「已安装」，所以额外查安装痕迹，找不到就跳过。
+- **来源名一起注册**：接入时顺手把来源名写进 `agents.json`。不注册的后果是
+  写入被兜底成别的名字、归属串号 —— 这是评测数据被污染的头号原因。
+- **信任代写**：Electron 系客户端的「已信任 MCP 列表」是按
+  `sha256(command|sorted(args)|sorted(env keys))` 算出的键。本工具按同一算法代写，
+  省掉「UI 显示已连接、Agent 却拿不到工具」这一步手工操作。
+  （注意：**改 `env` 就会掉信任**，所以本项目的来源识别刻意不依赖 env，见下。）
+
+适配器共 **23 个**：`clients/standard.py`（标准客户端，路径与 schema 对照社区维护的
+agent config 参考表逐条核对）+ `clients/local.py`（本机实测的 Electron 系与 dsh 系）。
+
+### MCP server 怎么知道「我是被谁拉起的」
+
+不传 `source` 时的归属，按 `MEM_DEFAULT_SOURCE` 环境变量 > **父进程识别** > 兜底值
+（默认中性的 `local`）解析。父进程识别是**两级**的：
+
+1. **父进程映像全路径** —— 覆盖 Electron 系（`WorkBuddy.exe` / `ZCode.exe` / Tabbit 等，
+   可执行文件路径里带自己的名字）；
+2. **父进程命令行**（读 PEB）—— 覆盖「被通用宿主拉起」的情况：
+   独立 dsh / Claude Code 的父进程就是普通 `node.exe`，只有命令行里才带
+   `@deepseek-ai/dsh` / `claude-code`。
+
+匹配表按签名长度降序（保证 `workbuddyai` 先于 `workbuddy` 命中）。
+想加自己的客户端：在同目录放 `client_signatures.json`：
+
+```json
+{ "signatures": [["myclient", "mysource"]] }
+```
+
+> **为什么不直接用 `env` 配来源**：`env` 的 key 集合参与信任 hash，多一个 key 就掉信任，
+> 而掉信任后 server 会被客户端**静默跳过**（只有日志里一行 `skipping untrusted`）。
+> 所以能自动就别让用户配。
+
+---
+
 ## 仓库里的文件地图
 
-顶层平铺 **57 个 `.py`**。平铺是为了「方式 B」下能 `python gateway.py …` 直接跑；
+顶层平铺 **59 个 `.py`**。平铺是为了「方式 B」下能 `python gateway.py …` 直接跑；
 代价是根目录很长。先看这张表，再决定要读哪几个：
 
 | 分组 | 数量 | 你需要它吗 | 模块 |
 |---|---|---|---|
-| **对外接口** | 5 | ✅ **装完即用的就是这几个** | `memtether`（包门面 + CLI）· `gateway`（唯一写入入口）· `mem`（共享总线 + CLI）· `memsearch`（混合检索）· `mcp_server`（MCP Server） |
+| **对外接口** | 6 | ✅ **装完即用的就是这几个** | `memtether`（包门面 + CLI）· `gateway`（唯一写入入口）· `mem`（共享总线 + CLI）· `memsearch`（混合检索）· `mcp_server`（MCP Server）· `tether_connect`（客户端自动接入） |
 | 引擎核心 | 13 | ⚠️ 被上面调用，一般不直接用 | `embed_local` `rerank` `governance` `project` `refuse_live` `refuse_gate` `tool_audit` `memory_sink` `memory_maintenance` `pair_superseded` `mem0_config` `post_turn` `demo_gateway` |
-| 运维 / 自检 | 11 | 🔧 自建环境才用 | `hub_score`（四维评分卡）`hub_selfcheck` `hubguard`（并发治理）`attach_hubguard` `preflight`（每轮回答前预取记忆）`publish_pypi` `bootstrap` `board` `approve` `enrich_caps` `sync_memory` |
+| 运维 / 自检 | 12 | 🔧 自建环境才用 | `hub_score`（四维评分卡）`hub_selfcheck` `hubguard`（并发治理）`attach_hubguard` `preflight`（每轮回答前预取记忆）`interpreter`（解释器解析 + 依赖校验）`publish_pypi` `bootstrap` `board` `approve` `enrich_caps` `sync_memory` |
 | **技能层** | 3 | 🧩 想让"做法"也沉淀下来就用 | `skill_forge`（沉淀闭环）`skill_budget`（预算守卫 / 注入成本）`skillctl`（**统一入口**：沉淀 + 预算 + 分发） |
 | 跨客户端协作 | 2 | 🔧 多个客户端共写同一份文件时才用 | `wslog_append`（共写日志原子追加）`slot_update`（共享槽位原地更新） |
 | 迁移 / 一次性 | 7 | ⛔ 一般不用碰 | `migrate_bitemporal` `migrate_sink` `migrate_qvalue` `import_mem0` `sync_reflector_mem0` `astra_dialogue` `astra_memory_closure` |
@@ -184,6 +245,7 @@ python mem.py qvalue <uid> --reward 1  # 1=完全采纳 / 0.5=部分有用 / 0=�
 - **想复跑评测 / 想核对我们说的数** → 最后一行是给你的：卷子、判分口径、评分卡源码都在仓库里。
 - **想自己搭一套** → 中间三行（运维 / 自检 + 技能层 + 跨客户端协作）。
 
+`clients/` 是客户端适配器**包**（`tether_connect` 用，按 `pyproject` 的 `packages` 发布）；
 `scripts/` 放辅助脚本（合成演示库生成、打包清单闸门、泄密扫描）；`docs/` 放文档索引。
 名字以 `_` 开头的 `.py` 是本地临时脚本，**不进版本库**（`.gitignore` 已排除）。
 
@@ -291,11 +353,13 @@ MemTether 的卖点是**可验证性**：评分卡源码、评测集、双判分
 - [x] 评测集与评分卡源码开源（双判分口径 + 失真警告）
 - [x] 投影钉住（`pin`）—— 把定义类结论排除在时间竞争之外（缓解注入槽位瓶颈）
 - [x] 被采纳价值分（Q-Value）—— 检索命中被采纳后回写、下次上浮；**默认中性，不改变现有排序**
+- [x] 客户端自动接入器（`memtether-connect`：发现 / 预演 / 写入 / 校验 / 回滚；23 个适配器）
+- [x] MCP server 的来源自动识别（父进程映像名 + 命令行两级；零配置，不动 `env` 以免掉信任）
 - [ ] 「被采纳」的自动判定（Q-Value 的上游：现在只能靠调用方显式回写）
 - [ ] 发布到 PyPI（当前只能从仓库装）
-- [ ] 一键安装脚本（Windows 优先）
 - [ ] 注入槽位策略优化（存得多、喂得少是当前最大瓶颈）
 - [ ] 拒答判据从"词形法"升级为"带语义的判据"（词形法对同形不同属性无解）
+- [ ] 自动接入器覆盖 macOS / Linux 的客户端路径（当前以 Windows 实测为准）
 
 ---
 

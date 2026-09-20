@@ -237,20 +237,56 @@ commit_memory_candidate（价值评分 + 阈值过滤 + 去重）
 |---|---|---|---|
 | 约定 | 调 `search` / `resolve_task` 取配方 | 调 `remember --source <你注册的名字>` | 必须在 `agents.json` 注册 |
 
-**`source` 是归属的唯一依据**：同一条记忆由谁写入、哪个客户端在何时认定它失效，全靠它。
-默认值是中性值 `local`（可用环境变量 `MEM_DEFAULT_SOURCE` 覆盖），
-但**多客户端场景下每条写入都应显式传 `--source`** —— 否则你无法回答"这条结论是谁记的"。
-
-给一个新客户端取名 `my_agent`：
+**别手工做这件事 —— 用接入器。** 上面三条的落地方式（MCP 配置文件在哪、schema 长什么样、
+要不要点信任、来源名怎么注册）每个客户端都不一样，手工做必漏。一条命令搞定：
 
 ```bash
-python gateway.py remember "结论内容" --type fact --source my_agent
-python mem.py add --type experience --text "..." --source my_agent
+memtether-connect detect     # 发现本机装了哪些客户端、各自配置在哪、接没接
+memtether-connect plan       # 预演：只打印将要改什么，不写盘
+memtether-connect apply      # 写入（先备份 + 生成 manifest，可回滚）
+memtether-connect verify     # 校验：配置内容 + 信任状态
+memtether-connect rollback --stamp <时间戳>
 ```
 
+它做四件事：① 按客户端 schema 写 MCP 配置（JSONC 感知，保住注释与缩进风格）；
+② 代写 Electron 系的信任记录（`sha256(command|sorted(args)|sorted(env keys))`）；
+③ 把来源名补进 `agents.json`；④ 回读校验。写盘原则是**不猜**：
+找不到约定的根路径就失败关闭，绝不「大概写在这儿」。
+
+### `source` 的解析顺序
+
+**`source` 是归属的唯一依据**：同一条记忆由谁写入、哪个客户端在何时认定它失效，全靠它。
+
+| 优先级 | 取值来源 | 说明 |
+|---|---|---|
+| 1 | 显式传参 | 多客户端场景下**每条写入都应显式传** —— 否则你无法回答"这条结论是谁记的" |
+| 2 | `MEM_DEFAULT_SOURCE` 环境变量 | 本客户端固定用某个名字时设它 |
+| 3 | **父进程识别**（零配置） | 两级：父进程**映像全路径** → 父进程**命令行**（读 PEB）。覆盖 Electron 系与「被通用 `node.exe` 拉起」的 dsh / Claude Code |
+| 4 | 兜底值 | 默认中性 `local`（`MEM_FALLBACK_SOURCE` 可覆盖） |
+
+> **为什么不把来源写进 MCP 配置的 `env`**：`env` 的 key 集合参与信任 hash，
+> 多一个 key 就掉信任，而掉信任后 server 会被客户端**静默跳过**
+> （只有日志里一行 `skipping untrusted`）。所以第 3 级（自动识别）比第 2 级更该优先用。
+>
+> 想加自己的客户端：在同目录放 `client_signatures.json`，
+> `{"signatures": [["myclient", "mysource"]]}`，不必改代码。
+
+### 来源校验（fail-open）
+
+写入入口（`remember` / `correct` / `record_tool`）会校验来源名是否已注册，
+防止脚本自造名把归属写花。但校验**故意是 fail-open**：
+
+- 读不到 `agents.json` ⇒ **放行**（不能让"配置缺失"变成"写不进记忆"）；
+- 中性默认值 `local` / `unknown` ⇒ **永远放行**（它们是"未识别来源"的诚实标记）；
+- 未注册 ⇒ 有 `MEM_SOURCE_FALLBACK` 则**软着陆回退** + warning，否则硬报错；
+  `MEM_SOURCE_GUARD=0` 可应急放行。
+
+**★为什么不直接 `raise SystemExit`**：它**不被** `except Exception` 捕获，
+长驻进程（MCP server）会**直接死掉** —— 客户端侧表现为工具静默消失且不会自动拉起。
+比报错更糟。
+
 **入口质检**：`mem.py add` 默认拒绝"无主语泛化垃圾"（如"已完成""已上线"这类无实体一次性事件），
-确为有效结论时加 `--force` 强制写入。来源名不在 `agents.json` 注册表内会被拒绝，
-防止各客户端自造来源名。
+确为有效结论时加 `--force` 强制写入。
 
 **单一真源保证**：`mem.py` 的所有读操作（`list`/`search`/`recall`/`drain`/`stats`）已改为
 委托 `gateway` 直读 `memory.db`；`sink.json` 只在 gateway 写入时作为兼容导出被顺带刷新。
@@ -277,11 +313,23 @@ python mem.py add --type experience --text "..." --source my_agent
 1. **接入靠约定，不靠强制**。`preflight.py` / `mem.py` 是否真的在每次会话开始 / 结束被调用，
    取决于各客户端自身的运行时行为，本中枢**无法强制**。目前只验证了"脚本本身正确、
    各入口读同一真源"，没验证"每个客户端每次会话确实都调用了它们"。
-2. **历史遗留事实可能仍有未识别的弱垃圾**。质量门禁（长度 / ASCII 实体 / 泛化词）是启发式，
+   `memtether-connect` 解决的是**配置侧**（把 MCP 配置写对、信任写对、来源名注册对），
+   它**不改变**这一条：客户端拿到工具之后用不用，仍取决于客户端的运行时行为。
+2. **接入器的实测面只覆盖 Windows + 本机装过的客户端**。23 个适配器里，
+   `clients/local.py` 那批（Electron 系 / dsh 系）是**本机实测**的；
+   `clients/standard.py` 那批路径与 schema 是**对照社区维护的 agent config 参考表**核对的，
+   没有逐个真机验证。macOS / Linux 的路径已按惯例写入但**未经实测**。
+   `detect` 对没装的客户端会跳过，所以"没被写"≠"不支持"。
+3. **来源自动识别有两处已知盲区**：
+   - 读 PEB 取命令行需要 `PROCESS_VM_READ` 权限，权限不足时静默返回 `None`
+     （退到下一级，不会误报）；
+   - 非 Windows 平台直接跳过识别（`os.name != 'nt'` 时返回 `None`），
+     此时请用 `MEM_DEFAULT_SOURCE` 显式指定。
+4. **历史遗留事实可能仍有未识别的弱垃圾**。质量门禁（长度 / ASCII 实体 / 泛化词）是启发式，
    不是全知；未来出现的垃圾靠"检索未命中触发 `on_miss`"和人工巡检兜底。
-3. **中文分词的语义召回有上限**。当前靠"向量 + 字面匹配"组合，没上 jieba/FTS5；
+5. **中文分词的语义召回有上限**。当前靠"向量 + 字面匹配"组合，没上 jieba/FTS5；
    对"换个完全不同的说法问同一个概念"仍可能漏。数据集小时可接受，规模上去需重估。
-4. **`on_miss` 只在 `top_score<0.55` 时记录**，属于"明显没找到"才留痕，
+6. **`on_miss` 只在 `top_score<0.55` 时记录**，属于"明显没找到"才留痕，
    中间地带（0.55~0.7 的弱命中）不会记。
-5. **注入槽位瓶颈**：活跃条目数百条，但受客户端注入上限约束，每轮实际只能喂进几十条
+7. **注入槽位瓶颈**：活跃条目数百条，但受客户端注入上限约束，每轮实际只能喂进几十条
    → 存得多、喂得少。这是当前最大瓶颈（见 README 路线图）。
