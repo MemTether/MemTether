@@ -1,7 +1,0 @@
-{
-  "version": "0.1.0",
-  "name": "memtether-memory",
-  "mcpServers": "./.mcp.json",
-  "displayName": "MemTether Memory Hub",
-  "description": "跨客户端 AI 记忆中枢：search_memory / add_memories / list_memories 三个 MCP 工具，读写本机共享的 memory.db（双时间轴治理 + 归属强制 + Q-Value）。安装后 Codex app/CLI/IDE 三端通用。.mcp.json 由 auto_onboard.py 从 .mcp.json.template 按本机路径实例化（换机器部署零手工）。"
-}
