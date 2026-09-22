@@ -63,6 +63,39 @@ def corpus_rows():
     return rows
 
 
+def _subject_terms(q):
+    """从问题里抽出主语候选（去停用词后取前 2/3 字 + ASCII 实体）。
+
+    判据要的是"这条记忆是不是在回答这个问题"，主语共现是最弱可用的代理。
+    """
+    t = (q or '').lower()
+    out = set()
+    for seg in re.findall(r'[\u4e00-\u9fa5]+', t):
+        if len(seg) <= 4 and seg:
+            out.add(seg)
+        else:
+            for n in (2, 3, 4):
+                out.add(seg[:n])
+    for w in re.findall(r'[A-Za-z][A-Za-z0-9_.\-]{2,}', t):
+        out.add(w.lower())
+    return out
+
+
+def _cooccur_in_same_row(rows, tok, subj_terms):
+    """同一行（同一条记忆）里同时出现 tok 和主语候选 => 可能是在回答。"""
+    hits = []
+    tl = tok.lower()
+    for r in rows:
+        low = (r or '').lower()
+        if tl not in low:
+            continue
+        for st in subj_terms:
+            if st and st in low and len(st) >= 2:
+                hits.append('%s|%s' % (tok, st))
+                break
+    return hits
+
+
 def _occurs(blob_low, tok):
     """出现次数。ASCII token 用词边界，避免 configPath 里的 gPa 这种假阳性；
     中文按裸子串（中文没有词边界概念）。"""
@@ -80,12 +113,25 @@ def verify(verbose=True):
     blob_low = blob.lower()
 
     bad = []
+    warn_only = []
     for n in spec['negatives']:
         problems = []
         for tok in n.get('must_be_absent', []):
             c = _occurs(blob_low, tok)
             if c:
-                problems.append('must_be_absent 命中 %r x%d' % (tok, c))
+                # 2026-09-22 修（与 memory_hub 同源）：must_be_absent 的语义是
+                # 「库里没有这个答案」，不是「库里没出现过这个词」。裸词计数会把
+                # 渗透报告/工具清单里「提到」该词误判成失败（实测误报 3 条）。
+                # 改用「与问题主语共现」判据；主语即被检词时恒真，须排除。
+                _all = _subject_terms(n.get('q', ''))
+                subj = {x for x in _all if x != tok.lower()}
+                ctx = _cooccur_in_same_row(rows, tok, subj) if subj else []
+                if ctx:
+                    problems.append('must_be_absent 命中 %r x%d（且与问题主语共现：%s）'
+                                    % (tok, c, ctx[:2]))
+                else:
+                    warn_only.append('%s: 词 %r 库内出现 x%d，未与问题主语共现 —— 被谈起而非被回答，不判失败'
+                                     % (n.get('id'), tok, c))
         for pat in n.get('must_be_unanswered', []):
             m = re.search(pat, blob, re.I)
             if m:
