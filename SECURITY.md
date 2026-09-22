@@ -2,11 +2,16 @@
 
 ## 支持版本
 
-当前为研究原型（`v0.1.0a2`），仅主分支接受安全报告。
+当前为研究原型（最新版本见 [CHANGELOG](CHANGELOG.md)，当前线为 `v0.1.0a5`），
+仅主分支接受安全报告。
 
 ## 怎么报
 
-请**不要**开公开 issue。发邮件到仓库维护者的联系邮箱，或在 GitHub 用 **Private vulnerability reporting**。
+请**不要**开公开 issue。优先用 GitHub 的 **Private vulnerability reporting**
+（仓库 Security 标签页 -> Report a vulnerability）。
+
+★为什么不用邮箱：本仓库未公开维护者邮箱，写「发邮件到联系邮箱」却不给地址，
+等于给了一条走不通的路。需要邮箱时请在仓库 Security 页开私有报告并注明希望邮件沟通。
 
 请在报告里包含：
 - 影响的版本 / commit
