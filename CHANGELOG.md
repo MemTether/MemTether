@@ -10,6 +10,33 @@
 
 ---
 
+## [0.1.0a5] - 2026-09-22
+
+### Fixed
+
+- **`gateway.py qvalue` 子命令不接受 `--source`**：原先只有 `--agent`，而
+  `AGENTS.md` / `HARD-RULES.md` 全家约定是 `--source` ⇒ 照文档写会被 argparse
+  直接打回 exit 2。改为多选项字符串别名，两种写法等价、dest 不变（旧调用方零影响）。
+- **`gateway.py record_tool` 没有 `--source`**：分发处只能落默认来源，
+  调用方无法指定归属。补参数并透传。
+- **`gateway.py retire` 没有 `--source`，且函数体漏掉来源校验**：`retire()` 是
+  唯一不调 `_guard_source()` 的写入函数，by_agent 可直穿审计日志。两处都补。
+- **`gateway.py` / `memsearch.py` 共 6 处裸 `import governance`**：新增
+  `_load_governance()` 改为按显式文件路径加载，杜绝仓库外同名模块遮蔽
+  （对应事故档案 #10 的遗留半边）。
+- **`_count_active_facts()` 只统计 facts 不统计 tool_assets**：facts 为 0 而资产
+  非空时会误报「空库」，把诊断方向带偏。改为两表相加。
+- **stdout 未按 UTF-8 重配导致只读视图崩溃**：`gateway.py qvalue`（不带参数）与
+  `peer_msg.py read` 在 GBK 控制台下遇 GBK 编不出的字符直接
+  `UnicodeEncodeError`。新增 `_fix_stdio()` 在入口重配。
+- **`scripts/scan_leaks.py` 自身会崩**：该脚本是发布前泄密闸门，原先在 `report()`
+  里崩掉并返回 exit 1，会被误读成「发现泄密」而真相是根本没扫完。同样重配 stdio。
+
+### Changed
+
+- `memory_hub/README.md`：唯一真源由 `sink.json` 更正为 `memory.db`（v4 起）；
+  写入入口统一为 `gateway.py`；移除不存在的 `agentctl.py` 引用。
+
 ## [0.1.0a4] - 2026-09-21
 
 本版做了五件事：**修掉一个会让所有新装用户拿到坏 MCP 通道的问题**、
