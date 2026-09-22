@@ -1,9 +1,9 @@
 {
   "note": "发布侧人工产物指纹基线 —— 改动它必须是有意的，并在 git diff 里可见",
   "repo": "memtether",
-  "head_at_baseline": "7570727ed216773218e7e78620317e1354c95176",
+  "head_at_baseline": "cafc04629bf9a0433a1e306838e93e5c2abd0a69",
   "files": {
-    "README.md": "2ad8f7c14b0a2ac209075f55ba3a6cc2",
+    "README.md": "503cdf79cd99ee2371a5429247d590c4",
     "SECURITY.md": "f509ee054dc3269b33ffcf7ae59203c8",
     "LICENSE": "3b83ef96387f14655fc854ddc3c6bd57",
     ".gitignore": "bdb6f0a01d1efe08172e4c53484c2b28",
