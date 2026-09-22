@@ -252,7 +252,25 @@ def report(findings):
     print('=' * 84)
 
 
+def _fix_stdio():
+    """★2026-09-22：stdout/stderr 按 UTF-8 重配（errors=replace）。
+
+    本脚本是**发布前的泄密闸门**，输出里有 ✗/✓ 等 Unicode 符号。
+    Windows 控制台默认 GBK ⇒ 实测直接 UnicodeEncodeError 崩在 report() 里，
+    退出码 1 —— 会被误读成「发现泄密」，而真相是**根本没扫完**。
+    一道保护发布的闸门自己会崩，比没有闸门更危险。
+    """
+    for _name in ('stdout', 'stderr'):
+        _s = getattr(sys, _name, None)
+        try:
+            if _s is not None and hasattr(_s, 'reconfigure'):
+                _s.reconfigure(encoding='utf-8', errors='replace')
+        except Exception:
+            pass
+
+
 def main():
+    _fix_stdio()
     fs = scan()
     if '--json' in sys.argv:
         print(json.dumps(fs, ensure_ascii=False, indent=2))

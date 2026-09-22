@@ -559,6 +559,8 @@ def retire(uid, reason, by_agent=DEFAULT_SOURCE):
     """退役机制/工具。双时间轴：valid_to 与 invalidated_at 都记当前时刻
     （退役是"现在就判定不再有效"的动作，两轴在此重合；若某条事实是
      事后才补记退役，则应改用 governance.retire 并另行指定 valid_to）。"""
+    # ★2026-09-22 修：retire 是全库唯一不校验来源的写入函数。
+    by_agent = _guard_source(by_agent)
     init_db()
     conn = get_conn()
     try:
@@ -1577,7 +1579,44 @@ def _env_guard():
         pass
 
 
+def _load_governance():
+    r"""★2026-09-22：按**显式文件路径**加载 governance，杜绝同名模块遮蔽。
+
+    手册卷12 事故 #10 的遗留半边：hubguard 已改用 spec_from_file_location 修好，
+    但本文件的 govern/conflicts/conflicts_exact/selfcheck/stale 五个分支一直是
+    裸 `import governance`。仓库外若有一份同名 governance.py 且硬编码了别的
+    memory.db（不认 MEM_DB），一旦它先进入 sys.path 就连到空库上，
+    报 no such table: facts，而 rebuild/remember 全不报错 —— 静默回归。
+    与 hubguard 同一套修法：按路径加载，不给模块名解析留机会。
+    """
+    import importlib.util as _iu
+    _p = os.path.join(HUB, 'governance.py')
+    if not os.path.isfile(_p):
+        return __import__('governance')            # 兜底：走普通搜索路径
+    _spec = _iu.spec_from_file_location('_mt_governance', _p)
+    _mod = _iu.module_from_spec(_spec)
+    _spec.loader.exec_module(_mod)
+    return _mod
+
+
+def _fix_stdio():
+    """★2026-09-22：stdout/stderr 按 UTF-8 重配（errors=replace）。
+
+    Windows 控制台默认 GBK，而库内可能含 GBK 编不出的字符（如 🦞）。
+    实测只读视图（`gateway.py qvalue` 不带参数）会直接 UnicodeEncodeError 崩掉，
+    连它自己 docstring 建议的验收命令都跑不通。
+    """
+    for _name in ('stdout', 'stderr'):
+        _s = getattr(sys, _name, None)
+        try:
+            if _s is not None and hasattr(_s, 'reconfigure'):
+                _s.reconfigure(encoding='utf-8', errors='replace')
+        except Exception:
+            pass
+
+
 def main():
+    _fix_stdio()
     _env_guard()
     ap = argparse.ArgumentParser(description='Memory Gateway — 三 agent 唯一记忆入口')
     sub = ap.add_subparsers(dest='cmd')
@@ -1594,10 +1633,16 @@ def main():
     c = sub.add_parser('correct'); c.add_argument('old_uid'); c.add_argument('new_content'); c.add_argument('--reason', default='')
 
     rt = sub.add_parser('retire'); rt.add_argument('uid'); rt.add_argument('--reason', default='')
+    # ★2026-09-22 修：此前 retire 连 --source 都没有，by_agent 恒为 DEFAULT_SOURCE，
+    #   无法追溯是谁退役的；且函数体内漏了 _guard_source（remember/correct/record_tool 都有）。
+    rt.add_argument('--source', default=DEFAULT_SOURCE)
 
     t = sub.add_parser('record_tool'); t.add_argument('name'); t.add_argument('--path'); t.add_argument('--entrypoint')
     t.add_argument('--aliases', default=''); t.add_argument('--type', default='local_tool')
     t.add_argument('--capabilities', default=''); t.add_argument('--known_failures', default='[]')
+    # ★2026-09-22 修（与 memory_hub 同源修复）：此前没有 --source，
+    #   分发处只能落 DEFAULT_SOURCE ⇒ 任何 agent 经 CLI 记工具都可能记错归属。
+    t.add_argument('--source', default=DEFAULT_SOURCE)
 
     rk = sub.add_parser('resolve_task'); rk.add_argument('task')
 
@@ -1647,7 +1692,9 @@ def main():
     qv = sub.add_parser('qvalue')
     qv.add_argument('uid', nargs='?')              # 省略 = 只读看分布
     qv.add_argument('--reward', type=float, default=1.0)   # 1=完全采纳 0.5=部分有用 0=没用
-    qv.add_argument('--agent', default=DEFAULT_SOURCE)     # 谁回写的（进 audit_log）
+    # ★2026-09-22 修：AGENTS.md/HARD-RULES 全家约定是 --source，原先只有 --agent
+    #   ⇒ 照铁律写 `qvalue <uid> --source X` 会被 argparse 打回 exit 2。
+    qv.add_argument('--source', '--agent', dest='agent', default=DEFAULT_SOURCE)  # 谁回写的（进 audit_log）
     qv.add_argument('--detail', default='')                # 回写原因（进 audit_log）
     qv.add_argument('--dry-run', action='store_true')      # 只算不写
 
@@ -1670,10 +1717,10 @@ def main():
     elif a.cmd == 'correct':
         print(json.dumps(correct(a.old_uid, a.new_content, a.reason), ensure_ascii=False))
     elif a.cmd == 'retire':
-        print(json.dumps(retire(a.uid, a.reason), ensure_ascii=False))
+        print(json.dumps(retire(a.uid, a.reason, by_agent=a.source), ensure_ascii=False))
     elif a.cmd == 'record_tool':
         print(json.dumps(record_tool(a.name, a.path, a.entrypoint, a.aliases, a.type,
-                                     a.capabilities, a.known_failures, source=DEFAULT_SOURCE), ensure_ascii=False))
+                                     a.capabilities, a.known_failures, source=a.source), ensure_ascii=False))
     elif a.cmd == 'resolve_task':
         print(json.dumps(resolve_task(a.task), ensure_ascii=False))
     elif a.cmd == 'event':
@@ -1721,17 +1768,17 @@ def main():
         print("\n【留出集】")
         asset_bench_holdout.run(verbose=False)
     elif a.cmd == 'govern':
-        import governance
+        governance = _load_governance()
         governance.audit()
     elif a.cmd == 'conflicts':
-        import governance
+        governance = _load_governance()
         r = governance.find_conflicts(days_window=a.days)
         print(json.dumps({'ok': True, 'count': len(r), 'candidates': [
             {'a': x['a']['uid'], 'b': x['b']['uid'], 'shared': x['shared'],
              'a_text': x['a']['text'][:120], 'b_text': x['b']['text'][:120]}
             for x in r[:20]]}, ensure_ascii=False, indent=2))
     elif a.cmd == 'conflicts_exact':
-        import governance
+        governance = _load_governance()
         r = governance.detect_explicit_conflicts()
         print(json.dumps({'ok': True, 'count': len(r), 'conflicts': [
             {'entity': x['entity'], 'newer': x['newer'],
@@ -1740,14 +1787,14 @@ def main():
              'neg_text': x['neg']['sent'][:150], 'neg_ts': x['neg']['ts']}
             for x in r]}, ensure_ascii=False, indent=2))
     elif a.cmd == 'selfcheck':
-        import governance
+        governance = _load_governance()
         r = governance.find_self_contradictions()
         print(json.dumps({'ok': True, 'count': len(r), 'items': [
             {'uid': x['uid'], 'entity': x.get('entity'), 'shared': x['shared'],
              'pos': x['pos']['text'][:120], 'neg': x['neg']['text'][:120]}
             for x in r[:20]]}, ensure_ascii=False, indent=2))
     elif a.cmd == 'stale':
-        import governance
+        governance = _load_governance()
         r = governance.find_stale(days=30)
         print(json.dumps({'ok': True, 'count': len(r), 'items': r[:20]},
                          ensure_ascii=False, indent=2))
