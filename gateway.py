@@ -1305,7 +1305,16 @@ def rebuild():
             _line = '- %s → %s' % (_row['name'], (_row['path'] or _row['entrypoint'] or '')[:58])
             (_prio if '★' in (_row['prerequisites'] or '') else _rest).append(_line)
 
-        _tail.extend(_prio)
+        # ★2026-09-16 七修（★资产也要封顶）：实测 66 条资产里有 20 条带 ★，
+        #   它们走 _prio 通道**不受任何上限约束**，一口气吃掉约 1000 字符 ——
+        #   比事实区 15 条的全部篇幅还多。而资产的取用成本极低（一条 mem.py search 就取到），
+        #   把 4000 字符槽位的四分之一交给"软件安装路径"是本末倒置。
+        #   故：★资产只保前 N 条（默认 6），其余按 name 序落回 _rest 一起竞争剩余名额。
+        _asset_prio_max = int(os.environ.get('MEM_PROJ_ASSET_PRIO_MAX', '6'))
+        _prio_kept = _prio[:_asset_prio_max]
+        _rest = _prio[_asset_prio_max:] + _rest
+
+        _tail.extend(_prio_kept)
         _room = _BUDGET - sum(len(x) + 1 for x in mem_lines) - sum(len(x) + 1 for x in _tail) - 90
 
         # ★2026-09-15 五修：实测投影 4020 字符 / 预算 4000 → **超 20 字符**。
@@ -1317,6 +1326,21 @@ def rebuild():
         _FOOTER_RESERVE = 110
         _room = max(0, _room - _FOOTER_RESERVE)
 
+        # ★2026-09-16 七修（资产区封顶）：实测资产区 19 条吃掉约 855 字符 ≈ 10 条事实的额度，
+        #   而资产的取用成本极低（要用时一条 mem.py search 就取到），信息密度远低于经验类事实。
+        #   故给非优先资产**预留固定额度**，把省下的预算让给事实区。
+        #   （此处必须"预留"而非"事后限制"：填充顺序是 事实 → 非优先资产，
+        #     若不预留，事实填完时 _room 已耗尽，省下的空间只会变成投影尾部空白。）
+        #   ★_asset_max 是**资产区总条数**上限（含上方已进的 ★ 资产），默认 12。
+        _asset_max = int(os.environ.get('MEM_PROJ_ASSET_MAX', '12'))
+        _asset_rest_max = max(0, _asset_max - len(_prio_kept))
+        _avg_rest = (sum(len(x) + 1 for x in _rest) / len(_rest)) if _rest else 0
+        _ASSET_RESERVE = int(_avg_rest * _asset_rest_max) + 40
+        #   ★两个额度必须**分开**：旧版只有一个 _room，预留扣掉后就再也回不到资产区，
+        #     资产区只能吃"事实区没花完的残渣"，封顶形同虚设。
+        _room_assets = _ASSET_RESERVE
+        _room = max(0, _room - _ASSET_RESERVE)
+
         # ★2026-09-16 六修（预算可观测化 + 类型保底）：
         #   ① 旧实现在预算不足时**静默 break** —— 读者只看到页脚"已列 16 条"，
         #      不知道还有 100+ 条被砍、更不知道被砍的是哪几类。而超预算的后果是
@@ -1327,7 +1351,7 @@ def rebuild():
         #      而它们恰恰最该被记住（ACL 拒写坑、判病毒方法论、会话卡顿真因）。
         #      策略：预算不足时先保「每类最新 N 条」，再按时间倒序填其余；
         #      预算充足时行为与旧版**完全一致**（只是填充顺序不同，输出会重排回去）。
-        _floor_n = int(os.environ.get('MEM_PROJ_TYPE_FLOOR', '1'))
+        _floor_n = int(os.environ.get('MEM_PROJ_TYPE_FLOOR', '2'))
         _floor_idx = []
         if _floor_n > 0:
             _seen_typ = {}
@@ -1336,10 +1360,60 @@ def rebuild():
                     _seen_typ[_p[1]] = _seen_typ.get(_p[1], 0) + 1
                     _floor_idx.append(_i)
         _floor_set = set(_floor_idx)
-        _fill_order = [(i, _picked[i]) for i in _floor_idx]
-        _fill_order += [(i, p) for i, p in enumerate(_picked) if i not in _floor_set]
-
+        # ★pin 条目排在最前（先于类型保底）—— 它们是"必须一直在"的定义类结论。
+        _pin_idx = [i for i, p in enumerate(_picked)
+                    if 'pin' in (p[2]['tags'] or '').lower()]
+        _pin_set = set(_pin_idx)
+        _fill_order = [(i, _picked[i]) for i in _pin_idx]
+        _fill_order += [(i, _picked[i]) for i in _floor_idx if i not in _pin_set]
+        # ★2026-09-23 十修（新闻带内短条优先）：纯全局短优会把类型比例打乱（实测 fact9/dec11），
+        #   纯逐条短优则会丢掉最新条目（实测最新 2 条缺 2 条）。
+        #   折中：每一类内部先切成“新闻带”（默认每 25 条一带，带内按时间倒序索引切），
+        #   带内按 lead 长度升序；带与带之间保持新→旧。带宽越大越偏向“短优”。
+        #   ★真实代码扫描（同一份 405 条 active 库，floor=2，含页眉/资产/页脚）：
+        #     recency(回退) → 22 条 | 半句 6（= 线上原始现状）
+        #     带宽 5/8/10   → 23~24 条 | 半句 4
+        #     带宽 12/15    → 25 条 | 半句 4（类型 9/7/5/4）
+        #     带宽 20       → 25 条 | 半句 4
+        #     带宽 25/30/40 → 26 条 | 半句 4（类型 9/8/5/4）← 采纳 25
+        #   ★保留 2026-09-16 七修本意：类型保底在最前，各类至少进 2 条（floor=2）。
+        #   ★回退开关：MEM_PROJ_FILL=recency 恢复纯时间倒序（旧行为）。
+        _fill_mode = (os.environ.get('MEM_PROJ_FILL') or 'band').strip().lower()
+        _band = max(1, int(os.environ.get('MEM_PROJ_BAND', '25')))
+        _rest_by_typ = {}
+        for _i, _p in enumerate(_picked):
+            if _i in _pin_set or _i in _floor_set:
+                continue
+            _rest_by_typ.setdefault(_p[1], []).append((_i, _p))
+        _bucket = {}
+        for _t, _lst in _rest_by_typ.items():
+            if _fill_mode == 'recency':
+                _bucket[_t] = list(_lst)
+            else:
+                _idxed = list(enumerate(_lst))
+                _bucket[_t] = [
+                    _ip for _rank, _ip in sorted(
+                        _idxed,
+                        key=lambda _rv: (_rv[0] // _band,
+                                        len(_lead(_rv[1][1][2]['content'])),
+                                        _rv[0]))
+                ]
+        _k = 0
+        while True:
+            _hit = False
+            for _t, _q in _QUOTA:
+                _lst = _bucket.get(_t) or []
+                if _k < len(_lst):
+                    _fill_order.append(_lst[_k])
+                    _hit = True
+            if not _hit:
+                break
+            _k += 1
+        # 兜底：_pin/_floor/上方未覆盖到的条目（防将来新增类型被整体丢弃）
+        _covered = {i for i, _p in _fill_order}
+        _fill_order += [(i, p) for i, p in enumerate(_picked) if i not in _covered]
         _kept = 0
+        _skipped_facts = 0
         _dropped_facts = 0
         _kept_pairs = []
         _type_kept = {}
@@ -1347,13 +1421,20 @@ def rebuild():
             _d = (_r['updated_at'] or _r['created_at'] or '')[:10] or '????-??-??'
             _item = _hg_fact_line(_d, _typ, _r['source'], _lead(_r['content']))
             if len(_item) + 1 > _room:
-                _dropped_facts = len(_picked) - _kept
-                break
+                # ★2026-09-16 七修：**跳过**装不下的长条目，继续尝试后面的短条目。
+                #   旧实现是 break —— 一条 160 字的巨型事实就能让其后所有短条目全部作废，
+                #   实测 headroom 尚余 624 字符却只装进 15 条（预算白白浪费，
+                #   且"谁被跳过"取决于 _fill_order 的偶然顺序，不可控）。
+                _skipped_facts += 1
+                continue
             mem_lines.append(_item)
             _kept_pairs.append((_i, _item))
             _type_kept[_typ] = _type_kept.get(_typ, 0) + 1
             _room -= len(_item) + 1
             _kept += 1
+        _dropped_facts = len(_picked) - _kept
+        # ★事实区没花完的额度转给资产区（避免"事实装不下、资产也空着"的双重浪费）
+        _room_assets += _room
         # ★输出必须恢复「新→旧」约定：注入侧按体积截断时只会丢最老的。
         #   排序键是 _picked 的原始下标（_picked 已按时间倒序），**不能按整行字符串排** ——
         #   同一天写入的条目日期前缀相同，整行降序会退化成「按内容字典序」，
@@ -1366,14 +1447,19 @@ def rebuild():
         # 事实填完后，把剩余预算给非优先资产
         _extra = []
         _dropped_assets = 0
+        _rest_in = 0
         for _i, _line in enumerate(_rest):
-            if len(_line) + 1 > _room:
-                _dropped_assets = len(_rest) - len(_extra)
+            if _i >= _asset_rest_max or len(_line) + 1 > _room_assets:
+                # ★注意：_extra 末尾那行"…另 N 条"是**提示行不是资产**，
+                #   计数必须用 _rest_in，不能用 len(_extra)（差一，2026-09-16 实测踩到：
+                #   告警报"已进 13 条"而实际只有 12 条）。
+                _dropped_assets = len(_rest) - _rest_in
                 _extra.append('- …另 %d 条资产见网关库（mem.py search 或 tool_audit.py audit）'
                               % _dropped_assets)
                 break
             _extra.append(_line)
-            _room -= len(_line) + 1
+            _rest_in += 1
+            _room_assets -= len(_line) + 1
         _tail.extend(_extra)
 
         mem_lines.extend(_tail)
@@ -1506,6 +1592,12 @@ def rebuild():
         elif _starved:
             _warnings.append('★类型饿死：%s 一条都没进投影（请调低 _QUOTA 或收紧 _LINE_CAP）'
                              % ' / '.join(_starved))
+        # ★2026-09-16 七修：跳过本身不算异常（额度用尽时必然发生），
+        #   **跳过之后还剩大额余量**才是异常 —— 那说明剩余候选普遍超长、额度被浪费。
+        if _skipped_facts and _room > 120:
+            _warnings.append('★填充浪费：跳过 %d 条后事实区仍余 %d 字符'
+                             '（剩余候选普遍超长，可考虑收紧 _LINE_CAP 或提高 _QUOTA）'
+                             % (_skipped_facts, _room))
         #   ★2026-09-17 修：旧措辞"再写一条记忆就会触发裁剪"**是错的**：新记忆时间最新、
         #   必然入选，只会挤掉一条最老的入选条目，**总占用不变**，不触发 _hard_trimmed。
         #   真正的裁剪信号是 _hard_trimmed / _hard_clipped（上方已有独立告警）。
@@ -1543,8 +1635,13 @@ def rebuild():
                 # —— 预算可观测字段（2026-09-16 新增，供 hub_selfcheck / 维护脚本消费）
                 'budget': _BUDGET, 'used': _used, 'headroom': _headroom,
                 'facts_listed': _kept, 'type_listed': _type_kept,
+                # ★2026-09-16 七修新增可观测字段：
+                #   facts_skipped_toolong = 因单条超长被跳过（不是预算耗尽），
+                #   assets_listed = 资产区实进条数（不含"…另 N 条"提示行）。
+                'facts_skipped': _skipped_facts,
                 # ★2026-09-16 八修：pin 条数可观测（供自检脚本判断"pin 是否被滥用"）
                 'pinned_count': len(_pin_rows),
+                'assets_listed': len(_prio_kept) + _rest_in,
                 'dropped_facts': _dropped_facts, 'dropped_assets': _dropped_assets,
                 'hard_trimmed': _hard_trimmed, 'hard_clipped': _hard_clipped,
                 'warnings': _warnings,
