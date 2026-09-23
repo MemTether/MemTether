@@ -242,7 +242,7 @@ def _reload_memsearch(model_key):
     env['MEM_EMBED_BACKEND'] = 'local'
     env['PYTHONPATH'] = HERE
     r = subprocess.run([PY, 'memsearch.py', '--rebuild'], cwd=HERE, env=env,
-                       capture_output=True, text=True, timeout=1800)
+                       capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=1800)
     tail = (r.stdout or '').strip().splitlines()[-2:]
     return r.returncode == 0, ' / '.join(tail)
 
@@ -285,7 +285,7 @@ print(json.dumps({'info': memsearch.LAST_EMBED_INFO, 'rows': out}, ensure_ascii=
 ''' % (HERE, limit)
     try:
         r = subprocess.run([PY, '-c', script], cwd=HERE, env=env,
-                           capture_output=True, text=True, timeout=3600)
+                           capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=3600)
     finally:
         try:
             os.remove(env['HB_CASES'])

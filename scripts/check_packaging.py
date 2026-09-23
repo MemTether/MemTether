@@ -37,6 +37,27 @@ import re
 import subprocess
 import sys
 
+def _fix_stdio():
+    """★2026-09-23 补：stdout/stderr 按 UTF-8 重配（errors=replace）。
+
+    根因：Windows 控制台默认 GBK，而本脚本结尾用 print('✓ ...') 输出成功结论。
+    实测 python scripts/check_packaging.py 在**全部校验通过之后**于最后一行
+    抛 UnicodeEncodeError: 'gbk' codec can't encode character '\u2713' ——
+    exit=1，回看像"打包清单不一致"，真相是"检查全过、报告崩了"。
+    这是本项目"跑完但结果错/不可用"家族的第 7 例。
+    必须在任何 print 之前调用。
+    """
+    for _name in ("stdout", "stderr"):
+        _s = getattr(sys, _name, None)
+        try:
+            if _s is not None and hasattr(_s, "reconfigure"):
+                _s.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
+
+_fix_stdio()
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 PYPROJECT = os.path.join(ROOT, 'pyproject.toml')
@@ -74,7 +95,7 @@ def load_toml(path):
 
 def tracked_root_modules():
     r = subprocess.run(['git', 'ls-files', '*.py'], cwd=ROOT,
-                       capture_output=True, text=True)
+                       capture_output=True, text=True, encoding='utf-8', errors='replace')
     if r.returncode != 0:
         print('★%s 不是 git 仓库（或 git 不可用）：%s'
               % (ROOT, (r.stderr or '').strip()))
@@ -94,7 +115,7 @@ def tracked_root_modules():
 def tracked_root_pyw():
     """被 git 跟踪的、仓库根的 .pyw（去掉扩展名）。子目录的不算。"""
     r = subprocess.run(['git', 'ls-files', '*.pyw'], cwd=ROOT,
-                       capture_output=True, text=True)
+                       capture_output=True, text=True, encoding='utf-8', errors='replace')
     if r.returncode != 0:
         print('★%s 不是 git 仓库（或 git 不可用）：%s'
               % (ROOT, (r.stderr or '').strip()))

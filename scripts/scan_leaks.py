@@ -150,12 +150,23 @@ def tracked_files():
     ★不要退回 `git ls-files`（只含索引）：新增文件在 `git add` 之前扫不到，
       而 add 之后往往不会再扫一遍 → 静默漏检（2026-09-16 实测踩过）。
     """
+    # 2026-09-22 修：不用 text=True。text=True 时 Python 按 locale 解码 stdout，
+    # 某些环境下（实测 memory_hub 仓）会让 r.stdout 直接变 None，
+    # 下游 r.stdout.split 抛 AttributeError —— 闸门自己崩，比闸门失效更危险。
+    # 改 bytes 模式拿原始输出、按 b'\0' 拆，再逐个解码，绕开 locale 解码。
     r = subprocess.run(['git', 'ls-files', '-z', '--cached', '--others',
                         '--exclude-standard'], cwd=HERE,
-                       capture_output=True, text=True)
+                       capture_output=True)
     if r.returncode != 0:
         return []
-    return sorted({p for p in r.stdout.split('\0') if p})
+    out = set()
+    for p in (r.stdout or b'').split(b'\0'):
+        if p:
+            try:
+                out.add(p.decode('utf-8'))
+            except Exception:
+                out.add(p.decode('utf-8', 'replace'))
+    return sorted(out)
 
 
 def untracked_files():

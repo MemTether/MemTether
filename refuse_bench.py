@@ -40,6 +40,28 @@ if HERE not in sys.path:
     sys.path.insert(0, HERE)
 from interpreter import resolve_python, require_modules      # noqa: E402
 
+
+def _fix_stdio():
+    """★2026-09-23 补：stdout/stderr 按 UTF-8 重配（errors=replace），与 gateway.py 同源。
+
+    根因：Windows 控制台默认 GBK，而本脚本大量中文 print（含 ✓/✗）。
+    实测 `refuse_bench.py verify` 跑到最后一行
+    print("✓ 全部通过") 直接 UnicodeEncodeError 崩掉 ——
+    而崩溃前的校验其实全部通过，回看输出像"没结果"而不是"崩了"。
+    这是本项目"跑完但结果错/不可用"家族的第 6 例。
+    必须放在 resolve_python(announce=True) 之前 —— 那行也会打印中文。
+    """
+    for _name in ("stdout", "stderr"):
+        _s = getattr(sys, _name, None)
+        try:
+            if _s is not None and hasattr(_s, "reconfigure"):
+                _s.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
+
+_fix_stdio()
+
 # ★2026-09-18 改：不再写死 `.venv-memory` —— 发布库（clone 出来的）里没有这个目录，
 #   写死等于「README 说能复跑、实际一跑就 WinError 2」。统一走 interpreter 解析。
 PY, PY_SRC = resolve_python(HERE, announce=True)
@@ -81,13 +103,27 @@ def _subject_terms(q):
     return out
 
 
+# 2026-09-22 补：元讨论标记 —— 一条记忆如果在**谈论**某个词的出现/误报/判据，
+# 它就不是在**回答**该词对应的问题。这是 memsearch 自指中毒的同族问题，
+# 已在 refuse_bench 侧实证两次（N15 MySQL：先是渗透报告提及，后是我写的复盘提及）。
+_META_TELL = ('误报', '共现', 'must_be_absent', '判据', '自指', '复盘', '本条目',
+              '谈论', '提及', '提到', '零命中', '闸门')
+
+
 def _cooccur_in_same_row(rows, tok, subj_terms):
-    """同一行（同一条记忆）里同时出现 tok 和主语候选 => 可能是在回答。"""
+    """同一行（同一条记忆）里同时出现 tok 和主语候选 => 可能是在回答。
+
+    ★2026-09-22：排除元讨论行。若该行本身带 _META_TELL 标记，
+    说明它在讨论"这个词被判命中"而不是"这个问题的答案是什么"，
+    不能作为共现证据。
+    """
     hits = []
     tl = tok.lower()
     for r in rows:
         low = (r or '').lower()
         if tl not in low:
+            continue
+        if any(t in low for t in _META_TELL):
             continue
         for st in subj_terms:
             if st and st in low and len(st) >= 2:
@@ -119,18 +155,24 @@ def verify(verbose=True):
         for tok in n.get('must_be_absent', []):
             c = _occurs(blob_low, tok)
             if c:
-                # 2026-09-22 修（与 memory_hub 同源）：must_be_absent 的语义是
-                # 「库里没有这个答案」，不是「库里没出现过这个词」。裸词计数会把
-                # 渗透报告/工具清单里「提到」该词误判成失败（实测误报 3 条）。
-                # 改用「与问题主语共现」判据；主语即被检词时恒真，须排除。
-                _all = _subject_terms(n.get('q', ''))
-                subj = {x for x in _all if x != tok.lower()}
-                ctx = _cooccur_in_same_row(rows, tok, subj) if subj else []
-                if ctx:
-                    problems.append('must_be_absent 命中 %r x%d（且与问题主语共现：%s）'
-                                    % (tok, c, ctx[:2]))
+                # 2026-09-22 修：must_be_absent 的语义是"库里没有这个**答案**"，
+                # 不是"库里没出现过这个词"。原实现用全库裸词计数，
+                # 于是渗透报告/工具清单里**提到** MySQL 就算命中 —— 实测误报 3 条
+                # (N10 显卡 / N15 MySQL / N21 许可证)，全是"被谈起"而非"被回答"。
+                # 修法：命中时不立即判失败，而是再看一眼上下文是否构成"答案"，
+                # 即该词是否与问题主语共现于同一条记忆内。不共现 = 只是被谈起。
+                # ★主语里若本身就含被检词，共现判据会恒真（自己和自己共现），
+                #   必须把与被检词相同的主语项排除掉，只留"另一个"主语。
+                #   例：问「MySQL 版本是多少」，主语含 MySQL —— 此时共现不能作为
+                #   "在回答"的证据，因为只要提到 MySQL 就算共现。
+                _all_subj = _subject_terms(n.get('q', ''))
+                subj = {x for x in _all_subj if x != tok.lower()}
+                ctx_hits = _cooccur_in_same_row(rows, tok, subj) if subj else []
+                if ctx_hits:
+                    problems.append('must_be_absent 命中 %r x%d（且与问题主语共现于同一条：%s）'
+                                    % (tok, c, ctx_hits[:2]))
                 else:
-                    warn_only.append('%s: 词 %r 库内出现 x%d，未与问题主语共现 —— 被谈起而非被回答，不判失败'
+                    warn_only.append('%s: 词 %r 库内出现 x%d，但未与问题主语共现 —— 被谈起而非被回答，不判失败'
                                      % (n.get('id'), tok, c))
         for pat in n.get('must_be_unanswered', []):
             m = re.search(pat, blob, re.I)
@@ -196,7 +238,7 @@ print(json.dumps({'info': memsearch.LAST_EMBED_INFO, 'rows': out}, ensure_ascii=
 ''' % (HERE, limit)
     try:
         r = subprocess.run([PY, '-c', script], cwd=HERE, env=env,
-                           capture_output=True, text=True, timeout=3600)
+                           capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=3600)
     finally:
         try:
             os.remove(path)

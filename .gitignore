@@ -152,3 +152,7 @@ dev/
 #   且含本机账户绝对路径，与开源包无关。
 claw_channel_watchdog.py
 .claw_watchdog_state.json
+
+# Telegram 搜书脚本（含本机会话路径；只在脱敏副本外运行，绝不入公开库）
+tg_*.py
+
