@@ -30,7 +30,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "memtether"
-version = "0.1.0a5"
+version = "0.1.0a6"
 description = "Cross-client memory hub for AI agents — one physical memory, many clients"
 readme = "README.md"
 license = {text = "Apache-2.0"}
@@ -143,3 +143,4 @@ py-modules = [
     "qvalue_ab",            # Q-Value 开/关 A/B 对照（分数不得下降）
     "qvalue_upshift_test",  # Q-Value 排序上移实测（副本库 + 正本索引）
 ]
+
