@@ -1,4 +1,4 @@
-# MemTether · 跨客户端 AI 记忆中枢
+﻿# MemTether · 跨客户端 AI 记忆中枢
 
 > **一句话：让多个异构 AI 客户端共享同一份物理记忆，而不是同步各自的副本。**
 
@@ -351,6 +351,7 @@ MemTether 的卖点是**可验证性**：评分卡源码、评测集、双判分
 - **Zep / Graphiti**：时序知识图谱，双时间轴定义即源于此 —— 偏企业级图存储
 - **Letta（MemGPT）**：OS 式分页，模型自己编辑记忆 —— 偏 agent 框架
 - **engram / agent-memory**：本地优先、单文件/单二进制 —— 工程形态最接近
+- **[delx-memory](https://github.com/davidmosiah/delx-memory)**：最接近的形态对标 —— 同样是「一个本地 SQLite + 多 agent MCP 共享」；但它是 KV 存储（key/value + tags），无双时间轴 / supersession / Q-Value / 技能锻造 / 客户端自动接入。亮点：xplicit_user_intent 硬闸门 + secret-blocking 写入端拦截 + lite transport（不加载 MCP SDK 降 RSS）
 - **cass / anda-brain / spector**：2025-2026 新一轮 agent memory 探索 —— 均处早期，关注点各偏一面（检索质量 / 长期一致性 / 多 agent 协同）
 - **Memmy**：目标最接近（多 agent 共享本地记忆），但是常驻服务 + 商业云侧
 
