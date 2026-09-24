@@ -252,9 +252,8 @@ def _is_self_referential(content, q):
             continue
         if len(qt & st) / len(qt) >= 0.5:
             return True
+
     return False
-
-
 # ---- embedding ----
 # ★2026-09-15 改：embedding 从「智谱单通道」改为「本地优先 + 云端可选」。
 #
@@ -857,6 +856,7 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
                     'updated_at': f.get('updated_at') or '',
                     # P0-07：把复核截止日带进结果，供降权与标注
                     'ttl': _parse_ttl(f.get('tags'), f.get('valid_to'), f.get('content')),
+                    'tags': str(f.get('tags') or ''),
                     'reason': reason})
     # ★4.4) P0-07 TTL 降权（2026-09-24）：过期结论不得静默当"当前事实"返回。
     #   与自指降权同层（都在 RRF 之后、精排之前），乘性因子可叠加。
@@ -885,6 +885,11 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
     #    候选集退化成"纯关键词平局"，此时 ×0.25 只能把自指条目从 0.0262 压到
     #    同档，仍然排第一。必须压到任何正常候选之下，才真正起到排序作用。
     for x in out:
+        _tags_str = str(x.get('tags') or '');
+        if 'self-ref' in _tags_str:
+            x['score'] = round(x['score'] * 0.05, 5)
+            x['reason'].append('tag-self-ref↓')
+            continue
         if _is_self_referential(x['content'], q):
             x['score'] = round(x['score'] * 0.05, 5)
             x['reason'].append('self-ref↓')
