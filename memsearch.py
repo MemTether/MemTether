@@ -307,7 +307,77 @@ def _interp_hint():
             "（等价于 pip install chromadb onnxruntime tokenizers numpy）")
 
 
+class StorePathMismatch(RuntimeError):
+    """P0-04：向量库路径与真源库路径不配对。专用类型 —— 调用方不得静默降级。"""
+
+
+def _guard_paths():
+    """P0-04 闸门之一（2026-09-24）：DB 与向量库必须落在同一目录，否则 fail-closed。
+
+    背景（实测，非推测）：DB / CHROMA_PATH 都是**模块级常量**。评测脚本切库时
+    若两者被拆到不同目录（典型：只切 MEM_DB，MEM_STORE 仍指生产 mem0_store），
+    结果不是报错而是**静默给错** —— 拿临时库的关键词结果去配生产/空索引，
+    实测 facts_active 从 323 塌成 12，全程无告警。
+
+    默认配对规则：CHROMA_PATH 与 DB 同目录（生产 = <HUB>；bench = bench_data）。
+    确需有意拆分（副本库配正本索引，如 qvalue_upshift_test）必须显式声明：
+        MEM_ALLOW_STORE_DB_SPLIT=1
+    """
+    if os.path.dirname(os.path.abspath(CHROMA_PATH)) == os.path.dirname(os.path.abspath(DB)):
+        return
+    if os.environ.get('MEM_ALLOW_STORE_DB_SPLIT', '').strip().lower() in ('1', 'true', 'yes', 'on'):
+        return
+    raise StorePathMismatch(
+        'P0-04 闸门：向量库与真源库不在同一目录，拒绝启动（避免静默污染/误读生产索引）。\n'
+        '  DB          = %s\n'
+        '  CHROMA_PATH = %s\n'
+        '切库时必须让两者同目录（放弃 MEM_STORE，或同步指向新目录）。\n'
+        '确为有意拆分（副本库配正本索引等）请显式设 MEM_ALLOW_STORE_DB_SPLIT=1。'
+        % (DB, CHROMA_PATH))
+
+
+def verify_active_consistency():
+    """P0-04 验收判据：索引条数必须 == 按 rebuild 同口径算出的应入索引条数。
+
+    ★口径必须与 rebuild_vector_index 完全一致，否则判据自己就是错的：
+        expected = (active facts 去掉质量门禁垃圾/测试源) + (active 资产去掉占位符)
+    返回 {sqlite_active, sqlite_assets, expected, vector_count, ok, error}
+    """
+    out = {'sqlite_active': None, 'sqlite_assets': None, 'expected': None,
+           'vector_count': None, 'ok': False, 'error': None}
+    try:
+        conn = sqlite3.connect(DB)
+        conn.row_factory = sqlite3.Row
+        frows = conn.execute(
+            "SELECT uid, content, type, source, scope FROM facts WHERE status='active'").fetchall()
+        try:
+            arows = conn.execute("SELECT * FROM tool_assets WHERE status='active'").fetchall()
+        except Exception:
+            arows = []
+        conn.close()
+    except Exception as e:
+        out['error'] = 'sqlite: %s: %s' % (type(e).__name__, e)
+        return out
+
+    out['sqlite_active'] = len(frows)
+    out['sqlite_assets'] = len(arows)
+    kept = [r for r in frows
+            if not is_generic_garbage(r['content'])
+            and (r['source'] or '') not in ('test', 'test_hub', 'fixture')]
+    akept = [a for a in arows if not is_placeholder(asset_text(a))]
+    out['expected'] = len(kept) + len(akept)
+
+    try:
+        out['vector_count'] = _client().get_collection(COLLECTION).count()
+    except Exception as e:
+        out['error'] = 'chroma: %s: %s' % (type(e).__name__, e)
+        return out
+    out['ok'] = (out['expected'] == out['vector_count'])
+    return out
+
+
 def _client():
+    _guard_paths()
     import chromadb
     return chromadb.PersistentClient(path=CHROMA_PATH)
 
@@ -661,6 +731,9 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
             if uid in active:
                 vec_rank[uid] = i
                 vec_sim[uid] = round(1 - dist, 4)
+    except StorePathMismatch:
+        # P0-04：闸门错误必须冒泡，绝不能被当成"向量路失败"降级吞掉。
+        raise
     except Exception as e:
         if not getattr(search_hybrid, '_warned', False):
             search_hybrid._warned = True
@@ -834,9 +907,15 @@ if __name__ == '__main__':
                     help='回收孤儿 segment 目录（默认 DRY-RUN，只报告）')
     ap.add_argument('--reclaim-apply', action='store_true',
                     help='★真的删除孤儿 segment 目录')
+    ap.add_argument('--verify-consistency', action='store_true',
+                    help='P0-04 验收：向量条数 == SQLite active 条数')
     a = ap.parse_args()
     if a.rebuild:
         print(json.dumps(rebuild_vector_index(), ensure_ascii=False))
+    if a.verify_consistency:
+        _r = verify_active_consistency()
+        print(json.dumps(_r, ensure_ascii=False, indent=2))
+        sys.exit(0 if _r['ok'] else 1)
     if a.reclaim or a.reclaim_apply:
         print(json.dumps(reclaim_orphan_segments(dry_run=not a.reclaim_apply),
                          ensure_ascii=False, indent=2))
