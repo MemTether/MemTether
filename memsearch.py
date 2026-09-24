@@ -45,6 +45,62 @@ GENERIC_WORDS = [
 ]
 
 
+# ---- P0-07 TTL（2026-09-24）：陈旧结论必须有复核截止日 ----
+#  背景（实测，非推测）：grok「key 已废、缺 token」（09-14）在用户 09-17 补齐新 key 后
+#  仍留库，09-21 被后继会话当成**当前答案**引用，用户当场爆发。同类：Fooocus 状态快照过期。
+#  结论：**检索到旧结论 = 给用户的答案直接错，且结论越肯定越危险**。
+#  机制：状态类条目允许带 tag `ttl:YYYY-MM-DD`（或 `ttl:YYYY-MM-DD` 落在 valid_to）；
+#        过期后检索**降权 + 显式标注**，绝不静默丢弃（丢了下游反而查不到"曾经这么说过"）。
+TTL_EXPIRED_FACTOR = float(os.environ.get('MEM_TTL_EXPIRED_FACTOR') or 0.35)
+_TTL_TAG_RE = re.compile(r'(?:^|[,;\s])ttl\s*[:：]\s*(\d{4}-\d{2}-\d{2})', re.I)
+
+
+def _parse_ttl(tags=None, valid_to=None, content=None):
+    """解析复核截止日，返回 'YYYY-MM-DD' 或 None。
+
+    优先 tags 里的 `ttl:YYYY-MM-DD`（显式意图），其次 valid_to 字段，
+    最后从正文里认 `ttl:YYYY-MM-DD`（方便人工补写）。
+    """
+    for raw in (tags, content):
+        if not raw:
+            continue
+        m = _TTL_TAG_RE.search(str(raw))
+        if m:
+            return m.group(1)
+    if valid_to:
+        s = str(valid_to).strip()
+        if re.match(r'^\d{4}-\d{2}-\d{2}', s):
+            return s[:10]
+    return None
+
+
+def _ttl_state(ttl, today=None):
+    """返回 (expired: bool, days_left: int|None)。ttl 为 None 时 (False, None)。"""
+    if not ttl:
+        return False, None
+    import datetime as _dt
+    try:
+        d = _dt.datetime.strptime(ttl, '%Y-%m-%d').date()
+    except Exception:
+        return False, None
+    t = today or _dt.date.today()
+    return (d < t), (d - t).days
+
+
+# 状态类条目的判据词（命中即认为"描述的是当前/最新状态"，应带 TTL）
+_STATE_TELL = (
+    '当前', '最新', '现在', '目前', '现状', '余额', '额度', '还剩', '过期',
+    '已废', '失效', '不可用', '可用', '暂时', '临时', '待办', '提醒',
+    '状态', '快照', '截至', '此时',
+)
+
+
+def looks_like_state(content):
+    """P0-07 写入侧判据：这条是否在描述「当前状态」（会随时间失效）。"""
+    c = content or ''
+    return any(w in c for w in _STATE_TELL)
+
+
 def is_generic_garbage(content, min_len=20, min_generic=2):
     """质量门禁：判定"无主语泛化短句"（实测清掉这2条后 8/8 top1 正确）。
     规则：长度<20字 且 无ASCII实体(>=3连续字母) 且 泛化词>=2。"""
@@ -658,7 +714,7 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
     """
     q = (query or '').strip()
     if not q:
-        return {'query': q, 'results': []}
+        return {'query': q, 'results': [], 'ttl_expired_n': 0}
 
     # ★精排模型：显式传入 > 环境变量 MEM_RERANK_MODEL > 'bge'
     rerank_model = rerank_model or os.environ.get('MEM_RERANK_MODEL') or 'bge'
@@ -683,7 +739,7 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
     #   不加这一列，加权就只能全用默认 0.5，升级等于空转。
     #   旧库若无此列，gateway.init_db() 的 _ensure_columns() 会自动补上（幂等）。
     active = {r['uid']: dict(r) for r in conn.execute(
-        "SELECT uid, content, type, source, scope, updated_at, q_value"
+        "SELECT uid, content, type, source, scope, updated_at, q_value, tags, valid_to"
         " FROM facts WHERE status='active'").fetchall()}
     # ★2026-09-15：资产一并入候选池（kind='tool'），否则「XX装在哪」永远查不到
     assets = {}
@@ -799,7 +855,29 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
                     'source': f['source'], 'score': round(sc, 5),
                     'semantic': vec_sim.get(uid, 0.0),
                     'updated_at': f.get('updated_at') or '',
+                    # P0-07：把复核截止日带进结果，供降权与标注
+                    'ttl': _parse_ttl(f.get('tags'), f.get('valid_to'), f.get('content')),
                     'reason': reason})
+    # ★4.4) P0-07 TTL 降权（2026-09-24）：过期结论不得静默当"当前事实"返回。
+    #   与自指降权同层（都在 RRF 之后、精排之前），乘性因子可叠加。
+    #   ★刻意**不删除**：过期条目仍要能被检索到（否则"我曾说过什么"永久丢失），
+    #     但必须降权 + 带 ttl_note，让下游一眼看出它不是当前答案。
+    _ttl_expired = 0
+    for x in out:
+        _exp, _left = _ttl_state(x.get('ttl'))
+        if _exp:
+            _ttl_expired += 1
+            x['score'] = round(x['score'] * TTL_EXPIRED_FACTOR, 5)
+            x['ttl_expired'] = True
+            x['ttl_note'] = '⚠ 已于 %s 到期，可能不是当前状态，引用前请复核' % x['ttl']
+            x['reason'] = list(x.get('reason') or []) + ['ttl-expired↓']
+        elif x.get('ttl'):
+            x['ttl_expired'] = False
+            x['ttl_note'] = '复核截止日 %s（剩 %s 天）' % (x['ttl'], _left)
+        else:
+            x['ttl_expired'] = False
+            x['ttl_note'] = None
+
     # ★4.5) 自指降权：把"关于这个查询的元讨论"压到"这个查询的答案"之下。
     #    （详见 _is_self_referential 的注释。字面路给了它们满额加分，这里收回来。）
     #    ★注意用**乘法压到很狠**：实测当查询含 ASCII 文件名（如 mcp_server.py）时，
@@ -894,7 +972,8 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
                 print('[warn] Q-Value 加权失败（排序退化为纯相关性）:', str(e)[:80],
                       file=sys.stderr)
 
-    return {'query': q, 'results': out[:limit]}
+    # P0-07：回传过期条数，供 CLI/上层做「本次召回里有多少条已过期」提示
+    return {'query': q, 'results': out[:limit], 'ttl_expired_n': _ttl_expired}
 
 
 if __name__ == '__main__':

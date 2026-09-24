@@ -451,6 +451,17 @@ def remember(content, type='fact', source=DEFAULT_SOURCE, scope='shared', subjec
         否则查"09-12 系统认为什么为真"会得出错误结论。
     """
     source = _guard_source(source)
+    # ★P0-07 (2026-09-24)：写入侧 TTL 提醒——状态类结论（“当前/最新/余额/可用…”）
+    #   会随时间失效，却没有复核截止日 → 后继会话会把旧结论当当前答案（已实际发生）。
+    #   ★刻意只 warning 不拒写：拒写会打断生产写入；提示到 stderr 足以让人补 ttl。
+    try:
+        import memsearch as _ms
+        if _ms.looks_like_state(content) and not _ms._parse_ttl(tags, None, content):
+            sys.stderr.write(
+                '[P0-07] 疑似状态类结论但无 TTL：建议在 tags 或正文写 ttl:YYYY-MM-DD，'
+                '否则过期后会被降权并标注「可能不是当前状态」。\n')
+    except Exception:
+        pass
     init_db()
     conn = get_conn()
     try:

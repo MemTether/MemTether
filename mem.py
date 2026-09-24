@@ -494,8 +494,10 @@ def cmd_search(a) -> None:
                 continue
             print('命中 %d 条（engine=%s, 查询 %r）' % (len(res), r.get('engine', '?'), kw))
             for item in res:
-                print('  [%s|%s] %.3f %s' % (item.get('type', 'fact'), item.get('source', '?'),
-                                              item.get('score', 0), str(item.get('content', ''))[:200]))
+                _ttl_note = item.get('ttl_note')
+                print('  [%s|%s] %.3f %s%s' % (item.get('type', 'fact'), item.get('source', '?'),
+                                              item.get('score', 0), str(item.get('content', ''))[:200],
+                                              ('  ' + str(_ttl_note)) if _ttl_note else ''))
             if _v and _v.get('level') == 'weak':
                 print('  ⚠ %s' % _v.get('note'))
         return
