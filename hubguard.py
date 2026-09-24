@@ -75,7 +75,15 @@ def _looks_like_hub(p):
         try:
             r = conn.execute("SELECT 1 FROM sqlite_master "
                              "WHERE type='table' AND name='facts'").fetchone()
-            return bool(r)
+            if not r:
+                return False
+            # ★P0-11 (2026-09-24): 0 行空壳库不算 hub（曾把 65KB/0 行的
+            #   memtether/memory.db 误认为真源库，锁加错地方）
+            try:
+                n = conn.execute("SELECT COUNT(*) FROM facts").fetchone()[0]
+                return n > 0
+            except Exception:
+                return False
         finally:
             conn.close()
     except Exception:
@@ -125,7 +133,8 @@ def db_path(explicit=None, explain=False):
         else:
             p = os.path.join(HUB, 'memory.db')
             origin = 'hub'
-            if not os.path.exists(p):
+            # ★P0-11 (2026-09-24): 空壳库判据——存在但 facts 0 行 → 跳过走发现链
+            if not os.path.exists(p) or not _looks_like_hub(p):
                 d, o = _discover_db()
                 if d:
                     p, origin = d, 'discovered:' + o

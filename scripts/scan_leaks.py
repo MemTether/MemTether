@@ -57,7 +57,7 @@ HERE = os.environ.get('MEM_SCAN_REPO') or os.path.dirname(os.path.dirname(os.pat
 # ★2026-09-16：加 MEM_SCAN_REPO 环境变量 —— 扫描器不该只能扫"自己所在的仓库"。
 #   实际需求：用 memory_hub 里这一份，去扫**发布库 memtether** 的历史。
 #   没有这个开关时，把脚本拷过去会让 HERE 指到 memtether 的父目录，扫错仓库还看不出来。
-#   （踩坑：第一版直接 cp 过去跑，HERE 变成仓库的父目录，静默扫错目标。）
+#   （踩坑：第一版直接 cp 过去跑，HERE 变成 E:\RUANJIAN，静默扫错目标。）
 HERE = os.path.abspath(HERE)
 
 # ★2026-09-16：项目专属敏感词（真名 / 班级 / 安全事件词）改为**外部加载**。
@@ -264,24 +264,45 @@ def report(findings):
 
 
 def _fix_stdio():
-    """★2026-09-22：stdout/stderr 按 UTF-8 重配（errors=replace）。
-
-    本脚本是**发布前的泄密闸门**，输出里有 ✗/✓ 等 Unicode 符号。
-    Windows 控制台默认 GBK ⇒ 实测直接 UnicodeEncodeError 崩在 report() 里，
-    退出码 1 —— 会被误读成「发现泄密」，而真相是**根本没扫完**。
-    一道保护发布的闸门自己会崩，比没有闸门更危险。
+    """stdout/stderr UTF-8 reconfigure (errors=replace).
+    Windows GBK console causes UnicodeEncodeError on unicode symbols in report(),
+    exit 1 misread as "leak found" when actually scan did not finish.
+    Ported from memtether copy 2026-09-24.
     """
-    for _name in ('stdout', 'stderr'):
+    for _name in ("stdout", "stderr"):
         _s = getattr(sys, _name, None)
         try:
-            if _s is not None and hasattr(_s, 'reconfigure'):
-                _s.reconfigure(encoding='utf-8', errors='replace')
+            if _s is not None and hasattr(_s, "reconfigure"):
+                _s.reconfigure(encoding="utf-8", errors="replace")
         except Exception:
             pass
 
 
 def main():
-    _fix_stdio()
+    if "--commit-msg" in sys.argv:
+        # P0-10: scan commit message from stdin, block on sensitive hits.
+        msg = sys.stdin.read()
+        findings = []
+        for i, line in enumerate(msg.splitlines(), 1):
+            if any(b.search(line) for b in BENIGN_LINE):
+                continue
+            for cat, pat, lvl, note in RULES:
+                for m in re.finditer(pat, line):
+                    findings.append({
+                        "file": "<commit-msg>", "line": i, "cat": cat,
+                        "level": lvl, "match": m.group(0)[:60],
+                        "snippet": line.strip()[:110], "note": note,
+                    })
+        _fix_stdio()
+        if findings:
+            print("commit-msg scan: %d hit(s)" % len(findings), file=sys.stderr)
+            for f in findings:
+                print("  [%s] L%d %s: %s" % (f["level"], f["line"], f["cat"], f["match"]), file=sys.stderr)
+        if _MISSING:
+            print("commit-msg scan: terms file missing -> cannot verify", file=sys.stderr)
+            sys.exit(2)
+        sys.exit(1 if any(f["level"] == "block" for f in findings) else 0)
+
     fs = scan()
     if '--json' in sys.argv:
         print(json.dumps(fs, ensure_ascii=False, indent=2))
