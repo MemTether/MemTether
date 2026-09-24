@@ -544,8 +544,11 @@ def correct(old_uid, new_content, reason, by_agent=DEFAULT_SOURCE, valid_from=No
         ts = now()
         nvf = valid_from or ts          # 新事实的 T 轴起点
         # 旧事实标记 superseded
+        # ★2026-09-24：旧行 supersede 后清 pin（同 memory_hub）
         conn.execute("UPDATE facts SET status='superseded', superseded_by=?, valid_to=?, "
-                     "invalidated_at=?, updated_at=? WHERE uid=?",
+                     "invalidated_at=?, updated_at=?, tags=(CASE WHEN lower(COALESCE(tags,'')) LIKE '%pin%' "
+                     "THEN trim(replace(replace(',' || tags || ',', ',pin,', ','), ',PIN,', ','), ',') ELSE tags END) "
+                     "WHERE uid=?",
                      (new_uid, nvf, ts, ts, old_uid))
         # 新事实写入
         conn.execute(
@@ -576,8 +579,11 @@ def retire(uid, reason, by_agent=DEFAULT_SOURCE):
     conn = get_conn()
     try:
         ts = now()
+        # ★2026-09-24：退役时清掉 pin tag（同 memory_hub）
         conn.execute("UPDATE facts SET status='retired', valid_to=?, invalidated_at=?, "
-                     "updated_at=? WHERE uid=?",
+                     "updated_at=?, tags=(CASE WHEN lower(COALESCE(tags,'')) LIKE '%pin%' "
+                     "THEN trim(replace(replace(',' || tags || ',', ',pin,', ','), ',PIN,', ','), ',') ELSE tags END) "
+                     "WHERE uid=?",
                      (ts, ts, ts, uid))
         conn.execute("UPDATE tool_assets SET status='retired', updated_at=? WHERE uid=?",
                      (ts, uid))
