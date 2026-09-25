@@ -17,7 +17,10 @@ memtether_export.py — L2 记忆可移植性（2026-09-24）
 import sys, io, os, json, sqlite3, argparse, datetime, hashlib
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
 
-DB = os.environ.get('MEM_DB') or os.path.join(os.path.dirname(os.path.abspath(__file__)), 'memory.db')
+# ★2026-09-25：改用单点解析（memtether_paths），不再各写一份默认路径。
+#   原实现默认落到本目录 64KB 占位库 -> 导出的是空快照（跑起来不报错、但结果错）。
+import memtether_paths as _mp
+DB = _mp.default_db()
 
 SCHEMA_VERSION = 1  # 每次不兼容的 schema 变更 +1
 

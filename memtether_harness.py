@@ -28,9 +28,8 @@ memtether_harness.py — L1 上下文工程统一 Harness（2026-09-24）
   发布库（memtether/）与生产库（memory_hub/）同源异码。本仓 memsearch.py 的
   默认 DB 是本目录的 memory.db（发布库占位库，64KB 空库）。若不显式切库，
   harness 会检索**空库**并静默返回空结果（跑起来不报错、但结果错的那一类）。
-  解析顺序（fail-safe，不抛异常）：
-    $MEM_DB（显式指定，最高优先） → local_paths.json 的 hub_dir/memory.db
-    → 本目录 memory.db（开源克隆形态，无 memory_hub 时保持原行为）
+  解析顺序（fail-safe，不抛异常，统一走 memtether_paths）：
+    $MEM_DB → $MEM_HUB_DIR/memory.db → local_paths.json(hub_dir)/memory.db → 本目录 memory.db
   同时把 MEM_STORE 指到真源库同目录的 mem0_store，避免「真源库与向量库拆开」。
 """
 import sys, io, os, json, re
@@ -41,41 +40,10 @@ sys.path.insert(0, HERE)
 MAX_CONTEXT_CHARS = int(os.environ.get('MEM_CONTEXT_BUDGET') or '3500')
 
 
-def _resolve_hub_dir():
-    """解析生产记忆中枢目录；找不到返回 None（开源克隆形态）。"""
-    # 1) 显式环境变量优先
-    env_hub = (os.environ.get('MEM_HUB_DIR') or '').strip()
-    if env_hub:
-        return env_hub
-    # 2) local_paths.json（本机专有，gitignored）
-    try:
-        with open(os.path.join(HERE, 'local_paths.json'), encoding='utf-8') as f:
-            cfg = json.load(f)
-        hub = (cfg.get('hub_dir') or '').strip()
-        if hub:
-            return hub
-    except (OSError, ValueError):
-        pass
-    return None
-
-
 def _ensure_db_env():
-    """若未显式指定 MEM_DB，则自动指向生产库。返回实际使用的 DB 路径（诊断用）。"""
-    if os.environ.get('MEM_DB'):
-        return os.environ['MEM_DB']
-    hub = _resolve_hub_dir()
-    if hub:
-        cand = os.path.join(hub, 'memory.db')
-        if os.path.exists(cand):
-            os.environ['MEM_DB'] = cand
-            # 向量库与真源库同步切换
-            if not os.environ.get('MEM_STORE'):
-                store = os.path.join(hub, 'mem0_store')
-                if os.path.isdir(store):
-                    os.environ['MEM_STORE'] = store
-            return cand
-    # 无生产库：保持本目录原行为（开源克隆）
-    return os.path.join(HERE, 'memory.db')
+    """若未显式指定 MEM_DB，则自动指向生产库（走单点解析）。"""
+    import memtether_paths as _mp
+    return _mp.ensure_env()[0]
 
 
 # 在 import memsearch 之前完成路径注入（memsearch 在模块导入时计算 DB 常量）
