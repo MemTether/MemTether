@@ -1,4 +1,4 @@
-﻿# MemTether —— 打包配置（★唯一构建配置，就这一处）
+# MemTether —— 打包配置（★唯一构建配置，就这一处）
 #
 # 为什么在仓库根，而不是 `packaging/`
 # ----------------------------------
@@ -142,5 +142,12 @@ py-modules = [
     "rerank_k_bench", "smoke_bitemporal", "test_autosync", "test_triggers",
     "qvalue_ab",            # Q-Value 开/关 A/B 对照（分数不得下降）
     "qvalue_upshift_test",  # Q-Value 排序上移实测（副本库 + 正本索引）
+    "concurrent_stress",     # 并发压力测试
+    "memtether_export",      # 导出（PII 脱敏快照）
+    "memtether_guard",       # 发布守卫
+    "memtether_harness",     # 测试 harness
+    "memtether_paths",       # 路径解析
+    "memtether_pipeline",    # 管线编排
+    "test_pii_roundtrip",    # PII 往返测试
 ]
 

@@ -3,10 +3,10 @@
   "repo": "memtether",
   "head_at_baseline": "494801552872000f3019cfcb7eda7718ac3dd6b4",
   "files": {
-    "README.md": "c19077ca69a194b3a18f52dd35f6e3ec",
+    "README.md": "dc725f1c67034969649812832d318aba",
     "SECURITY.md": "b2c0a96e2746d1f3eba65030ce5f9cdd",
     "LICENSE": "3b83ef96387f14655fc854ddc3c6bd57",
-    ".gitignore": "68041f49f5fce8fb4eee4359bea98b93",
+    ".gitignore": "688ff1baeacc03bc1ab30d5fb2ce672f",
     "ARCHITECTURE.md": "228273e5ac107850684ec2c838b98d3e"
   }
 }
