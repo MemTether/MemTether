@@ -1408,10 +1408,19 @@ def rebuild():
                 _bucket[_t] = list(_lst)
             else:
                 _idxed = list(enumerate(_lst))
+                # ★2026-09-25 十一修（Q-Value 槽位优先）：
+                #   auto-reinforce 积累的使用信号（q_value / use_count）此前只影响
+                #   检索排序（memsearch.py），投影选择完全忽略——高价值条目仍被
+                #   带内 lead 长度挤掉。借鉴 context-engine 槽位分级 + leanctx
+                #   loss-tolerance routing，在带内加 q_value 降序因子：
+                #   band 不变（保持新→旧），带内先按 q_value 降序、再按 lead 长度升序。
+                #   效果：被实际检索过的高 Q 条目优先进 3980 槽位，实现"用得越多越能留"。
+                #   回退：q_value 相同（默认 0.5）时退化为十修的短条优先，零行为差异。
                 _bucket[_t] = [
                     _ip for _rank, _ip in sorted(
                         _idxed,
                         key=lambda _rv: (_rv[0] // _band,
+                                        -float(_rv[1][1][2]['q_value'] or 0.5),
                                         len(_lead(_rv[1][1][2]['content'])),
                                         _rv[0]))
                 ]
