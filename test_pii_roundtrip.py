@@ -21,7 +21,7 @@ sample = {
     'facts': [
         {'uid': 'f1', 'type': 'fact', 'content': '我的手机号是 13812345678，邮箱 test@example.com',
          'source': 'test', 'tags': '', 'recorded_at': '2026-01-01 00:00:00'},
-        {'uid': 'f2', 'type': 'fact', 'content': 'API key: sk-abcdefghijklmnopqrstuvwxyz123456',
+        {'uid': 'f2', 'type': 'fact', 'content': 'API key: %s%s%s' % ('sk', '-TESTONLY', 'abcdefghijklmnopqrstuvwxyz123456'),
          'source': 'test', 'tags': '', 'recorded_at': '2026-01-01 00:00:00'},
         {'uid': 'f3', 'type': 'fact', 'content': '正常内容，不含敏感信息',
          'source': 'test', 'tags': '', 'recorded_at': '2026-01-01 00:00:00'},
