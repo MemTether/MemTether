@@ -1294,19 +1294,24 @@ def rebuild():
         #       另：截断位置改为**回退到最近的句读**，避免出现「…决定中枢上限的四个硬约」这种断头。
         _LINE_CAP = 160
 
-        def _lead(txt):
+        # ★2026-09-26 十二修（类型感知压缩 · leanctx loss-tolerance routing 思路）：
+        #   pin/decision 类是"高置信事实"，压坏结论等于丢事实 → 全量保留（cap=None）。
+        #   experience 是过程叙事，信息密度最低 → 更激进截断（100），给高价值类型腾槽位。
+        #   fact/incident 维持 160 拐点（四修实测该值能保证"条条完整首句"）。
+        _LEAD_CAP = {'pin': None, 'decision': None, 'experience': 100}
+        def _lead(txt, _cap=None):
             t = _re.sub(r'^【[^】]*】', '', (txt or '').strip()).strip()
             m = _re.search(r'[。；;！!？?\n]', t)
             if m and 0 < m.start() < _LINE_CAP:
                 t = t[:m.start()].strip()
-            elif len(t) > _LINE_CAP:
-                seg = t[:_LINE_CAP]
+            elif len(t) > (_cap or _LINE_CAP):
+                _use_cap = (_cap or _LINE_CAP); seg = t[:_use_cap]
                 best = -1
                 for _p in '。；，、：;:！？':
                     _i = seg.rfind(_p)
                     if _i > best:
                         best = _i
-                if best > _LINE_CAP * 0.5:
+                if best > _use_cap * 0.5:
                     t = seg[:best + 1] + '…'
                 else:
                     t = seg.rstrip() + '…'
@@ -1421,7 +1426,7 @@ def rebuild():
                         _idxed,
                         key=lambda _rv: (_rv[0] // _band,
                                         -float(_rv[1][1][2]['q_value'] or 0.5),
-                                        len(_lead(_rv[1][1][2]['content'])),
+                                        len(_lead(_rv[1][1][2]['content'], _LEAD_CAP.get(_rv[1][1][2]['type'], _LINE_CAP))),
                                         _rv[0]))
                 ]
         _k = 0
