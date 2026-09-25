@@ -335,7 +335,7 @@ def lock_acquire(timeout=None, agent=None, purpose='', db=None):
     """拿锁。同进程同线程可重入（depth 计数），同进程不同线程串行，跨进程靠 OS 锁。"""
     lp = lock_path(db)
     if timeout is None:
-        timeout = float(os.environ.get('MEM_LOCK_TIMEOUT', '20'))
+        timeout = float(os.environ.get('MEM_LOCK_TIMEOUT', '120'))
     agent = agent or os.environ.get('MEM_AGENT') or 'unknown'
     rl = _rlock_for(lp)
     if not rl.acquire(timeout=max(0.1, timeout)):
