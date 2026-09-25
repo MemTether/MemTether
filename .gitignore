@@ -160,3 +160,7 @@ tg_*.py
 # 2026-09-25: models 是指向本机 memory_hub/models 的符号链接（绝对路径，不可移植）。
 #   原规则 'models/' 只匹配目录，符号链接不是目录 -> 规则空转，故补无斜杠版本。
 models
+
+# 本机专有路径（含盘符）—— 与 memory_hub 同构，绝不进仓库。
+#   memtether_harness / 其它需要真源库的工具读它；缺失时优雅降级回本目录。
+local_paths.json
