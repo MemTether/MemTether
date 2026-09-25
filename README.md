@@ -2,6 +2,17 @@
 
 > **一句话：让多个异构 AI 客户端共享同一份物理记忆，而不是同步各自的副本。**
 
+![PyPI](https://img.shields.io/pypi/v/memtether) ![Python](https://img.shields.io/pypi/pyversions/memtether) ![License](https://img.shields.io/github/license/MemTether/MemTether)
+
+[![安装 · PyPI](https://img.shields.io/badge/PyPI-memtether-blue)](https://pypi.org/project/memtether/) · [![源码 · GitHub](https://img.shields.io/badge/GitHub-MemTether-black)](https://github.com/MemTether/MemTether)
+
+## 安装
+
+```bash
+pip install memtether
+# 语义检索档（可选）：pip install "memtether[vector]"
+```
+
 换一个 AI 客户端，它就不认识你了 —— 这件事几乎每个在多个客户端/账号之间切换的人都遇到过。
 主流方案的答案是"同步"：各存一份，然后对齐。同步必然漂移，漂移之后各说各话。
 MemTether 的答案更简单：**让它们指向同一份文件**。
@@ -408,7 +419,7 @@ MemTether 的卖点是**可验证性**：评分卡源码、评测集、双判分
 - [x] 客户端自动接入器（`memtether-connect`：发现 / 预演 / 写入 / 校验 / 回滚；23 个适配器）
 - [x] MCP server 的来源自动识别（父进程映像名 + 命令行两级；零配置，不动 `env` 以免掉信任）
 - [~] 「被采纳」的自动判定（Q-Value 上游）：**MCP `feedback` tool 已上线**（09-25），客户端可显式回写；全自动判定需客户端配合，仍是路线图项
-- [ ] 发布到 PyPI（当前只能从仓库装）
+- [x] 发布到 PyPI（[pip install memtether](https://pypi.org/project/memtether/)）
 - [x] 语义相似度 boost（R1）— 高语义候选被关键词噪音淹没时自动上浮
 - [x] 索引一致性闸门（R2）— 向量索引漂移超阈值自动重建
 - [x] PII 脱敏层 + 导出快照 round-trip 测试（L2/T7/R3）
