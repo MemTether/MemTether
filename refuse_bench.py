@@ -152,7 +152,7 @@ def verify(verbose=True):
     warn_only = []
     for n in spec['negatives']:
         problems = []
-        for tok in n.get('must_be_absent', []):
+        for tok in (n.get('must_be_absent') or []):
             c = _occurs(blob_low, tok)
             if c:
                 # 2026-09-22 修：must_be_absent 的语义是"库里没有这个**答案**"，
