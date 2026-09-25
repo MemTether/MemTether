@@ -167,3 +167,8 @@ local_paths.json
 
 # Git Credential Manager 明文凭据缓存（2026-09-25 补：绝不入库）
 .gcm/
+# 评测复跑产物（2026-09-26 补：结果 JSON 是运行时输出，不该进仓库）
+bench_result.json
+refuse_bench_result.json
+refuse_bench_raw.json
+hard_bench_result.json
