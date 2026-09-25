@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 bench_longmemeval.py —— 轨道 A：LongMemEval 通用基准（外卷，非自出题）
@@ -96,7 +96,8 @@ def build_scratch_db(item, db_path=BENCH_DB, verbose=False):
         uid TEXT UNIQUE, type TEXT, subject TEXT, content TEXT,
         status TEXT DEFAULT 'active', superseded_by TEXT,
         valid_from TEXT, valid_to TEXT, source TEXT, scope TEXT,
-        confidence REAL, tags TEXT, created_at TEXT, updated_at TEXT)""")
+        confidence REAL, tags TEXT, created_at TEXT, updated_at TEXT,
+        q_value REAL DEFAULT 0.5, use_count INTEGER DEFAULT 0)""")
     conn.execute("""CREATE TABLE tool_assets (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         uid TEXT UNIQUE, name TEXT, aliases TEXT, type TEXT, path TEXT,
