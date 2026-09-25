@@ -1,4 +1,4 @@
-# MemTether · 跨客户端 AI 记忆中枢
+﻿# MemTether · 跨客户端 AI 记忆中枢
 
 > **一句话：让多个异构 AI 客户端共享同一份物理记忆，而不是同步各自的副本。**
 
@@ -402,7 +402,7 @@ MemTether 的卖点是**可验证性**：评分卡源码、评测集、双判分
 
 ## 已知限制（实测，别被它们误导）
 
-### 1. `tether_connect detect` 对「同源异路径」的配置会误报未接入
+### 1. tether_connect detect 对「同源异路径」的配置会误报未接入
 
 `detect` / `plan` 判定接入的依据是**配置里的 MCP 路径必须等于发布仓自己的
 `memtether/mcp_server.py`**。因此当某个客户端按设计指向**另一份同源副本**时
@@ -416,14 +416,14 @@ MemTether 的卖点是**可验证性**：评分卡源码、评测集、双判分
 > 实测记录（2026-09-22）：本机 10 个落点全部报「未接入/不一致」，
 > 但逐个核对配置后确认 10/10 实际均已接入，且 `mem.py search` 全部命中。
 
-### 2. `dsh` 的 `cordis.patch.yml` 若为手工深度定制，工具无法安全改写
+### 2. dsh 的 cordis.patch.yml 若为手工深度定制，工具无法安全改写
 
 `cordis.patch.yml` 允许 `!!js` 表达式，工具侧做「改写前先解析校验」时
 可能解析不了定制版文件，此时**放弃写盘、原文不动**（fail-closed，不会写坏）。
 若该 profile 的 `insert:` 块里已手工写好 `mcp-memory-hub`，
 那它已经接入，不需要工具再动。
 
-### 3. `memory_hub` 与 `memtether` 是两份同源代码，改动要判方向
+### 3. memory_hub 与 memtether 是两份同源代码，改动要判方向
 
 两仓各有 `gateway.py` / `memsearch.py` / `mem.py` / `mcp_server.py` 等，
 本机生产用 `memory_hub`，对外发布用 `memtether`。**不是同步镜像**：
