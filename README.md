@@ -128,16 +128,14 @@ install.bat
 ### 方式 A：装成一个包（推荐）
 
 ```bash
-# 从 PyPI（★尚未发布，占位中；现在请用下面那条）
 pip install memtether
 
-# 现在就能用：直接从仓库装
-pip install "memtether @ git+https://github.com/MemTether/MemTether"
+# 已发布到 PyPI：https://pypi.org/project/memtether/
 
 # 想要语义检索（本地 embedding + 向量库）再加这一档：
 #   多装 chromadb / onnxruntime / tokenizers；缺它时检索自动降级为
 #   关键词 + 字面（会打印 [warn]，不崩，但排序质量下降）
-pip install "memtether[vector] @ git+https://github.com/MemTether/MemTether"
+pip install "memtether[vector]"
 ```
 
 装完得到一个 `memtether` 命令，**不再依赖仓库目录**：
