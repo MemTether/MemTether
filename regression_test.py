@@ -2,6 +2,16 @@
 """8 条真实查询的回归测试（astra 建议的验收标准）"""
 import sys, os, json
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+try:
+    import memtether_paths as _mp
+    _db = _mp.default_db()
+    if _db and os.path.isfile(_db):
+        os.environ.setdefault('MEM_DB', _db)
+        _store = os.path.join(os.path.dirname(_db), 'mem0_store')
+        if os.path.isdir(_store):
+            os.environ.setdefault('MEM_STORE', _store)
+except ImportError:
+    pass
 import memsearch
 
 CASES = [
