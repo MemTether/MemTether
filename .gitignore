@@ -156,3 +156,7 @@ claw_channel_watchdog.py
 # Telegram 搜书脚本（含本机会话路径；只在脱敏副本外运行，绝不入公开库）
 tg_*.py
 
+
+# 2026-09-25: models 是指向本机 memory_hub/models 的符号链接（绝对路径，不可移植）。
+#   原规则 'models/' 只匹配目录，符号链接不是目录 -> 规则空转，故补无斜杠版本。
+models
