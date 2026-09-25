@@ -978,6 +978,35 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
                       file=sys.stderr)
 
     # P0-07：回传过期条数，供 CLI/上层做「本次召回里有多少条已过期」提示
+
+    # 8) ★Q-Value auto-reinforce（2026-09-25）：检索命中即按 relevance 自动回写。
+    #    Lethe 式做法：不等客户端显式 feedback，检索完成后就对 top-k 结果
+    #    按 score（已归一化 ∈ [0,1]）作为 reward 调 gateway.bump_qvalue。
+    #    假设："检索出来了 = 大概率被用到"（Lethe benchmark：false-forget 0.207 vs FIFO 0.507）。
+    #    ★默认关（MEM_QVALUE_AUTO 未设或为 0/false/off/no），不影响现有排序。
+    #    开了之后：只 reinforce 前 auto_k 条（默认 3），避免所有候选都加分导致信号稀释。
+    #    失败静默（不崩检索），只在首次时打一行 warn。
+    _auto = (os.environ.get("MEM_QVALUE_AUTO") or "").strip().lower()
+    if _auto in ("1", "true", "yes", "on") and out:
+        try:
+            import gateway as _gw
+            _auto_k = int(os.environ.get("MEM_QVALUE_AUTO_K") or 3)
+            _auto_k = max(1, min(_auto_k, len(out)))
+            for x in out[:_auto_k]:
+                _uid = x.get("uid") or ""
+                _rel = float(x.get("score") or 0.0)
+                if not _uid or _rel <= 0:
+                    continue
+                # reward = min(1.0, relevance)：score 已经归一化过，直接用
+                _gw.bump_qvalue(uid=_uid, reward=min(1.0, _rel),
+                                agent=os.environ.get("MEM_SOURCE") or "auto_reinforce",
+                                detail="auto: rel=%.3f" % _rel)
+        except Exception as e:
+            if not getattr(search_hybrid, "_warned_ar", False):
+                search_hybrid._warned_ar = True
+                print("[warn] Q-Value auto-reinforce 失败（不影响排序）:", str(e)[:80],
+                      file=sys.stderr)
+
     return {'query': q, 'results': out[:limit], 'ttl_expired_n': _ttl_expired}
 
 
