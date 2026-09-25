@@ -20,7 +20,9 @@ from dataclasses import dataclass, field, asdict
 from . import jsonc
 
 HOME = os.path.expanduser("~")
-BACKUP_ROOT = os.path.join(HOME, ".memtether", "backups")
+# 允许受限环境（沙箱 / CI / 便携部署）把备份根指到可写目录。
+# 未设置时保持原行为：~/.memtether/backups
+BACKUP_ROOT = os.environ.get("MEMTETHER_BACKUP_HOME") or os.path.join(HOME, ".memtether", "backups")
 
 # 规范化的 MCP server 描述（各适配器负责翻译成自家 schema）
 @dataclass
