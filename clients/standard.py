@@ -37,11 +37,28 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 
 from .base import JsonAdapter, Target, ServerSpec, read_text, atomic_write, backup, Change, _stamp
 from . import jsonc
 
 HOME = os.path.expanduser("~")
+
+def _pick_config(paths):
+    """按 win → mac → linux 顺序返回第一个已存在的路径；
+
+    都不存在时按当前平台返回默认值（win32 取第一个，darwin 取第二个，
+    linux 取最后一个）。这使 macOS/Linux 上的 config_path() 不再
+    硬编码 Windows APPDATA 路径（E-1 修复）。
+    """
+    for p in paths:
+        if os.path.exists(p):
+            return p
+    if sys.platform == "win32":
+        return paths[0]
+    if sys.platform == "darwin" and len(paths) > 1:
+        return paths[1]
+    return paths[-1]
 APPDATA = os.environ.get("APPDATA", os.path.join(HOME, "AppData", "Roaming"))
 LOCALAPPDATA = os.environ.get("LOCALAPPDATA", os.path.join(HOME, "AppData", "Local"))
 
@@ -85,7 +102,11 @@ def _mk(cls_name, client_id, display, path_fn, root, extra=None, strip=(), docs=
 # 逐个客户端
 # --------------------------------------------------------------------------
 def _claude_desktop():
-    return os.path.join(APPDATA, "Claude", "claude_desktop_config.json")
+    return _pick_config([
+        os.path.join(APPDATA, "Claude", "claude_desktop_config.json"),
+        os.path.join(HOME, "Library", "Application Support", "Claude", "claude_desktop_config.json"),
+        os.path.join(HOME, ".config", "Claude", "claude_desktop_config.json"),
+    ])
 
 
 def _claude_code():
@@ -97,11 +118,19 @@ def _cursor():
 
 
 def _windsurf():
-    return os.path.join(HOME, ".codeium", "windsurf", "mcp_config.json")
+    return _pick_config([
+        os.path.join(HOME, ".codeium", "windsurf", "mcp_config.json"),
+        os.path.join(HOME, "Library", "Application Support", "Windsurf", "mcp_config.json"),
+        os.path.join(HOME, ".config", "windsurf", "mcp_config.json"),
+    ])
 
 
 def _vscode_user():
-    return os.path.join(APPDATA, "Code", "User", "settings.json")
+    return _pick_config([
+        os.path.join(APPDATA, "Code", "User", "settings.json"),
+        os.path.join(HOME, "Library", "Application Support", "Code", "User", "settings.json"),
+        os.path.join(HOME, ".config", "Code", "User", "settings.json"),
+    ])
 
 
 def _vscode_ws():
@@ -109,22 +138,44 @@ def _vscode_ws():
 
 
 def _zed():
-    return os.path.join(APPDATA, "Zed", "settings.json")
+    return _pick_config([
+        os.path.join(APPDATA, "Zed", "settings.json"),
+        os.path.join(HOME, ".config", "zed", "settings.json"),
+        os.path.join(HOME, "Library", "Application Support", "Zed", "settings.json"),
+    ])
 
 
 def _cline():
-    return os.path.join(APPDATA, "Code", "User", "globalStorage",
-                        "saoudrizwan.claude-dev", "settings", "cline_mcp_settings.json")
+    return _pick_config([
+        os.path.join(APPDATA, "Code", "User", "globalStorage",
+                     "saoudrizwan.claude-dev", "settings", "cline_mcp_settings.json"),
+        os.path.join(HOME, ".config", "Code", "User", "globalStorage",
+                     "saoudrizwan.claude-dev", "settings", "cline_mcp_settings.json"),
+        os.path.join(HOME, "Library", "Application Support", "Code", "User", "globalStorage",
+                     "saoudrizwan.claude-dev", "settings", "cline_mcp_settings.json"),
+    ])
 
 
 def _roo():
-    return os.path.join(APPDATA, "Code", "User", "globalStorage",
-                        "rooveterinaryinc.roo-cline", "settings", "mcp_settings.json")
+    return _pick_config([
+        os.path.join(APPDATA, "Code", "User", "globalStorage",
+                     "rooveterinaryinc.roo-cline", "settings", "mcp_settings.json"),
+        os.path.join(HOME, ".config", "Code", "User", "globalStorage",
+                     "rooveterinaryinc.roo-cline", "settings", "mcp_settings.json"),
+        os.path.join(HOME, "Library", "Application Support", "Code", "User", "globalStorage",
+                     "rooveterinaryinc.roo-cline", "settings", "mcp_settings.json"),
+    ])
 
 
 def _kilo():
-    return os.path.join(APPDATA, "Code", "User", "globalStorage",
-                        "kilocode.kilo-code", "settings", "mcp_settings.json")
+    return _pick_config([
+        os.path.join(APPDATA, "Code", "User", "globalStorage",
+                     "kilocode.kilo-code", "settings", "mcp_settings.json"),
+        os.path.join(HOME, ".config", "Code", "User", "globalStorage",
+                     "kilocode.kilo-code", "settings", "mcp_settings.json"),
+        os.path.join(HOME, "Library", "Application Support", "Code", "User", "globalStorage",
+                     "kilocode.kilo-code", "settings", "mcp_settings.json"),
+    ])
 
 
 def _continue_yaml():
@@ -481,3 +532,5 @@ def by_id(client_id: str):
         if a.id == client_id:
             return a
     return None
+
+
