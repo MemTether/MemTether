@@ -23,79 +23,13 @@ OWASP 参考映射：
 import sys, io, os, re, json
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
 
-# === 检测规则 ===
-RULES = [
-    # (category, pattern, severity 0=info/1=warn/2=block, description)
-    # LLM01 Prompt Injection
-    ('prompt_injection', re.compile(r'忽略(?:之前|以上|上面|前)?(?:的|所有|之前的|之前所有)*?(?:指令|规则|约束|设置)', re.I), 2,
-     '试图让 agent 违反已有指令'),
-    ('prompt_injection', re.compile(r'(?:你是|你现在)(?:一个新的|不同的|无限制的)(?:AI|agent|模型)', re.I), 2,
-     '试图重定义 agent 身份'),
-    ('prompt_injection', re.compile(r'(?:system|系统)?(?:prompt|提示词)(?:如下|是|为)', re.I), 1,
-     '暴露或尝试操纵系统提示词'),
-    ('prompt_injection', re.compile(r'(?:你必须|你务必|请务必)(?:不顾|无视|忽略)', re.I), 2,
-     '要求无视安全约束'),
-
-    # LLM02 Insecure Output / Code Execution
-    ('code_exec', re.compile(r'(?:os\.system|subprocess\.(?:run|call|Popen)|eval\s*\(|exec\s*\()', re.I), 2,
-     '含直接代码执行模式'),
-    ('code_exec', re.compile(r'(?:curl|wget|Invoke-WebRequest)\s+https?://', re.I), 1,
-     '含外部资源下载命令'),
-    ('code_exec', re.compile(r'(?:rm\s+-rf|del\s+/[sqs]\s|Remove-Item.*-Recurse.*-Force)', re.I), 2,
-     '含破坏性文件系统命令'),
-
-    # LLM06 Sensitive Info
-    ('sensitive', re.compile(r'\b(?:sk-[a-zA-Z0-9]{20,}|ghp_[a-zA-Z0-9]{36}|gho_[a-zA-Z0-9]{36}|AKIA[A-Z0-9]{16})\b'), 2,
-     '含疑似 API 密钥/凭证'),
-    ('sensitive', re.compile(r'\beyJ[a-zA-Z0-9_-]{10,}\.eyJ[a-zA-Z0-9_-]{10,}\b'), 1,
-     '含疑似 JWT token'),
-    ('sensitive', re.compile(r'(?i)password\s*[=:]\s*\S{4,}'), 1,
-     '含疑似明文密码'),
-
-    # Social Engineering
-    ('social_eng', re.compile(r'(?:紧急|立即|马上| urgently|immediately).*(?:执行|运行|打开|点击|访问)', re.I), 1,
-     '社会工程：紧急诱导'),
-    ('social_eng', re.compile(r'(?:sudo|管理员|root|elevated).*(?:运行|执行|启动)', re.I), 1,
-     '要求提升权限执行'),
-]
-
-SCAN_KEY = '_guard_flags'
+# N7 (2026-09-25): 统一安全扫描管线——规则和函数都从 memtether_pipeline 取
+from memtether_pipeline import (GUARD_RULES as RULES, scan_content,
+                                sanitize_text, full_scan, SCAN_KEY)
 
 
-def scan_content(text):
-    """对单条文本扫描，返回 [(category, severity, matched_snippet, description), ...]"""
-    if not text or not isinstance(text, str):
-        return []
-    hits = []
-    for cat, pat, sev, desc in RULES:
-        m = pat.search(text)
-        if m:
-            start = max(0, m.start() - 10)
-            snippet = text[start:m.end() + 10].replace('\n', ' ')[:60]
-            hits.append({'category': cat, 'severity': sev, 'matched': snippet, 'description': desc})
-    return hits
 
 
-def scan_results(results):
-    """对 memsearch 返回的 results 列表扫描，添加 _guard_flags 字段。
-
-    不修改原始内容，只添加标记——调用方据此决定是否展示/信任该条记忆。
-    severity 2 = block：调用方应不信任/不执行该记忆中的指令
-    severity 1 = warn：调用方应谨慎对待
-    severity 0 = info：仅供参考
-    """
-    if not isinstance(results, list):
-        return results
-    for item in results:
-        if not isinstance(item, dict):
-            continue
-        content = item.get('content', '') or ''
-        hits = scan_content(content)
-        if hits:
-            item[SCAN_KEY] = hits
-            item['_guard_max_severity'] = max(h['severity'] for h in hits)
-        # else: 不加字段——保持干净，不增加无谓的 JSON 大小
-    return results
 
 
 def summary(results):

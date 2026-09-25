@@ -8,7 +8,8 @@ import sys, os, json, sqlite3, tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
-from memtether_export import sanitize_snapshot, PII_PATTERNS
+from memtether_export import sanitize_snapshot
+from memtether_pipeline import PII_PATTERNS
 
 def has_pii(text):
     if not isinstance(text, str):

@@ -26,50 +26,9 @@ SCHEMA_VERSION = 1  # 每次不兼容的 schema 变更 +1
 
 
 
-# ---- PII 脱敏层（T7 / 2026-09-25）----
-# L2 导出快照不应包含个人敏感信息。实测发现旧版直接把原始 content 导出，
-# 含手机号/邮箱/API key。此层在导出前扫描并替换。
-import re as _re
+# N7 (2026-09-25): 统一安全扫描管线——PII 脱敏从 memtether_pipeline 取
+from memtether_pipeline import sanitize_text, sanitize_snapshot
 
-PII_PATTERNS = [
-    # 中国大陆手机号
-    (_re.compile(r'\b(1[3-9]\d{9})\b'), '[PHONE]'),
-    # 邮箱（保守：不匹配 agent.qq.com 等服务域内部引用时也不替换密码字段）
-    (_re.compile(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.(?:com|cn|net|org|io|me|run|app|dev)\b'), '[EMAIL]'),
-    # API key / token
-    (_re.compile(r'\b(sk|zpu|hf_|ghp_)[A-Za-z0-9_\-]{20,}\b'), '[API_KEY]'),
-    (_re.compile(r'\bbearer\s+[A-Za-z0-9\-_.]{20,}', _re.I), 'Bearer [TOKEN]'),
-]
-
-def sanitize_text(text):
-    if not isinstance(text, str):
-        return text
-    for pat, repl in PII_PATTERNS:
-        text = pat.sub(repl, text)
-    return text
-
-def sanitize_snapshot(data):
-    """对快照中的所有 content / text 字段做 PII 脱敏。返回 (clean_data, n_changes)."""
-    n = 0
-    def _clean_str(val):
-        nonlocal n
-        if isinstance(val, str):
-            cleaned = sanitize_text(val)
-            if cleaned != val:
-                n += 1
-            return cleaned
-        return val
-
-    for section in ('facts', 'tool_assets'):
-        for item in data.get(section, []):
-            for key in list(item.keys()):
-                item[key] = _clean_str(item[key])
-
-    for sup in data.get('supersessions', []):
-        for key in ('reason', 'by_agent'):
-            if key in sup:
-                sup[key] = _clean_str(sup[key])
-    return data, n
 
 
 def export_data(out_path, include_retired=False):
