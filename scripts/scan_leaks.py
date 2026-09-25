@@ -140,6 +140,8 @@ BENIGN_LINE = [
     re.compile(r'\{20,\}'),
     re.compile(r'<见vault'),
     re.compile(r'脱敏'),
+    # PII 脱敏测试数据（test_pii_roundtrip.py 的示例手机号/邮箱，非真实 PII）
+    re.compile(r'13812345678|test@example\.com|13998765432'),
     re.compile(r'扫描|扫一遍|正则确认'),
 ]
 
