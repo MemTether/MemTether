@@ -76,14 +76,14 @@
 1. **装一处，两版生效。** `skillctl.py link` 实测两个客户端目录都 realpath 到 `~/.agents/skills`。
    共享靠文件级指针（junction），不是同步——所以不存在"两边漂移"。
 2. **治理杠杆在「每个 description 多少字」，不在「装几个」。**
-   79 个技能，注入成本 **26,013 字符**（name+description，平均 330/个）；
-   含 location 行 32,569 字符（平均 412/个）。真正的风险是检索质量被稀释，不是字符数本身。
+   09-25 复测 103 个技能，注入成本 **37,266 字符**（name+description，平均 361/个）；
+   比 09-18 首测的 79 个 / 26,013 涨了 43%。真正的风险是检索质量被稀释，不是字符数本身。
 3. **解析必须兼容 YAML 块标量。** 大量 `SKILL.md` 用 `description: >` 折叠成多行，
    单行正则只会读到那个 `>`。实测 **22,869 → 26,013，失真 3,144 字符（13.7%）**，
    并会把 10 个正常技能误判成「空壳」（`conducting-mobile-app-penetration-test`
    的描述从 1 字符变回 570 字符）。现在 frontmatter 解析只有 `skill_budget.parse_desc()`
    一个实现，`skillctl.py` 直接复用——**避免两套正则给出两套结论**。
-4. **重名族 ≠ 冗余，要人工看 description 才能定。** 79 个技能里 `skillctl.py families`
+4. **重名族 ≠ 冗余，要人工看 description 才能定。** 09-18 首测 79 个技能时 `skillctl.py families`
    报出 4 个重名族（前两 token 相同）。2026-09-18 逐条复核的结论是
    **1 个真重复、3 个合理拆分**——这正是不做自动删除的理由：
 
