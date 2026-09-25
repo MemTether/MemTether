@@ -378,7 +378,7 @@ E2E 是生产链路端到端探针（写入 → 检索 → 归属 → 单一真�
   `mem.py qvalue <uid>`，本项目**没有**自动判断"这条记忆被采纳了"的机制。
   但 09-24 已加入**时间衰减**（`q_decay = 0.5^(days/90)`，90 天半衰期）：即使
   Q-Value 尚未被回写，旧条目在排序中的"硬度"也会随时间自然下降，新条目
-  获得相对优先级。自动判定"被采纳"仍是路线图项。
+  获得相对优先级。09-25 已在 MCP server 加 `feedback` tool（`bump_qvalue`）：客户端检索命中后可显式调 `feedback(uid, reward)` 回写 Q-Value；但"全自动判定"仍需客户端配合，仍是路线图项。
 - **投影钉住（`pin`）只是缓解、不是解决**：它让少数"必须一直在"的定义类结论
   免于被时间序挤出，但注入槽位的总量瓶颈没变。
 
@@ -393,7 +393,7 @@ MemTether 的卖点是**可验证性**：评分卡源码、评测集、双判分
 - **Zep / Graphiti**：时序知识图谱，双时间轴定义即源于此 —— 偏企业级图存储
 - **Letta（MemGPT）**：OS 式分页，模型自己编辑记忆 —— 偏 agent 框架
 - **engram / agent-memory**：本地优先、单文件/单二进制 —— 工程形态最接近
-- **[delx-memory](https://github.com/davidmosiah/delx-memory)**：最接近的形态对标 —— 同样是「一个本地 SQLite + 多 agent MCP 共享」；但它是 KV 存储（key/value + tags），无双时间轴 / supersession / Q-Value / 技能锻造 / 客户端自动接入。亮点：xplicit_user_intent 硬闸门 + secret-blocking 写入端拦截 + lite transport（不加载 MCP SDK 降 RSS）
+- **[delx-memory](https://github.com/davidmosiah/delx-memory)**：最接近的形态对标 —— 同样是「一个本地 SQLite + 多 agent MCP 共享」；但它是 KV 存储（key/value + tags），无双时间轴 / supersession / Q-Value / 技能锻造 / 客户端自动接入。亮点：explicit_user_intent 硬闸门 + secret-blocking 写入端拦截 + lite transport（不加载 MCP SDK 降 RSS）
 - **cass / anda-brain / spector**：2025-2026 新一轮 agent memory 探索 —— 均处早期，关注点各偏一面（检索质量 / 长期一致性 / 多 agent 协同）
 - **Memmy**：目标最接近（多 agent 共享本地记忆），但是常驻服务 + 商业云侧
 
@@ -409,7 +409,7 @@ MemTether 的卖点是**可验证性**：评分卡源码、评测集、双判分
 - [x] 被采纳价值分（Q-Value）—— 检索命中被采纳后回写、下次上浮；**默认中性，不改变现有排序**
 - [x] 客户端自动接入器（`memtether-connect`：发现 / 预演 / 写入 / 校验 / 回滚；23 个适配器）
 - [x] MCP server 的来源自动识别（父进程映像名 + 命令行两级；零配置，不动 `env` 以免掉信任）
-- [ ] 「被采纳」的自动判定（Q-Value 的上游：现在只能靠调用方显式回写）
+- [~] 「被采纳」的自动判定（Q-Value 上游）：**MCP `feedback` tool 已上线**（09-25），客户端可显式回写；全自动判定需客户端配合，仍是路线图项
 - [ ] 发布到 PyPI（当前只能从仓库装）
 - [x] 语义相似度 boost（R1）— 高语义候选被关键词噪音淹没时自动上浮
 - [x] 索引一致性闸门（R2）— 向量索引漂移超阈值自动重建

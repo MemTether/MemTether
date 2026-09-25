@@ -349,6 +349,20 @@ TOOLS = [
             },
         },
     },
+    {
+        "name": "feedback",
+        "description": "回写 Q-Value 信号：告诉中枢某条记忆是否被采纳。",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "uid": {"type": "string", "description": "记忆条目的 uid"},
+                "reward": {"type": "number", "default": 1.0, "description": "1.0=完全采纳 / 0.5=部分有用 / 0.0=没用"},
+                "agent": {"type": "string", "default": "", "description": "调用方标识"},
+                "detail": {"type": "string", "default": "", "description": "备注"},
+            },
+            "required": ["uid"],
+        },
+    },
 ]
 
 
@@ -650,10 +664,25 @@ def tool_list(args):
         conn.close()
 
 
+
+
+def tool_feedback(args):
+    uid = (args.get("uid") or "").strip()
+    if not uid:
+        return _err("缺少 uid 参数")
+    reward = args.get("reward", 1.0)
+    agent = (args.get("agent") or "").strip() or _default_source()
+    detail = (args.get("detail") or "").strip()
+    try:
+        r = gateway.bump_qvalue(uid=uid, reward=reward, agent=agent, detail=detail)
+        return _text(r)
+    except Exception as e:
+        return _err("feedback 失败: %s: %s" % (type(e).__name__, e))
 HANDLERS = {
     "add_memories": tool_add,
     "search_memory": tool_search,
     "list_memories": tool_list,
+    "feedback": tool_feedback,
 }
 
 
