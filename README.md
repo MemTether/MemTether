@@ -419,7 +419,7 @@ MemTether 的卖点是**可验证性**：评分卡源码、评测集、双判分
 - [x] 被采纳价值分（Q-Value）—— 检索命中被采纳后回写、下次上浮；**默认中性，不改变现有排序**
 - [x] 客户端自动接入器（`memtether-connect`：发现 / 预演 / 写入 / 校验 / 回滚；23 个适配器）
 - [x] MCP server 的来源自动识别（父进程映像名 + 命令行两级；零配置，不动 `env` 以免掉信任）
-- [~] 「被采纳」的自动判定（Q-Value 上游）：**MCP `feedback` tool 已上线**（09-25），客户端可显式回写；全自动判定需客户端配合，仍是路线图项
+- [x] 「被采纳」的自动判定（Q-Value 上游）：MCP `feedback` tool（09-25）+ **检索时 auto-reinforce（09-25，`MEM_QVALUE_AUTO=1` 开启，Lethe 式 top-k relevance 回写）**
 - [x] 发布到 PyPI（[pip install memtether](https://pypi.org/project/memtether/)）
 - [x] 语义相似度 boost（R1）— 高语义候选被关键词噪音淹没时自动上浮
 - [x] 索引一致性闸门（R2）— 向量索引漂移超阈值自动重建
