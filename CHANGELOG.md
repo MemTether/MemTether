@@ -14,7 +14,8 @@
 
 ### Fixed
 - pyproject.toml UTF-8 BOM causing tomllib failure on Python 3.11+
-- regression_test.py missing import os`n- memtether.py __version__` drifted to a5 (resynced to a7)
+- regression_test.py missing import os
+- memtether.py __version__ drifted to a5 (resynced to a7)
 - 7 root modules missing from py-modules (concurrent_stress, memtether_export, memtether_guard, memtether_harness, memtether_paths, memtether_pipeline, test_pii_roundtrip)
 
 ## [0.1.0a5] - 2026-09-22
