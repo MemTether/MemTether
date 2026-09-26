@@ -66,6 +66,8 @@ dependencies = [
 # 语义检索：本地 bge-m3 int8 embedding（onnxruntime + tokenizers）+ 本地向量库。
 # 装完还要建一次索引：`python -m memsearch --rebuild`
 vector = ["chromadb", "onnxruntime", "tokenizers"]
+# Schema v2 P0: per-fact content hash（BLAKE3）；不装则回退 sha256
+blake3 = ["blake3"]
 
 [project.urls]
 Homepage = "https://github.com/MemTether/MemTether"
