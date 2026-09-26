@@ -43,6 +43,9 @@ Copyright 2026 MemTether contributors
   3. mem0ai 仅被 import_mem0.py 引用，且该模块还依赖一个**不在本仓库内**的
      cred_env.py。默认安装路径不会触达它。
 
+  4. mem0_exchange.py 与 memtether_exchange.py 是 Memory Exchange v1 的参考实现，
+     顶层只用标准库 + 仓库内模块，不引入新的第三方依赖。
+
 
 二、运行时可选获取的模型权重（不随本仓库分发）
 ----------------------------------------------

@@ -106,6 +106,7 @@ py-modules = [
     "mcp_server",           # MCP Server（供各客户端接入）
     "tether_connect",       # ★自动发现并接入本机所有 agent 客户端（detect/plan/apply/verify/rollback）
     "post_turn",            # 每轮钩子
+    "predicates",           # 十三修：typed statement 属性覆盖校验
     "demo_gateway",         # 演示网关
     # —— 运维 / 自检
     "interpreter",          # ★解释器解析 + 依赖校验（统一入口，绝不静默降级）
@@ -131,7 +132,9 @@ py-modules = [
     "migrate_bitemporal",   # 双时间轴回填
     "migrate_sink",         # 投影迁移
     "migrate_qvalue",       # Q-Value 列迁移（旧库补 q_value / use_count，幂等）
-    "import_mem0",          # mem0 导入（★需自备 cred_env.py，见 README）
+    "import_mem0",          # mem0 兼容导入（外部依赖版）
+    "memtether_exchange",   # 记忆交换协议 Schema v1 导出 / 导入
+    "mem0_exchange",        # Mem0 适配器（导入 / 导出，零外部依赖）
     "sync_reflector_mem0",  # reflector 同步
     "astra_dialogue",       # ASTRA 对话导出
     "astra_memory_closure", # ASTRA 记忆闭包
