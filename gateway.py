@@ -1302,9 +1302,10 @@ def rebuild():
         def _lead(txt, _cap=None):
             t = _re.sub(r'^【[^】]*】', '', (txt or '').strip()).strip()
             m = _re.search(r'[。；;！!？?\n]', t)
-            if m and 0 < m.start() < _LINE_CAP:
+            _eff = _cap if _cap else _LINE_CAP
+            if m and 0 < m.start() < _eff:
                 t = t[:m.start()].strip()
-            elif len(t) > (_cap or _LINE_CAP):
+            elif len(t) > _eff:
                 _use_cap = (_cap or _LINE_CAP); seg = t[:_use_cap]
                 best = -1
                 for _p in '。；，、：;:！？':
