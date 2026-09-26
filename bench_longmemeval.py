@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 bench_longmemeval.py —— 轨道 A：LongMemEval 通用基准（外卷，非自出题）
@@ -319,9 +319,9 @@ def _load_cred():
 # 教训：**外部通道会中途挂**（欠费/限流/超时），judge 必须有回退，
 #       而且回退失败要显式计数，不能让"没判上"伪装成"判错了"。
 JUDGE_CHANNELS = [
+    ('CN_DEEPSEEK_V4_FLASH_KEY', 'http://127.0.0.1:7863/v1', 'cn:deepseek-v4-flash'),
     ('GPTX_ASTRA_KEY', 'https://api.gptx.cc/v1', 'gpt-6-astra'),
     ('SILICON_KEY', 'https://api.siliconflow.cn/v1', 'Qwen/Qwen2.5-7B-Instruct'),
-    ('PACKY_BAILIAN_KEY', 'https://api.packycode.com/v1', 'qwen3.8-max'),
 ]
 _JUDGE_PICK = None      # 缓存首次探活成功的通道，避免每题都试一遍
 
@@ -584,3 +584,4 @@ if __name__ == '__main__':
     a = ap.parse_args()
     run(sample=a.sample, variant=a.variant, use_llm=not a.no_llm,
         k=a.k, all_items=a.all)
+
