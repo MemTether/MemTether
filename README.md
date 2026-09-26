@@ -314,6 +314,7 @@ agent config 参考表逐条核对）+ `clients/local.py`（本机实测的 Elec
 定义 **Memory Exchange Schema v1**（source / 双时间轴 / supersession / Q-Value / sha256 完整性），
 `mem0_exchange.py` 提供 Mem0 适配器。规则与诚实边界见
 [`docs/memory_exchange_schema.md`](docs/memory_exchange_schema.md)。
+冲突检测端到端 demo 已跑通：导入 20 条 → 2 重复去重 + 2 组极性冲突检出 → 自动退役 → 复检 0 冲突（见 [`docs/exchange_conflict_demo.md`](docs/exchange_conflict_demo.md)）。
 
 ---
 
@@ -434,6 +435,7 @@ MemTether 的卖点是**可验证性**：评分卡源码、评测集、双判分
 - [x] 统一安全管线（N7）— guard OWASP 防御 + 导出 PII 扫描合并为一条管线
 - [x] 并发压测（N8）— hubguard 并发锁 20→120s，高并发下数据完整性验证
 - [x] 索引重建闸门（N9）— rebuild 后自动检查向量索引一致性
+- [x] Memory Exchange 冲突检测端到端 demo（09-26）— `scripts/demo_exchange_conflict.py`：Mem0 导入 20 条 → 检出 2 组冲突 → 自动退役 → 复检 0 冲突
 - [x] 跨系统记忆交换 Schema v1 + Mem0 适配器（M2，09-26）— `memtether_exchange` / `mem0_exchange`：双时间轴、supersession、Q-Value、PII 脱敏与完整性校验随记忆一起迁移；Mem0 缺失字段显式回填，不伪造治理语义
 - [x] 投影预算 3980（N2）— 从 2700 提升至官方注入槽位上限，消除 133 条记忆被截断
 - [x] 注入槽位策略优化 · 第一+二阶段（09-25 十一修 + 09-26 十二修）— band 内 Q-Value 优先 + 类型感知压缩：rebuild 排序键从 `(band, lead长度, seq)` 改为 `(band, -q_value, lead长度, seq)`，高 Q 条目带内优先入槽；十二修加 `_LEAD_CAP`：decision/pin 全量保真（cap=None）、experience 压到 100、fact/incident 维持 160 拐点，同样预算装的信息质量更高。借鉴 context-engine 槽位分级 + leanctx loss-tolerance routing。后续可做：LLM 压缩（需 API）
@@ -485,3 +487,4 @@ MemTether 的卖点是**可验证性**：评分卡源码、评测集、双判分
 - 模型权重不在仓库内（体积过大），首次运行时按提示获取。
 - 许可：**Apache-2.0**（见 `LICENSE`）；第三方组件与模型权重的归属声明见 `NOTICE`
 - 安全问题请走 `SECURITY.md`
+

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """测试 remember 自动同步向量索引"""
-import sys, json
+import sys, json, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import gateway
 
@@ -16,3 +16,4 @@ s = gateway.search('唯一真源是哪个')
 print('\n检索"唯一真源是哪个":')
 for item in s['results'][:3]:
     print('  %.3f [%s] %s' % (item['score'], ','.join(item['reason']), item['content'][:70]))
+

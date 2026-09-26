@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """测试 incident / on_miss 触发器"""
-import sys, json
+import sys, json, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import gateway
 
@@ -31,3 +31,4 @@ conn.row_factory = sqlite3.Row
 for row in conn.execute("SELECT run_id, event_type, agent, status FROM run_events ORDER BY id").fetchall():
     print('  [%s] %s | %s | %s' % (row['event_type'], row['run_id'][:40], row['agent'], row['status']))
 conn.close()
+
