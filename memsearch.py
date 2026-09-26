@@ -858,6 +858,22 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
                     'ttl': _parse_ttl(f.get('tags'), f.get('valid_to'), f.get('content')),
                     'tags': str(f.get('tags') or ''),
                     'reason': reason})
+
+    # ★4.36) entity_boost（2026-09-26）：对标 Mem0 的加性融合实体加成。
+    #   动机：查询含 ASCII 实体（gptx_astra / mcp_server.py / concurrent_stress.py）时，
+    #   命中该实体的条目应优先于仅语义相似的条目。
+    #   做法：从查询提取 ASCII 实体，候选内容每命中一个实体 ×1.25（上限 1.56，
+    #   避免单一实体长文因重复命中被过度放大）。
+    #   与其他 boost 叠加但各自有上限，不会破坏 RRF 量纲。
+    _q_entities = extract_ascii_entities(q)
+    if _q_entities:
+        for x in out:
+            hits = sum(1 for ent in _q_entities
+                       if ent.lower() in (x.get('content') or '').lower())
+            if hits:
+                factor = min(1.25 ** hits, 1.56)
+                x['score'] = round(x['score'] * factor, 5)
+                x['reason'] = list(x.get('reason') or []) + ['entity_boost=%d' % hits]
     # ★4.4) P0-07 TTL 降权（2026-09-24）：过期结论不得静默当"当前事实"返回。
     #   与自指降权同层（都在 RRF 之后、精排之前），乘性因子可叠加。
     #   ★刻意**不删除**：过期条目仍要能被检索到（否则"我曾说过什么"永久丢失），

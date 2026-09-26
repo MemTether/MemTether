@@ -523,6 +523,11 @@ def detect_explicit_conflicts(days_window=90):
                     'suggest_retire': pos['uid'] if newer == 'neg' else neg['uid'],
                     'keep': neg['uid'] if newer == 'neg' else pos['uid'],
                     'suggest_retire_side': 'pos' if newer == 'neg' else 'neg'})
+    # ★2026-09-26 修复：已人工/agent 复核为 no_conflict 的 uid 对，
+    # 不应再作为「显式冲突候选」重复输出（reviewed_no_conflict 此前只在评分卡排除）。
+    reviewed = reviewed_no_conflict()
+    out = [x for x in out
+           if frozenset((x['pos']['uid'], x['neg']['uid'])) not in reviewed]
     out.sort(key=lambda x: x['entity'])
     return out
 
