@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """
 concurrent_stress.py — N8 v2 (2026-09-26): 真·并发多客户端压测
 
@@ -32,7 +32,7 @@ def make_env(db_path):
     env = os.environ.copy()
     env["MEM_DB"] = db_path
     env["MEM_PROJ_PATH"] = os.path.join(os.path.dirname(db_path), "MEMORY.md")
-    env["MEM_TMP"] = tempfile.gettempdir()
+    env["MEM_EMBED_BACKEND"] = "zhipu"  # local ONNX load 2.3s+并发争抢→spikes 29s; zhipu ~0.2s
     env["PYTHONIOENCODING"] = "utf-8"
     return env
 
@@ -70,7 +70,8 @@ def init_db(db_path):
     CREATE TABLE IF NOT EXISTS tool_assets (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         uid TEXT UNIQUE, name TEXT, path TEXT, entrypoint TEXT,
-        description TEXT, prerequisites TEXT, status TEXT DEFAULT 'active'
+        description TEXT, prerequisites TEXT, status TEXT DEFAULT 'active',
+        aliases TEXT, type TEXT, capabilities TEXT
     );
     CREATE TABLE IF NOT EXISTS tool_events (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -97,10 +98,12 @@ def writer_proc(barrier, db_path, source, n, out_q):
         ok, errs = True, []
         for i in range(n):
             content = "%s 并发写入第%d条（N8-v2） uid_%d_%s" % (source, i, i, str(time.time_ns())[-6:])
-            r = run_cli(["remember", content, "--type", "fact", "--source", source], db_path)
+            r = run_cli(["remember", content, "--type", "fact", "--source", source], db_path, timeout=180)
             if r.returncode != 0:
                 ok = False
                 errs.append((r.stderr or r.stdout or "")[-200:])
+
+        out_q.put({"proc": source, "ok": ok, "errs": errs})
     except Exception as e:
         out_q.put({"proc": source, "ok": False, "errs": [repr(e)]})
 
@@ -136,7 +139,7 @@ def search_proc(barrier, db_path, out_q, rounds=6):
 def supersede_proc(barrier, db_path, old_uid, tag, out_q):
     try:
         barrier.wait(timeout=60)
-        r = run_cli(["correct", old_uid, "%s supersede 竞争写入（N8-v2） uid_%s_%s" % (tag, str(time.time_ns())[-6:]),
+        r = run_cli(["correct", old_uid, "%s supersede race N8-v2 uid_%s" % (tag, str(time.time_ns())[-6:]),
                      "--reason", "concurrent race S4", "--source", tag], db_path)
         out_q.put({"proc": tag, "rc": r.returncode,
                    "out": (r.stdout or "")[-200:], "err": (r.stderr or "")[-200:]})
@@ -209,7 +212,7 @@ def scenario(db_path, name):
                             (post,)).fetchone()
         new_rows = conn.execute(
             "SELECT uid, status, superseded_by FROM facts "
-            "WHERE content LIKE '%N8-v2%' AND content LIKE '%supersede 竞争%'").fetchall()
+            "WHERE content LIKE '%N8-v2%' AND content LIKE '%supersede race%'").fetchall()
         supersessions = conn.execute("SELECT COUNT(*) FROM supersessions").fetchone()[0]
         rc_ok = sum(1 for r in results if r.get("rc") == 0)
         chain_ok = orig is not None and orig[0] == "superseded"
@@ -259,3 +262,4 @@ def main():
 if __name__ == "__main__":
     mp.freeze_support()
     main()
+
