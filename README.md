@@ -1,4 +1,4 @@
-# MemTether · 跨客户端 AI 记忆中枢
+﻿# MemTether · 跨客户端 AI 记忆中枢
 
 > **一句话：让多个异构 AI 客户端共享同一份物理记忆，而不是同步各自的副本。**
 
@@ -385,7 +385,12 @@ python mem.py search "跨客户端共享"
 | LongMemEval single-session-preference（修复后） | **46.7%** (14/30，修复前 0%，根因：generate prompt 对 preference 类问题误判 + judge max_tokens 过小) |
 | HotpotQA distractor 100 题抽样（strict 下界） | **88.3%** (83/94) |
 
-**请连同下面这句一起读这两个数**：hard_bench 是外部知识+本机资产双源基准，asset_bench 是纯本机资产类（确实存在"自出卷"偏差）。
+| 并发压测 v2（3 客户端真并发，Barrier 同步） | **4/4 PASS**（S1 写入 15/15 完整；S2 读写竞争；S3 读写不阻塞；S4 supersede 竞争链完整；integrity=ok） |
+| board lease 压测（stress_board） | **4/4 PASS**（S1 8 进程抢 1 任务恰 1 赢；S2 fencing token 拒旧 fence；S3 租约过期 GC；S4 错 owner 拒） |
+| 多客户端读写一致性（test_multi_client） | **PASS**（3 客户端 15/15 完整，cross-client search 全 FOUND） |
+| 冲突检测（detect_explicit_conflicts） | **2/2 候选检出**（已知实体；⚠️ patterns 为实体硬编码，通用冲突检测待 P4 泛化） |
+
+**请连同下面这句一起读这些数**：hard_bench 是外部知识+本机资产双源基准，asset_bench 是纯本机资产类（确实存在"自出卷"偏差）。
 E2E 是生产链路端到端探针（写入 → 检索 → 归属 → 单一真源一致性）。
 
 **已知短板（不藏）**：
@@ -439,7 +444,7 @@ MemTether 的卖点是**可验证性**：评分卡源码、评测集、双判分
 - [x] 索引一致性闸门（R2）— 向量索引漂移超阈值自动重建
 - [x] PII 脱敏层 + 导出快照 round-trip 测试（L2/T7/R3）
 - [x] 统一安全管线（N7）— guard OWASP 防御 + 导出 PII 扫描合并为一条管线
-- [x] 并发压测（N8）— hubguard 并发锁 20→120s，高并发下数据完整性验证
+- [x] 并发压测（N8 v2）— Barrier 真并发 4 场景 PASS + WAL mode + hubguard 锁 + board lease fencing + 多客户端读写一致性全验证（09-27 P2/P3）
 - [x] 索引重建闸门（N9）— rebuild 后自动检查向量索引一致性
 - [x] Memory Exchange 冲突检测端到端 demo（09-26）— `scripts/demo_exchange_conflict.py`：Mem0 导入 20 条 → 检出 2 组冲突 → 自动退役 → 复检 0 冲突
 - [x] 5 系统跨导入适配器（09-26）— Zep / Letta / Graphiti / LangMem + 原 Mem0，全部零外部依赖 + PII 脱敏 + SHA256 完整性
