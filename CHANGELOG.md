@@ -8,6 +8,15 @@
 > 原因见 README「关于可验证性」一节 —— 基准口径不一致时，自报数字是负资产。
 > 本文件只记录**行为变更**与**可复现的验证命令**，不记录"提升了百分之几"。
 
+## [0.1.0a8] - 2026-09-26
+
+### Added
+- **Memory Exchange 冲突检测端到端 demo**：`scripts/demo_exchange_conflict.py`
+  合成 Mem0 导出 20 条 → Exchange Schema v1 → 临时 SQLite → 检出 2 组极性冲突 → 自动退役 → 复检 0 冲突。
+  全流程零生产库写入；文档 `docs/exchange_conflict_demo.md` 记录结果与诚实边界。
+
+### Fixed
+- `test_autosync.py` / `test_triggers.py`：补 `import os`（4604277 引入的 NameError）
 ---
 
 ## [0.1.0a7] - 2026-09-25
