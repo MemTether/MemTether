@@ -893,6 +893,17 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
         if _is_self_referential(x['content'], q):
             x['score'] = round(x['score'] * 0.05, 5)
             x['reason'].append('self-ref↓')
+    # ★十三修：属性存在性校验（2026-09-26）—— 查询含「X的Y」时，
+    #   检查候选是否真正记录了 Y（而不只是提到了 X）。未提及的标 not_answered 并降权。
+    #   动机：refuse_bench N3_same_form（同形干扰）——「Clash 的订阅连接」能召回
+    #   10 条含 Clash 的记忆，但没有一条真正记录了地址。当前系统只看内容相似度，
+    #   不区分「关于 X 的记忆」和「记录了 X 的 Y 属性的记忆」。
+    try:
+        from predicates import check_attr_coverage
+        out, _all_unanswered = check_attr_coverage(q, out)
+    except ImportError:
+        pass  # predicates.py 不存在时降级为旧行为
+
     out.sort(key=lambda x: x['score'], reverse=True)
 
     # 5) cross-encoder 精排（复刻 agentmemory V4 的最大单项增益）
@@ -1007,8 +1018,8 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
                 print("[warn] Q-Value auto-reinforce 失败（不影响排序）:", str(e)[:80],
                       file=sys.stderr)
 
-    return {'query': q, 'results': out[:limit], 'ttl_expired_n': _ttl_expired}
-
+    return {'query': q, 'results': out[:limit], 'ttl_expired_n': _ttl_expired,
+            'all_unanswered': _all_unanswered if '_all_unanswered' in dir() else False}
 
 if __name__ == '__main__':
     import argparse

@@ -366,10 +366,10 @@ def _ensure_columns(conn):
         have = {r[1] for r in conn.execute('PRAGMA table_info(facts)')}
     except sqlite3.Error:
         return
-    for name, typ, dflt in (('q_value', 'REAL', '0.5'), ('use_count', 'INTEGER', '0')):
+    for name, typ, dflt in (('q_value', 'REAL', '0.5'), ('use_count', 'INTEGER', '0'), ('predicate', 'TEXT', None)):
         if name in have:
             continue
-        conn.execute('ALTER TABLE facts ADD COLUMN %s %s DEFAULT %s' % (name, typ, dflt))
+        conn.execute('ALTER TABLE facts ADD COLUMN %s %s%s' % (name, typ, (' DEFAULT ' + dflt) if dflt else ''))
     # ★2026-09-20 扩展：tool_assets 也补 —— 资产条目占检索结果近半，
     #   没有这两列就永远吃不到 Q-Value 加权（bump 也无对象）。
     try:
@@ -508,6 +508,12 @@ def remember(content, type='fact', source=DEFAULT_SOURCE, scope='shared', subjec
                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (uid, type, subject, content, status, source, scope, confidence, tags,
              ts, ts, valid_from or ts, ts, 'native'))
+        # ★十三修：写入时自动抽取谓词（entity→attr 对）存入 predicate 列
+        try:
+            from predicates import store_predicate
+            store_predicate(conn, uid, content)
+        except ImportError:
+            pass  # predicates.py 不存在时降级为旧行为
         audit(conn, 'remember', uid, source, content[:80])
         conn.commit()
 
@@ -725,9 +731,7 @@ def search(query, limit=10, mem0=False):
         import memsearch
         r = memsearch.search_hybrid(query, limit=limit)
         if r.get('results'):
-            return {'ok': True, 'query': r['query'], 'results': r['results'],
-                    'semantic': r['results'], 'engine': 'hybrid'}
-        # 🔴 2026-09-15 修：向量库不可用（缺 chromadb）时 hybrid 会**成功返回空列表**
+            return {'ok': True, 'query': r['query'], 'results': r['results'], 'semantic': r['results'], 'engine': 'hybrid', 'all_unanswered': r.get('all_unanswered', False)}
         #    ——不是抛异常。旧实现把空结果直接当结果返回，调用方会误判「中枢里没有这条记忆」。
         #    只要 hybrid 没给出结果，一律退化到 LIKE 兜底。
         _why = 'hybrid 返回空（向量库不可用？）'
