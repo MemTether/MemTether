@@ -352,7 +352,7 @@ def _pick_judge_channel():
     return None
 
 
-def generate_answer(question, evidence, model=None):
+def generate_answer(question, evidence, model=None, question_type=None):
     """★2026-09-15 新增：把**检索证据**生成成**答案**，再交给 judge 判分。
 
     为什么必须有这一步（血泪）：
@@ -371,19 +371,27 @@ def generate_answer(question, evidence, model=None):
     if not ch:
         return None, 'no available channel'
     envn, base, mdl, key = ch
-    prompt = (
-        "Answer the QUESTION using ONLY the CONTEXT below. "
-        "Be concise — give the direct answer, no explanation.\n"
-        "If the context does not contain the answer, reply exactly: NOT ENOUGH INFO\n\n"
-        "CONTEXT:\n%s\n\nQUESTION: %s\nANSWER:" % (evidence, question)
-    )
+    if question_type and 'preference' in question_type:
+        prompt = (
+            "Based on the CONVERSATION below, describe what the user would PREFER in response to the question. "
+            "Describe the user's demonstrated preferences, not a direct answer to the question. "
+            "Format: 'The user would prefer responses that...'\n\n"
+            "CONVERSATION:\n%s\n\nQUESTION: %s\nUSER PREFERENCE:" % (evidence, question)
+        )
+    else:
+        prompt = (
+            "Answer the QUESTION using ONLY the CONTEXT below. "
+            "Be concise — give the direct answer, no explanation.\n"
+            "If the context does not contain the answer, reply exactly: NOT ENOUGH INFO\n\n"
+            "CONTEXT:\n%s\n\nQUESTION: %s\nANSWER:" % (evidence, question)
+        )
     try:
         r = requests.post(base.rstrip('/') + '/chat/completions',
                           headers={'Authorization': 'Bearer ' + key,
                                    'Content-Type': 'application/json'},
                           json={'model': model or mdl,
                                 'messages': [{'role': 'user', 'content': prompt}],
-                                'max_tokens': 120, 'temperature': 0},
+                                'max_tokens': 2000, 'temperature': 0},
                           timeout=60)
         r.raise_for_status()
         out = (r.json()['choices'][0]['message']['content'] or '').strip()
@@ -419,7 +427,7 @@ def judge_llm(question, gold, pred, model=None):
                                    'Content-Type': 'application/json'},
                           json={'model': model or mdl,
                                 'messages': [{'role': 'user', 'content': prompt}],
-                                'max_tokens': 16, 'temperature': 0},
+                                'max_tokens': 2000, 'temperature': 0},
                           timeout=60)
         r.raise_for_status()
         j = r.json()
@@ -501,7 +509,7 @@ def run(sample=60, variant='oracle', use_llm=True, k=12, all_items=False, verbos
                 #   根因不是 judge 模型弱（对照测试里所有模型对明确答案都判对），
                 #   而是**任务本身定义错了**：记忆系统返回的是"证据"不是"答案"。
                 #   → 补一次 generate：用同一套检索证据让模型作答，再拿答案去判分。
-                ans, gerr = generate_answer(it['question'], pred)
+                ans, gerr = generate_answer(it['question'], pred, question_type=it.get('question_type',''))
                 if ans is None:
                     errs.append('gen: %s' % gerr)
                     llm_skipped += 1

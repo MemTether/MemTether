@@ -459,6 +459,11 @@ _STATUS_ASSERT = [
      r'[^。；\n]{0,16}?(?:失效|不可用|403|挂)', -1),
     (r'(GPTX_ASTRA_KEY|GPTX_[A-Za-z0-9_]+|api\.gptx\.cc|gptx_astra|gpt-6-astra)'
      r'[^。；\n]{0,16}?(?:可用|直连|通|正常)', 1),
+    # OPENAI_API_KEY：通用 API key 状态断言（2026-09-26 5适配器 demo 实测补充）
+    (r'(OPENAI_API_KEY|OpenAI\s*API\s*Key|OPENAI_[A-Za-z0-9_]*)'
+     r'[^。；\n]{0,18}?(?:401|403|失效|不可用|作废|封停|已死)', -1),
+    (r'(OPENAI_API_KEY|OpenAI\s*API\s*Key|OPENAI_[A-Za-z0-9_]*)'
+     r'[^。；\n]{0,18}?(?:可用|余额充足|连通|正常|恢复|复活)', 1),
 ]
 
 

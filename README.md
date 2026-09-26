@@ -312,9 +312,13 @@ agent config 参考表逐条核对）+ `clients/local.py`（本机实测的 Elec
 
 **跨系统记忆交换（M2）**：治理语义不再止步于本机快照。`memtether_exchange.py`
 定义 **Memory Exchange Schema v1**（source / 双时间轴 / supersession / Q-Value / sha256 完整性），
-`mem0_exchange.py` 提供 Mem0 适配器。规则与诚实边界见
+提供 **5 个主流记忆系统的导入适配器**（Mem0 / Zep / Letta / Graphiti / LangMem，
+对标 cognee 同级覆盖面）。规则与诚实边界见
 [`docs/memory_exchange_schema.md`](docs/memory_exchange_schema.md)。
-冲突检测端到端 demo 已跑通：导入 20 条 → 2 重复去重 + 2 组极性冲突检出 → 自动退役 → 复检 0 冲突（见 [`docs/exchange_conflict_demo.md`](docs/exchange_conflict_demo.md)）。
+单系统冲突检测端到端 demo 已跑通：导入 20 条 → 2 重复去重 + 2 组极性冲突检出 → 自动退役 → 复检 0 冲突（见 [`docs/exchange_conflict_demo.md`](docs/exchange_conflict_demo.md)）。
+**跨系统 5 适配器联测端到端 demo**（09-26）：五系统合成数据统一导入 15 条 → 跨系统检出 1 组
+OPENAI_API_KEY 极性冲突（Mem0 说可用 vs Zep 说失效）→ 自动退役旧条 → 复检 0 冲突
+（见 [`scripts/demo_exchange_5adapters.py`](scripts/demo_exchange_5adapters.py)）。
 
 ---
 
@@ -377,6 +381,8 @@ python mem.py search "跨客户端共享"
 | 资产基准 asset_bench（23 题） | **100%** |
 | E2E 端到端（13 项探针） | **13/13** |
 | LongMemEval oracle 全量 500 题（strict 下界） | **60.5%** (202/334) |
+| LongMemEval 全量（LLM judge 宽松口径） | **54.7%** (261/477) |
+| LongMemEval single-session-preference（修复后） | **46.7%** (14/30，修复前 0%，根因：generate prompt 对 preference 类问题误判 + judge max_tokens 过小) |
 | HotpotQA distractor 100 题抽样（strict 下界） | **88.3%** (83/94) |
 
 **请连同下面这句一起读这两个数**：hard_bench 是外部知识+本机资产双源基准，asset_bench 是纯本机资产类（确实存在"自出卷"偏差）。
@@ -391,7 +397,7 @@ E2E 是生产链路端到端探针（写入 → 检索 → 归属 → 单一真�
   （词项覆盖率 + 相似度双阈值），**26 条基准两个工作点（09-26 复跑实测）**：	hr=0.66 拦 13/26 (50%) / 误拒 1/22 (4.5%)；	hr=0.64 **零误拒**拦 12/26 (46%) / 误拒 0/22 (0%) —— 扫描表内置（refuse_bench.py run），按代价自选
   —— 比 09-22 初版标定（41%）有所提升，但"同形不同属性"这类负样本（如"X 的**端口**是多少" vs 记忆里只有"X 的**路径**"）
   **在词形法原理上无解**，是剩下 50% 漏拒的主要来源。当前默认 `warn`（只提示不阻断），不改变原有输出
-- 通用基准：LongMemEval oracle 全量 500 题已跑完（strict 60.5%，k=12，检索式 harness，不可与论文全上下文口径直接对比）；LLM judge 口径未跑（需付费 API）
+- 通用基准：LongMemEval oracle 全量 500 题已跑完（strict 60.5%，k=12，检索式 harness，不可与论文全上下文口径直接对比）；LLM judge 口径已跑（09-26，54.7%，WorkBuddy 免费额度池判分，¥0）
 - 双时间轴里 `native`（原生记录）占比很低，多数为回填/推定
 - **Q-Value「机制三层已通、数据仍在积累」**：09-25 三条回写路径全部就位——
   ① MCP `feedback` tool（显式调用）；② **检索时 auto-reinforce**（`MEM_QVALUE_AUTO=1` 开启，Lethe 式 top-k relevance 自动回写）；
@@ -436,6 +442,9 @@ MemTether 的卖点是**可验证性**：评分卡源码、评测集、双判分
 - [x] 并发压测（N8）— hubguard 并发锁 20→120s，高并发下数据完整性验证
 - [x] 索引重建闸门（N9）— rebuild 后自动检查向量索引一致性
 - [x] Memory Exchange 冲突检测端到端 demo（09-26）— `scripts/demo_exchange_conflict.py`：Mem0 导入 20 条 → 检出 2 组冲突 → 自动退役 → 复检 0 冲突
+- [x] 5 系统跨导入适配器（09-26）— Zep / Letta / Graphiti / LangMem + 原 Mem0，全部零外部依赖 + PII 脱敏 + SHA256 完整性
+- [x] single-session-preference 修复（09-26）— 评测 harness 双 bug：① generate prompt 对 preference 类问题定义错误（要求直接回答而非描述偏好）→ 加 question_type 参数分路；② judge max_tokens=64 被 reasoning 模型 thinking 吃光 → 提升至 2000。修复后 0% → 46.7%
+- [x] 5 适配器跨系统冲突联测（09-26）— `scripts/demo_exchange_5adapters.py`：15 条统一导入 → 跨系统检出 1 组冲突 → 自动退役 → 复检 0 冲突
 - [x] 跨系统记忆交换 Schema v1 + Mem0 适配器（M2，09-26）— `memtether_exchange` / `mem0_exchange`：双时间轴、supersession、Q-Value、PII 脱敏与完整性校验随记忆一起迁移；Mem0 缺失字段显式回填，不伪造治理语义
 - [x] 投影预算 3980（N2）— 从 2700 提升至官方注入槽位上限，消除 133 条记忆被截断
 - [x] 注入槽位策略优化 · 第一+二阶段（09-25 十一修 + 09-26 十二修）— band 内 Q-Value 优先 + 类型感知压缩：rebuild 排序键从 `(band, lead长度, seq)` 改为 `(band, -q_value, lead长度, seq)`，高 Q 条目带内优先入槽；十二修加 `_LEAD_CAP`：decision/pin 全量保真（cap=None）、experience 压到 100、fact/incident 维持 160 拐点，同样预算装的信息质量更高。借鉴 context-engine 槽位分级 + leanctx loss-tolerance routing。后续可做：LLM 压缩（需 API）
