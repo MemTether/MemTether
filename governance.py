@@ -528,6 +528,66 @@ def detect_explicit_conflicts(days_window=90):
     reviewed = reviewed_no_conflict()
     out = [x for x in out
            if frozenset((x['pos']['uid'], x['neg']['uid'])) not in reviewed]
+    # ★P4-2 泛化冲突检测（2026-09-27）：不再只靠硬编码 _STATUS_ASSERT。
+    #   新增通用层：对每句提取 ASCII 实体 + 判极性（_POS/_NEG），
+    #   同一实体在不同条目中出现正/负极性句 → 冲突候选。
+    #   这是低置信度层（比专属正则误报率高），但能覆盖端口、路径、新 key 等任意实体。
+    #   已有 _STATUS_ASSERT 检出的冲突不会被重复报（uid 对去重）。
+    _known_pairs = {frozenset((x['pos']['uid'], x['neg']['uid'])) for x in out}
+    # 对所有句子做通用极性标注
+    _generic_claims = {}  # entity -> {1: [(uid,ts,sent)], -1: [...]}
+    for r in rows:
+        ts = (r['updated_at'] or '')[:16]
+        try:
+            if dt.datetime.strptime(ts, '%Y-%m-%d %H:%M') < cutoff:
+                continue
+        except Exception:
+            continue
+        for seg in _sentences(r['content']):
+            if _is_quote_like(seg):
+                continue
+            _p_cnt = sum(1 for w in _POS if w in seg)
+            _n_cnt = sum(1 for w in _NEG if w in seg)
+            if _p_cnt == _n_cnt:
+                continue  # 正负同数 → 稀释/混合，跳过
+            _pol = 1 if _p_cnt > _n_cnt else -1
+            _ents = set(re.findall(r'[A-Za-z][A-Za-z0-9_.\-]{2,}', seg))
+            for _ent in _ents:
+                _c = _canonical(_ent)
+                if not _c or _is_stop(_c):
+                    continue
+                _generic_claims.setdefault(_c, {1: [], -1: []})
+                _generic_claims[_c][_pol].append(
+                    {'uid': r['uid'], 'ts': ts, 'sent': seg.strip(),
+                     'matched': _ent[:60]})
+    # 检测通用层冲突（跨条 + 极性相反）
+    _known_uids = set()
+    for x in out:
+        _known_uids.add(x['pos']['uid'])
+        _known_uids.add(x['neg']['uid'])
+    for _ent, _d in sorted(_generic_claims.items()):
+        if not (_d[1] and _d[-1]):
+            continue
+        _pos_uids = {x['uid'] for x in _d[1]}
+        _neg_uids = {x['uid'] for x in _d[-1]}
+        _cross = (_pos_uids - _neg_uids) and (_neg_uids - _pos_uids)
+        if not _cross:
+            continue
+        # 跳过已被 _STATUS_ASSERT 覆盖的条目（避免重复报）
+        _all_uids = _pos_uids | _neg_uids
+        if _all_uids.issubset(_known_uids):
+            continue
+        if frozenset(_pos_uids | _neg_uids) in _known_pairs:
+            continue
+        _pos = max([x for x in _d[1] if x['uid'] not in _neg_uids], key=lambda x: x['ts'])
+        _neg = max([x for x in _d[-1] if x['uid'] not in _pos_uids], key=lambda x: x['ts'])
+        _newer = 'neg' if _neg['ts'] > _pos['ts'] else 'pos'
+        out.append({'entity': _ent, 'pos': _pos, 'neg': _neg,
+                    'newer': _newer,
+                    'suggest_retire': _pos['uid'] if _newer == 'neg' else _neg['uid'],
+                    'keep': _neg['uid'] if _newer == 'neg' else _pos['uid'],
+                    'suggest_retire_side': 'pos' if _newer == 'neg' else 'neg',
+                    'detection': 'generic_polarity'})
     out.sort(key=lambda x: x['entity'])
     return out
 
