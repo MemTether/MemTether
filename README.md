@@ -387,8 +387,9 @@ python mem.py search "跨客户端共享"
 
 | 并发压测 v2（3 客户端真并发，Barrier 同步） | **4/4 PASS**（S1 写入 15/15 完整；S2 读写竞争；S3 读写不阻塞；S4 supersede 竞争链完整；integrity=ok） |
 | board lease 压测（stress_board） | **4/4 PASS**（S1 8 进程抢 1 任务恰 1 赢；S2 fencing token 拒旧 fence；S3 租约过期 GC；S4 错 owner 拒） |
+| 多轮检索（MEM_MULTI_ROUND=1） | ✅ 已实现（top-1 分数不足时自动去停用词简化 query 重搜一次并合并；验证 `git push 怎么弄` 0.084→1.0） |
 | 多客户端读写一致性（test_multi_client） | **PASS**（3 客户端 15/15 完整，cross-client search 全 FOUND） |
-| 冲突检测（detect_explicit_conflicts） | **2/2 候选检出**（已知实体；⚠️ patterns 为实体硬编码，通用冲突检测待 P4 泛化） |
+| 冲突检测（detect_explicit_conflicts） | **2/2 候选检出** + **泛化层已上线**（09-27：ASCII 实体 + 极性通用检测，不限于预置实体；redis/comfyui 端口冲突验证通过） |
 
 **请连同下面这句一起读这些数**：hard_bench 是外部知识+本机资产双源基准，asset_bench 是纯本机资产类（确实存在"自出卷"偏差）。
 E2E 是生产链路端到端探针（写入 → 检索 → 归属 → 单一真源一致性）。
