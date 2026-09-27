@@ -420,6 +420,13 @@ E2E 是生产链路端到端探针（写入 → 检索 → 归属 → 单一真�
 
 ---
 
+## 记忆栈定位（对标 ContextNest 三层分类）
+
+业界（PromptOwl 2026-07）将 agent 记忆栈分为三层：**Governance**（ContextNest，确定性治理）、**Personalization**（Mem0，用户偏好）、**Session**（Zep，会话日志）。
+MemTether 是 **Governance + Personalization 合一的本地优先方案**——不需要分开部署 ContextNest 和 Mem0，一个 SQLite 文件同时提供确定性的治理（supersession/双时间轴/冲突检测）和个性化的语义检索（向量+关键词+BM25 混合）。
+Session 层（会话即时上下文）不在此范围内——MemTether 管**长期记忆**，不管即时对话缓存。
+
+如果你需要三层完整栈：**Zep（Session）+ MemTether（Governance + Personalization）**就够了两件套，不需要三件。
 ## 与同类项目的关系
 
 **不比分数** —— 这个赛道的公开分数已被证实大面积不可复现（同一系统自报 92% 与第三方复现 38%）。
