@@ -48,6 +48,13 @@ import argparse
 import datetime as dt
 from collections import defaultdict
 
+# ★2026-09-27：Windows GBK 控制台下 print 含 ✓ 等字符会 UnicodeEncodeError，
+# 评测跑完最后打印阶段崩掉、结果不落盘。入口重配 stdout 为 UTF-8。
+try:
+    sys.stdout.reconfigure(encoding='utf-8')
+except Exception:
+    pass
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 BENCH_DB = os.path.join(HERE, 'bench_data', 'lme_scratch.db')
