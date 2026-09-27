@@ -109,3 +109,23 @@ python hub_selfcheck.py             # 全库健康巡检
 | 检索结果排序变差 | 没装 `[vector]` 档，走了关键词降级——装了就好，不装也能用 |
 | 装完 `memtether` 命令找不到 | pip 的 Scripts 目录不在 PATH；用 `python -m memtether` 等价替代 |
 | 客户端接入后 agent 仍不读写 | 看 verify 输出的三层状态；技能层是共享目录，工具只检查不覆盖 |
+
+---
+
+## 文档工作区约定（工作文档放哪）
+
+MemTether 管记忆条目（`memory.db`），**不自动管理你的项目文档**——但建议遵守以下约定，
+让多 agent 协作时文档不乱放：
+
+| 类型 | 放哪 | 怎么管 |
+|---|---|---|
+| **面向用户的稳定文档** | 项目仓 `docs/` | git 管理 |
+| **工作过程文档**（plan/report/handover） | `<项目>/work_docs/` 或集中 `workdocs/` | git 管理，旧版移 `_archive/` |
+| **一次性脚本/探针** | `tmp/`（gitignore） | 用完删 |
+| **个人笔记/草稿** | 不进项目仓 | 本地留 |
+
+**原则：同一主题只保留最新版**（旧版进 `_archive/` 或删），避免 5 个版本并存的混乱。
+
+> **远期计划**：MemTether 可能会内置文档生命周期管理（四类模型参照
+> [aw-tools/agentic-workspace](https://github.com/aw-tools/agentic-workspace) 规范）。
+> 详见 `workdocs/memtether/文档生命周期能力-立项评估-未实施.md`。当前不实施。
