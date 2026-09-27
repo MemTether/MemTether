@@ -48,7 +48,7 @@ except Exception:
         return data, 0
 
 SCHEMA_NAME = "memtether.memory_exchange"
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 FACT_FIELDS = (
     "uid", "type", "subject", "content", "status", "superseded_by",
@@ -65,6 +65,12 @@ ASSET_FIELDS = (
 )
 
 SUPERSESSION_FIELDS = ("old_uid", "new_uid", "reason", "by_agent", "ts")
+
+# Schema v2 P1: consent / sync watermark / conflict resolution modes
+CONSENT_MODES = ("read_only", "read_write", "full_control")
+SYNC_MODES = ("full", "incremental")
+CONFLICT_STRATEGIES = ("latest_wins", "source_priority", "merge_concat",
+                        "human_review", "quorum")
 
 
 def _sha256(payload):
@@ -85,7 +91,8 @@ def _content_blake3(content):
 
 
 def export_exchange(db_path=None, out_path=None, include_retired=False,
-                    producer="memtether", pii_redact=True):
+                    producer="memtether", pii_redact=True,
+                    consent=None, sync=None):
     """导出 Memory Exchange Schema v1。
 
     返回 (data, out_path)。out_path=None 时只返回 data，不落盘。
@@ -132,6 +139,17 @@ def export_exchange(db_path=None, out_path=None, include_retired=False,
         },
         **payload,
     }
+
+    # Schema v2 P1: consent / sync watermark / warnings
+    if consent:
+        data["consent"] = consent
+    if sync:
+        data["sync"] = sync
+    warnings_list = []
+    if not _HAS_BLAKE3:
+        warnings_list.append("blake3 not installed: content hash fell back to sha256")
+    if warnings_list:
+        data["meta"] = {"warnings": warnings_list}
 
     pii_n = 0
     if pii_redact:
@@ -294,9 +312,10 @@ def _ensure_schema(conn):
 
 
 def import_exchange(from_path, db_path=None, dry_run=False):
-    """导入 Memory Exchange Schema v1。
+    """导入 Memory Exchange Schema（v1 或 v2）。
 
     UID 冲突跳过；时间轴缺失的 fact 记为 needs_temporal，不猜 valid_from。
+    v2 新增字段（consent/sync）导入时透传到 stats 返回值。
     """
     with open(from_path, "r", encoding="utf-8") as f:
         data = json.load(f)
@@ -330,6 +349,13 @@ def import_exchange(from_path, db_path=None, dry_run=False):
             "tool_assets_inserted": 0, "tool_assets_skipped": 0,
             "integrity_ok": integrity_ok, "dry_run": bool(dry_run),
         }
+        # Schema v2 P1: pass through consent/sync to stats
+        if data.get("consent"):
+            stats["consent"] = data["consent"]
+        if data.get("sync"):
+            stats["sync"] = data["sync"]
+        if data.get("meta", {}).get("warnings"):
+            stats["warnings"] = data["meta"]["warnings"]
         for row in payload["facts"]:
             action = _insert_fact(conn, row) if not dry_run else (
                 "skipped" if conn.execute("SELECT 1 FROM facts WHERE uid=?", (row.get("uid"),)).fetchone()
@@ -383,6 +409,12 @@ def main(argv=None):
     e.add_argument("--include-retired", action="store_true")
     e.add_argument("--producer", default="memtether")
     e.add_argument("--no-pii-redact", action="store_true")
+    e.add_argument("--consent-granted-by", default=None)
+    e.add_argument("--consent-scope", default="read_write",
+                   choices=CONSENT_MODES)
+    e.add_argument("--consent-purpose", default="cross_system_migration")
+    e.add_argument("--sync-watermark", default=None)
+    e.add_argument("--sync-mode", default=None, choices=SYNC_MODES)
 
     i = sub.add_parser("import")
     i.add_argument("--from", dest="src", required=True)
@@ -391,10 +423,23 @@ def main(argv=None):
 
     args = p.parse_args(argv)
     if args.cmd == "export":
+        consent = None
+        if args.consent_granted_by:
+            consent = {
+                "granted_by": args.consent_granted_by,
+                "granted_at": datetime.datetime.now().isoformat(timespec="seconds") + "Z",
+                "scope": args.consent_scope,
+                "purpose": args.consent_purpose,
+                "expires_at": None,
+            }
+        sync = None
+        if args.sync_watermark or args.sync_mode:
+            sync = {"watermark": args.sync_watermark, "mode": args.sync_mode or "full"}
         data, out = export_exchange(
             db_path=args.db, out_path=args.out,
             include_retired=args.include_retired, producer=args.producer,
-            pii_redact=not args.no_pii_redact)
+            pii_redact=not args.no_pii_redact,
+            consent=consent, sync=sync)
         print(json.dumps({"ok": True, "out": out, "counts": data["counts"],
                           "pii_redacted": data.get("pii_redacted", 0),
                           "sha256": data["sha256"][:16] + "..."}, ensure_ascii=False))
