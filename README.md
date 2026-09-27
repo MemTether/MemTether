@@ -380,8 +380,8 @@ python mem.py search "跨客户端共享"
 | 硬基准 hard_bench（62 题，指向生产库实测 09-26） | **98.4%** (61/62；唯一 FAIL 是检索边界非代码缺陷)。⚠️ 复跑必须 `MEM_DB` 指向生产库——默认指向发布库自带 memory.db（仅 4 条示例 facts）会得 0/62，那是空库不是分数 |
 | 资产基准 asset_bench（23 题） | **100%** |
 | E2E 端到端（13 项探针） | **13/13** |
-| LongMemEval oracle 全量 500 题（strict 下界） | **60.5%** (202/334) |
-| LongMemEval 全量（LLM judge 宽松口径） | **54.7%** (261/477) |
+| LongMemEval oracle 全量 500 题（strict 下界） | **59.6%** (199/334，2026-09-27 bug 修复后复跑) |
+| LongMemEval 全量（LLM judge 宽松口径） | **64.2%** (308/480，2026-09-27 修复 generate+judge 后复跑，20 题生成阶段失败未计入) |
 | LongMemEval single-session-preference（修复后） | **46.7%** (14/30，修复前 0%，根因：generate prompt 对 preference 类问题误判 + judge max_tokens 过小) |
 | HotpotQA distractor 100 题抽样（strict 下界） | **88.3%** (83/94) |
 
@@ -403,7 +403,7 @@ E2E 是生产链路端到端探针（写入 → 检索 → 归属 → 单一真�
   （词项覆盖率 + 相似度双阈值），**26 条基准两个工作点（09-26 复跑实测）**：	hr=0.66 拦 13/26 (50%) / 误拒 1/22 (4.5%)；	hr=0.64 **零误拒**拦 12/26 (46%) / 误拒 0/22 (0%) —— 扫描表内置（refuse_bench.py run），按代价自选
   —— 比 09-22 初版标定（41%）有所提升，但"同形不同属性"这类负样本（如"X 的**端口**是多少" vs 记忆里只有"X 的**路径**"）
   **在词形法原理上无解**，是剩下 50% 漏拒的主要来源。当前默认 `warn`（只提示不阻断），不改变原有输出
-- 通用基准：LongMemEval oracle 全量 500 题已跑完（strict 60.5%，k=12，检索式 harness，不可与论文全上下文口径直接对比）；LLM judge 口径已跑（09-26，54.7%，WorkBuddy 免费额度池判分，¥0）
+- 通用基准：LongMemEval oracle 全量 500 题已跑完（strict 60.5%，k=12，检索式 harness，不可与论文全上下文口径直接对比）；LLM judge 口径已复跑（09-27，64.2%，WorkBuddy 免费额度池判分，¥0；strict 59.6%；修复 generate prompt + judge max_tokens 后，20 题 empty generation 未计入分母）
 - 双时间轴里 `native`（原生记录）占比很低，多数为回填/推定
 - **Q-Value「机制三层已通、数据仍在积累」**：09-25 三条回写路径全部就位——
   ① MCP `feedback` tool（显式调用）；② **检索时 auto-reinforce**（`MEM_QVALUE_AUTO=1` 开启，Lethe 式 top-k relevance 自动回写）；
