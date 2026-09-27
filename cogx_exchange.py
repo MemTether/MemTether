@@ -120,7 +120,11 @@ def _content_from_record(rec):
         parts = [rec.get("subject_ref", ""), rec.get("predicate", ""), rec.get("object_ref", "")]
         return " ".join(p for p in parts if p).strip()
     if kind == "document":
-        return rec.get("content", "")
+        title = rec.get("title")
+        content = rec.get("content", "")
+        if title and title.strip():
+            return f"{title.strip()}: {content}"
+        return content
     if kind == "episode":
         # Serialize turns into readable text
         turns = rec.get("turns", [])
@@ -192,6 +196,14 @@ def cogx_to_exchange(cogx_dir, out, source="cogx", pii_redact=True):
             tags = ",".join(meta["tags"])
         elif isinstance(meta.get("categories"), list):
             tags = ",".join(meta["categories"])
+        # Capture COGX-specific provenance into tags for traceability
+        prov = rec.get("provenance")
+        if isinstance(prov, list) and prov:
+            tags = ",".join(filter(None, [tags, "cogx_prov:" + ",".join(map(str, prov))]))
+        if rec.get("entity_type"):
+            tags = ",".join(filter(None, [tags, "entity_type:" + rec["entity_type"]]))
+        if kind == "memory_block" and rec.get("label"):
+            tags = ",".join(filter(None, [tags, "label:" + rec["label"]]))
         facts.append({
             "uid": _uid(rec, i),
             "type": mt_type,
