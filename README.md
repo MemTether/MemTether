@@ -85,7 +85,7 @@ MemTether 的答案更简单：**让它们指向同一份文件**。
 ## 架构
 
 <p align="center">
-  <img src="assets/architecture.svg" alt="MemTether Architecture" width="100%" />
+  <img src="assets/architecture.svg" alt="MemTether 架构图" width="800px" />
 </p>
 
 **### 技能层：记忆中枢的第 5 层
