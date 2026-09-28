@@ -86,37 +86,31 @@ MemTether 的答案更简单：**让它们指向同一份文件**。
 
 ```mermaid
 graph LR
-    subgraph 客户端
-        direction LR
-        A["Codex / WorkBuddy<br/>OpenClaw / ZCode / ..."]
+    subgraph Clients
+        A["Codex · WorkBuddy<br/>OpenClaw · ZCode · ..."]
     end
 
-    subgraph MemTether
-        direction TB
-        B["📡 接入层<br/>tether_connect · 23 adapters"]
-        C["📝 gateway.py<br/>写入 · source · PII · dedup"]
-        D["🔍 memsearch.py<br/>4路召回 · RRF · 精排"]
-        E["🛡️ governance.py<br/>冲突检测 · supersession"]
-        F["📋 rebuild<br/>投影 · 3980字符"]
+    subgraph MemTether Core
+        B["🔗 tether_connect<br/>23 adapters"]
+        C["📝 gateway.py<br/>Write · Source · PII"]
+        D["🔍 memsearch.py<br/>4-way · RRF · Rerank"]
+        E["🛡️ governance.py<br/>Conflict · Supersede"]
+        F["📋 rebuild<br/>3980 char projection"]
     end
 
-    subgraph 存储
-        I[("memory.db<br/>SQLite WAL")]
-        J[("ChromaDB<br/>bge-m3 向量")]
+    subgraph Storage
+        I[("memory.db")]
+        J[("ChromaDB")]
     end
 
-    subgraph 交换
-        H["Exchange Schema v2<br/>6 适配器"]
+    subgraph Exchange
+        H["📦 Schema v2<br/>6 adapters"]
     end
 
-    A <--> B
-    B --> C
-    C --> I
-    C <--> D
-    D --> J
-    E <--> I
-    C --> F
-    F --> A
+    A <--> B --> C
+    C <--> D <--> J
+    C <--> E <--> I
+    C --> F --> A
     I <--> H
 ```
 
