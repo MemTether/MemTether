@@ -6,6 +6,8 @@
 
 [![安装 · PyPI](https://img.shields.io/badge/PyPI-memtether-blue)](https://pypi.org/project/memtether/) · [![源码 · GitHub](https://img.shields.io/badge/GitHub-MemTether-black)](https://github.com/MemTether/MemTether)
 
+[![CI](https://github.com/MemTether/MemTether/actions/workflows/ci.yml/badge.svg)](https://github.com/MemTether/MemTether/actions/workflows/ci.yml)
+
 ## 安装
 
 ```bash
@@ -58,6 +60,52 @@ MemTether 的答案更简单：**让它们指向同一份文件**。
 ---
 
 ## 架构
+
+```mermaid
+graph TB
+    subgraph "AI 客户端"
+        A1[Codex CLI]
+        A2[WorkBuddy]
+        A3[OpenClaw]
+        A4[ZCode / Tabbit / ...]
+    end
+
+    subgraph "接入层"
+        B[tether_connect<br/>23 adapters<br/>detect → plan → apply → verify]
+    end
+
+    subgraph "MemTether 核心"
+        C[gateway.py<br/>写入管线<br/>source 归属 + PII + dedup]
+        D[memsearch.py<br/>检索管线<br/>4路召回 + RRF + 精排]
+        E[governance.py<br/>治理管线<br/>冲突检测 + 双时间轴 + supersession]
+        F[rebuild<br/>投影管线<br/>3980 字符零和]
+    end
+
+    subgraph "记忆交换"
+        G[Exchange Schema v2<br/>consent / sync / blake3]
+        H[6 适配器<br/>Mem0 / Zep / Letta / Graphiti / LangMem / COGX]
+    end
+
+    subgraph "存储"
+        I[(memory.db<br/>SQLite WAL)]
+        J[(ChromaDB<br/>bge-m3 向量)]
+    end
+
+    A1 & A2 & A3 & A4 --> B
+    B --> C
+    C --> I
+    C --> D
+    D --> I
+    D --> J
+    E --> I
+    C --> F
+    F --> A1 & A2 & A3 & A4
+    I --> G
+    G --> H
+```
+
+**四条核心链路：**
+
 
 ```
 多个 AI 客户端（各厂商、各版本、各账号）
