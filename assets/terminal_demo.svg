@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 444" width="760" font-family="monospace">
+<rect width="760" height="444" rx="10" fill="#1e1e2e"/>
+<rect width="760" height="36" rx="10" fill="#313244"/>
+<rect y="26" width="760" height="10" fill="#313244"/>
+<circle cx="20" cy="18" r="6" fill="#f38ba8"/>
+<circle cx="42" cy="18" r="6" fill="#f9e2af"/>
+<circle cx="64" cy="18" r="6" fill="#a6e3a1"/>
+<text x="380" y="23" text-anchor="middle" fill="#cdd6f4" font-size="13">MemTether — Terminal</text>
+<text x="20" y="58" fill="#cba6f7" font-size="14">➜</text>
+<text x="40" y="58" fill="#94e2d5" font-size="14">~</text>
+<text x="58" y="58" fill="#cdd6f4" font-size="14" font-weight="bold">memtether demo</text>
+<text x="20" y="82" fill="#a6e3a1" font-size="13">✓ 生成全合成演示库 → ~/.memtether/memory.db (100 facts / 10 tools)</text>
+<text x="20" y="106" fill="#a6e3a1" font-size="13">✓ 泄密检查：全合成数据，0 命中</text>
+<text x="20" y="130" fill="#a6e3a1" font-size="13">✓ 功能冒烟：stats + search + remember 全过</text>
+<text x="20" y="178" fill="#cba6f7" font-size="14">➜</text>
+<text x="40" y="178" fill="#94e2d5" font-size="14">~</text>
+<text x="58" y="178" fill="#cdd6f4" font-size="14" font-weight="bold">memtether search "跨客户端共享"</text>
+<text x="20" y="202" fill="#89b4fa" font-size="13">1. [0.82] 文件级指针使多个 AI 客户端共享同一份 SQLite</text>
+<text x="20" y="226" fill="#89b4fa" font-size="13">2. [0.71] junction/symlink 指向同一物理文件，不做同步</text>
+<text x="20" y="250" fill="#89b4fa" font-size="13">3. [0.65] hubguard 跨进程锁保护并发写入</text>
+<text x="20" y="298" fill="#cba6f7" font-size="14">➜</text>
+<text x="40" y="298" fill="#94e2d5" font-size="14">~</text>
+<text x="58" y="298" fill="#cdd6f4" font-size="14" font-weight="bold">memtether remember "结论：bge-m3 int8 本地嵌入断网可跑" --type experience --source demo</text>
+<text x="20" y="322" fill="#a6e3a1" font-size="13">✓ 写入成功 uid=fact-20260928163-4a8b2c</text>
+<text x="20" y="370" fill="#cba6f7" font-size="14">➜</text>
+<text x="40" y="370" fill="#94e2d5" font-size="14">~</text>
+<text x="58" y="370" fill="#cdd6f4" font-size="14" font-weight="bold">memtether stats</text>
+<text x="20" y="394" fill="#cdd6f4" font-size="13">facts: 101 | supersessions: 0 | tool_assets: 10</text>
+<text x="20" y="418" fill="#cdd6f4" font-size="13">active: 101 | superseded: 0 | retired: 0</text>
+</svg>

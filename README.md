@@ -88,6 +88,10 @@ MemTether 的答案更简单：**让它们指向同一份文件**。
   <img src="assets/architecture.svg" alt="MemTether 架构图" width="100%" />
 </p>
 
+<p align="center">
+  <img src="assets/terminal_demo.svg" alt="MemTether 终端演示" width="80%" />
+</p>
+
 **### 技能层：记忆中枢的第 5 层
 
 **技能是记忆中枢的一类资产，不是另一个项目。**
@@ -321,13 +325,24 @@ agent config 参考表逐条核对）+ `clients/local.py`（本机实测的 Elec
 
 **跨系统记忆交换（M2）**：治理语义不再止步于本机快照。`memtether_exchange.py`
 定义 **Memory Exchange Schema v1+v2P0**（source / 双时间轴 / supersession / Q-Value / sha256 完整性 / 每条 BLAKE3 内容指纹），
-提供 **5 个主流记忆系统的导入适配器**（Mem0 / Zep / Letta / Graphiti / LangMem，
+提供 **6 个主流记忆系统的导入适配器**（Mem0 / Zep / Letta / Graphiti / LangMem / COGX，
 对标 cognee 同级覆盖面）。规则与诚实边界见
 [`docs/memory_exchange_schema.md`](docs/memory_exchange_schema.md)。
 单系统冲突检测端到端 demo 已跑通：导入 20 条 → 2 重复去重 + 2 组极性冲突检出 → 自动退役 → 复检 0 冲突（见 [`docs/exchange_conflict_demo.md`](docs/exchange_conflict_demo.md)）。
-**跨系统 5 适配器联测端到端 demo**（09-26）：五系统合成数据统一导入 15 条 → 跨系统检出 1 组
+**跨系统适配器联测端到端 demo**（09-26）：多系统合成数据统一导入 15 条 → 跨系统检出 1 组
 OPENAI_API_KEY 极性冲突（Mem0 说可用 vs Zep 说失效）→ 自动退役旧条 → 复检 0 冲突
 （见 [`scripts/demo_exchange_5adapters.py`](scripts/demo_exchange_5adapters.py)）。
+**LLM 自动记忆抽取（T4-A）**：`extract.py` 从对话记录中用 LLM 提取可复用的长期记忆，
+写入 `gateway.remember()`（自动去重 / supersession / 归属校验）。标准库实现（零 pip 依赖），
+支持任意 OpenAI 兼容端点（DeepSeek / OpenAI / Ollama / vLLM），环境变量配置（`MEM_EXTRACT_API_KEY` 等），
+fail-closed 设计（无 key 拒跑、`--source` 必填），`--dry-run` 先看后写。
+
+```bash
+export MEM_EXTRACT_API_KEY=sk-...
+export MEM_EXTRACT_MODEL=deepseek-chat
+python extract.py transcript.txt --source myagent          # 提取并写入
+python extract.py transcript.txt --source myagent --dry-run  # 只展示不写入
+```
 
 ---
 
