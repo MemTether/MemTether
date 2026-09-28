@@ -84,35 +84,9 @@ MemTether 的答案更简单：**让它们指向同一份文件**。
 
 ## 架构
 
-```mermaid
-graph LR
-    subgraph Clients
-        A["Codex · WorkBuddy<br/>OpenClaw · ZCode · ..."]
-    end
-
-    subgraph MemTether Core
-        B["🔗 tether_connect<br/>23 adapters"]
-        C["📝 gateway.py<br/>Write · Source · PII"]
-        D["🔍 memsearch.py<br/>4-way · RRF · Rerank"]
-        E["🛡️ governance.py<br/>Conflict · Supersede"]
-        F["📋 rebuild<br/>3980 char projection"]
-    end
-
-    subgraph Storage
-        I[("memory.db")]
-        J[("ChromaDB")]
-    end
-
-    subgraph Exchange
-        H["📦 Schema v2<br/>6 adapters"]
-    end
-
-    A <--> B --> C
-    C <--> D <--> J
-    C <--> E <--> I
-    C --> F --> A
-    I <--> H
-```
+<p align="center">
+  <img src="assets/architecture.png" alt="MemTether Architecture" width="100%" />
+</p>
 
 **四条核心链路：**
 
