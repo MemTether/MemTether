@@ -172,3 +172,20 @@ bench_result.json
 refuse_bench_result.json
 refuse_bench_raw.json
 hard_bench_result.json
+# Non-project files (should never be committed)
+tg_book*.py
+tg_ch.py
+C盘占用诊断报告.md
+豆包数据转移记录.md
+astra_turn_ch2.txt
+patch-memory_hub-hubguard.diff
+robocopy2_progress.txt
+
+# Generated output files
+bench_*_result*.json
+bench_result.json
+hard_bench_result.json
+refuse_bench_raw.json
+refuse_bench_result.json
+scorecard.json
+run_doubao_migrate.json
