@@ -632,6 +632,17 @@ def tool_search(args):
             })
         else:
             out.append({"text": str(it)[:400]})
+    # A1: auto-bump use_count for search hits
+    try:
+        _conn = gateway.get_conn()
+        for _it in out:
+            _uid = _it.get("uid", "")
+            if _uid:
+                _conn.execute("UPDATE facts SET use_count = use_count + 1 WHERE uid = ?", (_uid,))
+        _conn.commit()
+        _conn.close()
+    except Exception:
+        pass
     payload = {"engine": r.get("engine"), "count": len(out), "results": out}
     if degraded:
         payload["degraded"] = True
