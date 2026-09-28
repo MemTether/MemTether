@@ -8,6 +8,26 @@
 > 原因见 README「关于可验证性」一节 —— 基准口径不一致时，自报数字是负资产。
 > 本文件只记录**行为变更**与**可复现的验证命令**，不记录"提升了百分之几"。
 
+## [0.1.0a9] - 2026-09-28
+
+### Added
+- **REST API Server** (`api_server.py`)：FastAPI 8 端点（remember / search / stats / correct / retire / list / qvalue / health），`pip install "memtether[server]"` 安装，`uvicorn api_server:app` 启动
+- **LLM 自动记忆抽取** (`extract.py`)：OpenAI 兼容端点，fail-closed（无 key 拒跑、`--source` 必填），`--dry-run` 先看后写
+- **Dockerfile + docker-compose.yml**：`docker-compose up` 一键启动
+- **Exchange adapter pytest**（13 用例）：6 适配器 × 导出+导入 + 跨适配器集成
+
+### Fixed
+- README L324 适配器数量从「5 个」修正为「6 个」（加 COGX）
+- README 补 LLM 自动抽取 + REST API 段落
+- terminal_demo.svg 插入 README 首屏
+- CI 安装 `[server]` extras 使 API 测试在 CI 中运行
+
+### Security
+- **PII 脱敏层** `sanitize_snapshot()` 导出快照自动脱敏
+- **OWASP 运行时防御** `memtether_guard.py` 提示注入/代码执行/敏感信息/社会工程检测
+
+---
+
 ## [0.1.0a8] - 2026-09-26
 
 ### Added
