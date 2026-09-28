@@ -84,6 +84,18 @@ def search_entries(msg, limit=10):
         sys.path.insert(0, HUB)
         import gateway
         r = gateway.search(msg, limit=limit)
+        # A1: auto-bump use_count for returned facts
+        if r and r.get("results"):
+            try:
+                conn = gateway.get_conn()
+                for _hit in r["results"]:
+                    _uid = _hit.get("uid", "")
+                    if _uid:
+                        conn.execute("UPDATE facts SET use_count = use_count + 1 WHERE uid = ?", (_uid,))
+                conn.commit()
+                conn.close()
+            except Exception:
+                pass
         hits = []
         for i, item in enumerate(r.get('results', [])):
             try:
