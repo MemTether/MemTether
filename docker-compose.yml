@@ -1,0 +1,13 @@
+version: "3.8"
+services:
+  memtether:
+    build: .
+    container_name: memtether
+    volumes:
+      - memtether_data:/home/memtether/.memtether
+    ports:
+      - "8080:8080"
+    command: python mem.py stats
+
+volumes:
+  memtether_data:
