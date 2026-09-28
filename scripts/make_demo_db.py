@@ -244,7 +244,16 @@ def build(out_path, seed=SEED):
              FAKE_PATHS[i % len(FAKE_PATHS)],
              name.lower() + '-cli', cap, '', '', 'active', rng.choice(CLIENTS), ts, ts))
 
-    # 配方表：留空是有意的 —— 真库里也为 0 行，正好演示"表存在但无数据"的处理
+    # 配方表：3 条合成 recipe 演示 resolve_task 的用法
+    demo_recipes = [
+        ("Deploy a Python service", "demo", "1. Create venv 2. pip install 3. uvicorn start", "python3.10+,pip", "venv", "active"),
+        ("Setup local embedding", "demo", "1. Download bge-m3 ONNX 2. Configure MEM_EMBED_BACKEND=local 3. Rebuild index", "onnxruntime,tokenizers", "vector", "active"),
+        ("Export memory snapshot", "demo", "1. Run memtether_export.py 2. Verify sha256 3. Import on target", "memtether installed", "export", "active"),
+    ]
+    for name, agent, steps, prereq, rtype, status in demo_recipes:
+        cur.execute(
+            'INSERT INTO recipes (task_name, agent, steps, prerequisites, recipe_type, status) VALUES (?,?,?,?,?,?)',
+            (name, agent, steps, prereq, rtype, status))
     for i in range(12):
         cur.execute(
             'INSERT INTO audit_log (op,target,agent,detail,ts) VALUES (?,?,?,?,?)',

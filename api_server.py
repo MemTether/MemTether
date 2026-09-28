@@ -55,7 +55,22 @@ def remember(req: RememberRequest):
 @app.post("/search")
 def search(req: SearchRequest):
     try:
-        return gateway.search(req.query, req.limit)
+        result = gateway.search(req.query, req.limit)
+        # A1: Auto-increment use_count for returned facts (passive tracking)
+        if isinstance(result, dict) and "results" in result:
+            import sqlite3
+            db_path = os.environ.get("MEM_DB", "memory.db")
+            try:
+                conn = sqlite3.connect(db_path)
+                for r in result["results"]:
+                    uid = r.get("uid", "")
+                    if uid:
+                        conn.execute("UPDATE facts SET use_count = use_count + 1 WHERE uid = ?", (uid,))
+                conn.commit()
+                conn.close()
+            except Exception:
+                pass  # don't fail the search if bump fails
+        return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)[:300])
 
