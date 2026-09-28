@@ -9,9 +9,13 @@
 ## 安装
 
 ```bash
-pip install memtether
-# 语义检索档（可选）：pip install "memtether[vector]"
+pip install memtether                    # 基础安装（关键词检索，立即可用）
+pip install "memtether[vector]"         # 语义检索档（可选，+300MB）
+python -m memsearch --rebuild            # 装完 vector 后建一次索引（只需一次）
 ```
+
+> 不装 `[vector]` 也能用——搜索自动降级为关键词+字面匹配，功能不丢、排序变差。
+> 语义检索依赖本地 bge-m3 embedding（~300MB），首次建索引需要几分钟。
 
 换一个 AI 客户端，它就不认识你了 —— 这件事几乎每个在多个客户端/账号之间切换的人都遇到过。
 主流方案的答案是"同步"：各存一份，然后对齐。同步必然漂移，漂移之后各说各话。
