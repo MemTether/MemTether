@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 180" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="50%" stop-color="#1e3a5f"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="50%" stop-color="#818cf8"/>
+      <stop offset="100%" stop-color="#e94560"/>
+    </linearGradient>
+  </defs>
+  <rect width="1400" height="180" fill="url(#bg)"/>
+
+  <!-- Decorative circuit lines (subtle) -->
+  <g opacity="0.05" stroke="#38bdf8" stroke-width="1">
+    <line x1="0" y1="40" x2="1400" y2="40"/>
+    <line x1="0" y1="90" x2="1400" y2="90"/>
+    <line x1="0" y1="140" x2="1400" y2="140"/>
+  </g>
+
+  <!-- Title: positioned at y=75 (upper-middle area) -->
+  <text x="700" y="80" text-anchor="middle" fill="#e2e8f0" font-size="52" font-weight="800" letter-spacing="6">MemTether</text>
+
+  <!-- Gradient underline -->
+  <rect x="520" y="92" width="360" height="3" fill="url(#accent)" rx="1.5"/>
+
+  <!-- Subtitle: right below underline -->
+  <text x="700" y="118" text-anchor="middle" fill="#94a3b8" font-size="17" font-weight="400">
+    Cross-client AI Memory Hub
+  </text>
+
+  <!-- Bottom gradient line -->
+  <rect x="0" y="174" width="1400" height="6" fill="url(#accent)" opacity="0.3"/>
+</svg>
