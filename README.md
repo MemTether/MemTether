@@ -62,46 +62,39 @@ MemTether 的答案更简单：**让它们指向同一份文件**。
 ## 架构
 
 ```mermaid
-graph TB
-    subgraph "AI 客户端"
-        A1[Codex CLI]
-        A2[WorkBuddy]
-        A3[OpenClaw]
-        A4[ZCode / Tabbit / ...]
+graph LR
+    subgraph 客户端
+        direction LR
+        A["Codex / WorkBuddy<br/>OpenClaw / ZCode / ..."]
     end
 
-    subgraph "接入层"
-        B[tether_connect<br/>23 adapters<br/>detect → plan → apply → verify]
+    subgraph MemTether
+        direction TB
+        B["📡 接入层<br/>tether_connect · 23 adapters"]
+        C["📝 gateway.py<br/>写入 · source · PII · dedup"]
+        D["🔍 memsearch.py<br/>4路召回 · RRF · 精排"]
+        E["🛡️ governance.py<br/>冲突检测 · supersession"]
+        F["📋 rebuild<br/>投影 · 3980字符"]
     end
 
-    subgraph "MemTether 核心"
-        C[gateway.py<br/>写入管线<br/>source 归属 + PII + dedup]
-        D[memsearch.py<br/>检索管线<br/>4路召回 + RRF + 精排]
-        E[governance.py<br/>治理管线<br/>冲突检测 + 双时间轴 + supersession]
-        F[rebuild<br/>投影管线<br/>3980 字符零和]
+    subgraph 存储
+        I[("memory.db<br/>SQLite WAL")]
+        J[("ChromaDB<br/>bge-m3 向量")]
     end
 
-    subgraph "记忆交换"
-        G[Exchange Schema v2<br/>consent / sync / blake3]
-        H[6 适配器<br/>Mem0 / Zep / Letta / Graphiti / LangMem / COGX]
+    subgraph 交换
+        H["Exchange Schema v2<br/>6 适配器"]
     end
 
-    subgraph "存储"
-        I[(memory.db<br/>SQLite WAL)]
-        J[(ChromaDB<br/>bge-m3 向量)]
-    end
-
-    A1 & A2 & A3 & A4 --> B
+    A <--> B
     B --> C
     C --> I
-    C --> D
-    D --> I
+    C <--> D
     D --> J
-    E --> I
+    E <--> I
     C --> F
-    F --> A1 & A2 & A3 & A4
-    I --> G
-    G --> H
+    F --> A
+    I <--> H
 ```
 
 **四条核心链路：**
