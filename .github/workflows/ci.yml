@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ['3.10', '3.12']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          pip install pytest pytest-cov ruff
+
+      - name: Lint with ruff
+        run: ruff check . --select E9,F63,F7,F82 --ignore E501
+
+      - name: Run regression tests
+        run: python regression_test.py
+
+      - name: Run PII round-trip test
+        run: python test_pii_roundtrip.py
+
+      - name: Run E2E verify
+        run: python e2e_verify.py
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build wheel
+        run: |
+          pip install build
+          python -m build --wheel
+      - name: Check packaging
+        run: |
+          pip install twine
+          twine check dist/*
