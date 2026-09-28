@@ -7,6 +7,18 @@ on:
     branches: [main]
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install ruff
+        run: pip install ruff
+      - name: Lint
+        run: ruff check . --select E9,F63,F7,F82 --ignore E501
+
   test:
     runs-on: ${{ matrix.os }}
     strategy:
@@ -22,25 +34,18 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-          cache: pip
 
-      - name: Install dependencies
+      - name: Install package
         run: |
           python -m pip install --upgrade pip
           pip install -e .
-          pip install pytest pytest-cov ruff
+          pip install pytest
 
-      - name: Lint with ruff
-        run: ruff check . --select E9,F63,F7,F82 --ignore E501
+      - name: Run pytest tests
+        run: pytest tests/ -v --tb=short
 
-      - name: Run regression tests
-        run: python regression_test.py
-
-      - name: Run PII round-trip test
+      - name: Test PII roundtrip
         run: python test_pii_roundtrip.py
-
-      - name: Run E2E verify
-        run: python e2e_verify.py
 
   build:
     runs-on: ubuntu-latest
