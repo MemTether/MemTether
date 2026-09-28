@@ -344,6 +344,27 @@ python extract.py transcript.txt --source myagent          # 提取并写入
 python extract.py transcript.txt --source myagent --dry-run  # 只展示不写入
 ```
 
+### REST API
+
+```bash
+# 启动 API server
+pip install "memtether[server]"
+uvicorn api_server:app --host 0.0.0.0 --port 8080
+# 或用 Docker
+docker-compose up
+```
+
+任何语言（Node.js / Go / Rust / Java / curl）都能调：
+
+```bash
+curl -X POST http://localhost:8080/remember -H "Content-Type: application/json" -d '{"content": "结论", "type": "fact", "source": "my_app"}'
+curl -X POST http://localhost:8080/search -H "Content-Type: application/json" -d '{"query": "关键词"}'
+curl http://localhost:8080/stats
+curl http://localhost:8080/health
+```
+
+完整 OpenAPI 文档：`http://localhost:8080/docs`
+
 ---
 
 ## 想先看看它长什么样？用合成演示库
