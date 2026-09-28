@@ -1,34 +1,25 @@
 <div align="center">
-
-<a href="https://github.com/MemTether/MemTether">
-  <img src="https://capsule-render.vercel.app/api?type=waving&color=gradient&customColorList=6,11,20&height=180&section=header&text=MemTether&fontSize=48&fontColor=fff&animation=fadeIn&desc=Cross-client%20AI%20Memory%20Hub&descSize=18&descAlignY=65" width="100%" alt="MemTether"/>
-</a>
-
-### 让多个 AI 客户端共享同一份物理记忆
-
-**文件级指针 · 零云服务 · 零 API 费用 · 治理型记忆**
-
-[![PyPI](https://img.shields.io/pypi/v/memtether?color=%2334D058&label=pypi)](https://pypi.org/project/memtether/)
-[![Python](https://img.shields.io/pypi/pyversions/memtether)](https://pypi.org/project/memtether/)
-[![CI](https://github.com/MemTether/MemTether/actions/workflows/ci.yml/badge.svg)](https://github.com/MemTether/MemTether/actions/workflows/ci.yml)
-[![License](https://img.shields.io/github/license/MemTether/MemTether)](LICENSE)
-[![Stars](https://img.shields.io/github/stars/MemTether/MemTether?style=social)](https://github.com/MemTether/MemTether/stargazers)
-
-[安装](#安装) · [快速开始](#快速开始) · [架构](#架构) · [评测](#它现在是什么水平诚实版) · [接入客户端](#接入你的客户端一条命令) · [Exchange](#与同类项目的关系)
-
+  <img src="assets/banner.svg" alt="MemTether - Cross-Client AI Memory Hub" width="100%" />
 </div>
 
----
+<div align="center">
+  <a href="https://pypi.org/project/memtether/"><img src="https://img.shields.io/pypi/v/memtether?color=%2334D058&label=pypi" alt="PyPI"></a>
+  <a href="https://github.com/MemTether/MemTether/actions/workflows/ci.yml"><img src="https://github.com/MemTether/MemTether/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/MemTether/MemTether" alt="License"></a>
+  <a href="https://github.com/MemTether/MemTether/stargazers"><img src="https://img.shields.io/github/stars/MemTether/MemTether?style=social" alt="Stars"></a>
+</div>
+
+<br/>
 
 <div align="center">
 
-| 🏆 治理模型 | 🔄 跨客户端 | 🔒 零费用 | 📊 可验证 |
-|:---:|:---:|:---:|:---:|
-| supersession + 双时间轴 + Q-Value | 文件级指针共享物理记忆 | 100% 本地，零 API | 评测集+评分卡全开源 |
+**让多个异构 AI 客户端共享同一份物理记忆——文件级指针，而非同步副本。**
+
+[安装](#安装) · [快速开始](#快速开始) · [架构](#架构) · [评测](#它现在是什么水平诚实版) · [接入客户端](#接入你的客户端一条命令)
 
 </div>
 
----
+<br/>
 
 
 ## 安装
