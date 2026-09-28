@@ -77,12 +77,12 @@
   <line x1="227" y1="222" x2="407" y2="270" stroke="#38bdf8" stroke-width="1.2" marker-end="url(#ab)"/>
 
   <!-- EXCHANGE -->
-  <rect x="100" y="335" width="400" height="68" rx="12" fill="#0c1e3a" stroke="#e94560" stroke-width="1"/>
+  <rect x="100" y="335" width="400" height="74" rx="12" fill="#0c1e3a" stroke="#e94560" stroke-width="1"/>
   <text x="300" y="352" text-anchor="middle" fill="#e94560" font-size="11" font-weight="700">记忆交换</text>
-  <rect x="115" y="356" width="370" height="42" rx="8" fill="#2d1b4e" stroke="#e94560" stroke-width="1.5"/>
+  <rect x="115" y="356" width="370" height="48" rx="8" fill="#2d1b4e" stroke="#e94560" stroke-width="1.5"/>
   <text x="300" y="374" text-anchor="middle" fill="#e2e8f0" font-size="12" font-weight="700">Exchange Schema v2</text>
-  <text x="300" y="381" text-anchor="middle" fill="#c4b5fd" font-size="9">Mem0 · Zep · Letta · Graphiti · LangMem · COGX</text>
-  <text x="300" y="392" text-anchor="middle" fill="#64748b" font-size="8">consent · sync watermark · BLAKE3 · supersession</text>
+  <text x="300" y="388" text-anchor="middle" fill="#c4b5fd" font-size="9">Mem0 · Zep · Letta · Graphiti · LangMem · COGX</text>
+  <text x="300" y="398" text-anchor="middle" fill="#64748b" font-size="8">consent · sync watermark · BLAKE3 · supersession</text>
   <line x1="187" y1="312" x2="300" y2="333" stroke="#e94560" stroke-width="1.2" marker-end="url(#ar)"/>
 
   <!-- FEATURES -->
