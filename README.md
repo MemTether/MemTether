@@ -1,12 +1,35 @@
-# MemTether · 跨客户端 AI 记忆中枢
+<div align="center">
 
-> **一句话：让多个异构 AI 客户端共享同一份物理记忆，而不是同步各自的副本。**
+<a href="https://github.com/MemTether/MemTether">
+  <img src="https://capsule-render.vercel.app/api?type=waving&color=gradient&customColorList=6,11,20&height=180&section=header&text=MemTether&fontSize=48&fontColor=fff&animation=fadeIn&desc=Cross-client%20AI%20Memory%20Hub&descSize=18&descAlignY=65" width="100%" alt="MemTether"/>
+</a>
 
-![PyPI](https://img.shields.io/pypi/v/memtether) ![Python](https://img.shields.io/pypi/pyversions/memtether) ![License](https://img.shields.io/github/license/MemTether/MemTether)
+### 让多个 AI 客户端共享同一份物理记忆
 
-[![安装 · PyPI](https://img.shields.io/badge/PyPI-memtether-blue)](https://pypi.org/project/memtether/) · [![源码 · GitHub](https://img.shields.io/badge/GitHub-MemTether-black)](https://github.com/MemTether/MemTether)
+**文件级指针 · 零云服务 · 零 API 费用 · 治理型记忆**
 
+[![PyPI](https://img.shields.io/pypi/v/memtether?color=%2334D058&label=pypi)](https://pypi.org/project/memtether/)
+[![Python](https://img.shields.io/pypi/pyversions/memtether)](https://pypi.org/project/memtether/)
 [![CI](https://github.com/MemTether/MemTether/actions/workflows/ci.yml/badge.svg)](https://github.com/MemTether/MemTether/actions/workflows/ci.yml)
+[![License](https://img.shields.io/github/license/MemTether/MemTether)](LICENSE)
+[![Stars](https://img.shields.io/github/stars/MemTether/MemTether?style=social)](https://github.com/MemTether/MemTether/stargazers)
+
+[安装](#安装) · [快速开始](#快速开始) · [架构](#架构) · [评测](#它现在是什么水平诚实版) · [接入客户端](#接入你的客户端一条命令) · [Exchange](#与同类项目的关系)
+
+</div>
+
+---
+
+<div align="center">
+
+| 🏆 治理模型 | 🔄 跨客户端 | 🔒 零费用 | 📊 可验证 |
+|:---:|:---:|:---:|:---:|
+| supersession + 双时间轴 + Q-Value | 文件级指针共享物理记忆 | 100% 本地，零 API | 评测集+评分卡全开源 |
+
+</div>
+
+---
+
 
 ## 安装
 
@@ -168,8 +191,7 @@ python skillctl.py scan     # 从记忆库里扫候选，起草新技能
 
 ## 快速开始
 
-> 当前状态：**研究原型**。已支持标准 `pip` 安装与客户端自动接入
-> （`memtether-connect`，见「接入你的客户端」一节）。
+> 支持 `pip` 一键安装与 23 个客户端自动接入（`memtether-connect`）。
 
 ### 方式 A0：一键脚本（Windows，最省事）
 
@@ -566,3 +588,19 @@ MemTether 的卖点是**可验证性**：评分卡源码、评测集、双判分
 - 许可：**Apache-2.0**（见 `LICENSE`）；第三方组件与模型权重的归属声明见 `NOTICE`
 - 安全问题请走 `SECURITY.md`
 
+
+
+---
+
+<div align="center">
+
+### ⭐ Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=MemTether/MemTether&type=Timeline)](https://star-history.com/#MemTether/MemTether&Timeline)
+
+</div>
+
+
+<a href="https://github.com/MemTether/MemTether">
+  <img src="https://capsule-render.vercel.app/api?type=waving&color=gradient&customColorList=6,11,20&height=120&section=footer" width="100%"/>
+</a>
