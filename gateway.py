@@ -570,6 +570,11 @@ def correct(old_uid, new_content, reason, by_agent=DEFAULT_SOURCE, valid_from=No
         # 向量索引同步：旧的下线、新的上线
         _vec_delete(old_uid)
         _vec_upsert(new_uid, new_content, old['type'], by_agent)
+        # A1: auto-bump Q-Value — corrected fact is wrong, give negative reward
+        try:
+            bump_qvalue(old_uid, reward=0.0, agent=by_agent, detail='auto: corrected/superseded')
+        except Exception:
+            pass
         return {'ok': True, 'old_uid': old_uid, 'new_uid': new_uid, 'op': 'supersede'}
     finally:
         conn.close()
@@ -596,6 +601,11 @@ def retire(uid, reason, by_agent=DEFAULT_SOURCE):
         audit(conn, 'retire', uid, by_agent, reason)
         conn.commit()
         _vec_delete(uid)
+        # A1: auto-bump Q-Value — retired fact is expired, give negative reward
+        try:
+            bump_qvalue(uid, reward=0.0, agent=by_agent, detail='auto: retired')
+        except Exception:
+            pass
         return {'ok': True, 'uid': uid, 'op': 'retired'}
     finally:
         conn.close()
