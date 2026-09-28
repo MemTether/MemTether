@@ -17,6 +17,7 @@ COPY tests/ tests/
 
 # Install the package
 RUN pip install --no-cache-dir .
+RUN pip install --no-cache-dir fastapi uvicorn
 
 # Create non-root user
 RUN useradd -m -s /bin/bash memtether
@@ -26,4 +27,4 @@ USER memtether
 ENV MEM_DB=/home/memtether/.memtether/memory.db
 
 # Default command
-CMD ["python", "-m", "memsearch", "--help"]
+CMD ["uvicorn", "api_server:app", "--host", "0.0.0.0", "--port", "8080"]
