@@ -12,6 +12,9 @@ memsearch.py — 记忆混合检索模块（DeepSeek × Astra 协作成果 2026-
 import os
 import re
 import sys
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 import json
 import math
 import time
