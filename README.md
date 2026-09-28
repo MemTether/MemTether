@@ -377,15 +377,15 @@ python mem.py search "跨客户端共享"
 
 ## 它现在是什么水平（诚实版）
 
-本机实测（2026-09-25）：
+本机实测（2026-09-28 最新）：
 
 | 指标 | 值 |
 |---|---|
-| 硬基准 hard_bench（62 题，指向生产库实测 09-26） | **98.4%** (61/62；唯一 FAIL 是检索边界非代码缺陷)。⚠️ 复跑必须 `MEM_DB` 指向生产库——默认指向发布库自带 memory.db（仅 4 条示例 facts）会得 0/62，那是空库不是分数 |
+| 硬基准 hard_bench（62 题，指向生产库实测 09-26） | **100%** (62/62，NREM 提纯后 09-28 复跑不退化)。⚠️ 复跑必须 `MEM_DB` 指向生产库——默认指向发布库自带 memory.db（仅 4 条示例 facts）会得 0/62，那是空库不是分数 |
 | 资产基准 asset_bench（23 题） | **100%** |
 | E2E 端到端（13 项探针） | **13/13** |
 | LongMemEval oracle 全量 500 题（strict 下界） | **59.6%** (199/334，2026-09-27 bug 修复后复跑) |
-| LongMemEval 全量（LLM judge 宽松口径） | **64.2%** (308/480，2026-09-27 修复 generate+judge 后复跑，20 题生成阶段失败未计入) |
+| LongMemEval 全量（LLM judge 宽松口径） | **63.7%** (309/485，2026-09-27 v4.1-flash judge 复跑，15 题生成阶段失败未计入；v4-flash 为 64.2%，噪声持平) |
 | LongMemEval single-session-preference（修复后） | **46.7%** (14/30，修复前 0%，根因：generate prompt 对 preference 类问题误判 + judge max_tokens 过小) |
 | HotpotQA distractor 100 题抽样（strict 下界） | **88.3%** (83/94) |
 
@@ -458,6 +458,10 @@ MemTether 的卖点是**可验证性**：评分卡源码、评测集、双判分
 - [x] MCP server 的来源自动识别（父进程映像名 + 命令行两级；零配置，不动 `env` 以免掉信任）
 - [x] 「被采纳」的自动判定（Q-Value 上游）：MCP `feedback` tool（09-25）+ **检索时 auto-reinforce（09-25，`MEM_QVALUE_AUTO=1` 开启，Lethe 式 top-k relevance 回写）**
 - [x] 发布到 PyPI（[pip install memtether](https://pypi.org/project/memtether/)）
+- [x] Memory Exchange Schema v2（consent / sync watermark / meta.warnings，对标 UMP+MGP）
+- [x] 6 跨系统适配器（Mem0 / Zep / Letta / Graphiti / LangMem / COGX，全部带治理语义）
+- [x] NREM 语义提纯（complete-linkage 聚类 → 摘要+残差 → apply，hard_bench 100% 不退化）
+- [x] 实体图谱反查路（T4-A，`MEM_GRAPH_RECALL=1` 开启；multi-session 实测零提升，诚实默认关）
 - [x] 语义相似度 boost（R1）— 高语义候选被关键词噪音淹没时自动上浮
 - [x] 索引一致性闸门（R2）— 向量索引漂移超阈值自动重建
 - [x] PII 脱敏层 + 导出快照 round-trip 测试（L2/T7/R3）
