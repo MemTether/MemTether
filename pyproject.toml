@@ -30,7 +30,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "memtether"
-version = "0.1.0a8"
+version = "0.1.0a9"
 description = "Cross-client memory hub for AI agents — one physical memory, many clients"
 readme = "README.md"
 license = {text = "Apache-2.0"}
@@ -85,7 +85,7 @@ memtether-connect = "tether_connect:main"
 # ★不写 packages = ["memtether"]：那会指向一个不存在的包（空壳已删）。
 # clients = 客户端适配器包（tether_connect 用），必须在这里登记，
 #   否则 `pip install` 出来的包**不带** clients/，工具一跑就 ImportError。
-packages = ["scripts", "clients"]
+packages = ["scripts", "clients", "integrations"]
 include-package-data = false
 py-modules = [
     # —— 引擎核心
@@ -137,6 +137,11 @@ py-modules = [
     "import_mem0",          # mem0 兼容导入（外部依赖版）
     "memtether_exchange",   # 记忆交换协议 Schema v1 导出 / 导入
     "mem0_exchange",        # Mem0 适配器（导入 / 导出，零外部依赖）
+    "zep_exchange",         # Zep 适配器
+    "letta_exchange",       # Letta 适配器
+    "graphiti_exchange",    # Graphiti 适配器
+    "langmem_exchange",     # LangMem 适配器
+    "cogx_exchange",        # COGX (cognee) 适配器
     "sync_reflector_mem0",  # reflector 同步
     "astra_dialogue",       # ASTRA 对话导出
     "astra_memory_closure", # ASTRA 记忆闭包
