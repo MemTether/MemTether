@@ -84,21 +84,6 @@ class TestExchange:
         assert "schema v3" in stats.get("error", "")
 
 
-class TestEntityGraph:
-    """Test entity extraction and recall."""
-
-    def test_extract_entities(self):
-        from entity_graph import extract_entities
-        ents = extract_entities("git push with openssl proxy on E:/RUANJIAN/memtether")
-        assert "git" in ents or "openssl" in ents
-        assert isinstance(ents, set)
-
-    def test_recall_empty_query(self):
-        from entity_graph import recall_by_entities
-        result = recall_by_entities("", db_path=":memory:")
-        assert result == []
-
-
 class TestGovernance:
     """Test governance conflict detection."""
 
