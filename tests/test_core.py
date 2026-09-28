@@ -12,6 +12,16 @@ class TestExchange:
     def test_export_import_roundtrip(self, tmp_db, tmp_path):
         """Export from source DB and import into target DB — facts should match."""
         from memtether_exchange import export_exchange, import_exchange
+        import sqlite3
+
+        # Ensure a fact exists (fixture may not have inserted one)
+        conn = sqlite3.connect(tmp_db)
+        conn.execute(
+            "INSERT OR IGNORE INTO facts (uid, content, type, source, recorded_at, valid_from) "
+            "VALUES ('rt-test-1', 'roundtrip test content', 'fact', 'test', '2026-01-01 00:00:00', '2026-01-01 00:00:00')"
+        )
+        conn.commit()
+        conn.close()
 
         out_path = str(tmp_path / "exchange.json")
         data, out = export_exchange(db_path=tmp_db, out_path=out_path)
