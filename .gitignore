@@ -99,6 +99,9 @@ skill_forge_state.json
 robocopy*_progress.txt
 *.db
 
+# hf_space: 演示库是生成物，但 HF Space 部署需要它随仓库分发（make_demo_db.py 可再生，种子固定）
+!hf_space/memory_demo.db
+
 # 开发残留
 # ★注意是 `_[!_]*` 而不是 `_*`：`__init__.py` 这类 dunder 文件必须保留。
 #   （曾经用 `_*.py`，结果 filter-branch 把 packaging/src/memtether/__init__.py 一起删了）
