@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MemTether Demo — 跨客户端 AI 记忆中枢</title>
+<style>
+:root{--bg:#0f1117;--card:#1a1d29;--border:#2a2e3f;--text:#e2e4ee;--dim:#8b8fa3;--accent:#7c6cf5;--accent2:#4fd1c5;--red:#f56565;--green:#48bb78}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,'Segoe UI','Microsoft YaHei',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:2rem}
+.wrap{max-width:860px;margin:0 auto}
+h1{font-size:1.6rem;margin-bottom:.3rem}
+.sub{color:var(--dim);margin-bottom:2rem;line-height:1.6}
+.badge{display:inline-block;background:var(--accent);color:#fff;border-radius:4px;padding:.15rem .6rem;font-size:.75rem;margin-right:.4rem;vertical-align:middle}
+.badge.teal{background:var(--accent2)}
+.tabs{display:flex;gap:.3rem;margin-bottom:1.2rem;flex-wrap:wrap}
+.tab{padding:.55rem 1.2rem;border:1px solid var(--border);background:var(--card);border-radius:8px 8px 0 0;cursor:pointer;color:var(--dim);font-size:.95rem}
+.tab.active{color:var(--text);border-bottom-color:var(--bg);background:var(--bg)}
+.panel{border:1px solid var(--border);border-radius:0 8px 8px 8px;padding:1.4rem;background:var(--card);margin-top:-1px}
+.row{display:flex;gap:.8rem;margin-bottom:1rem;flex-wrap:wrap}
+input[type=text],select{flex:1;min-width:200px;padding:.6rem .9rem;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:.95rem}
+input:focus,select:focus{outline:none;border-color:var(--accent)}
+button{padding:.6rem 1.4rem;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:.95rem;font-weight:600}
+button:hover{filter:brightness(1.15)}
+button:active{transform:scale(.98)}
+.result{margin-top:1.2rem}
+.item{padding:.8rem;border-left:3px solid var(--accent);background:var(--bg);border-radius:0 6px 6px 0;margin-bottom:.7rem;cursor:pointer;transition:border-color .15s}
+.item:hover{border-left-color:var(--accent2)}
+.item .meta{font-size:.75rem;color:var(--dim);margin-bottom:.25rem;font-family:monospace}
+.item .head{line-height:1.5}
+.item.expanded .full{display:block;margin-top:.6rem;padding-top:.6rem;border-top:1px dashed var(--border);color:var(--dim);font-size:.85rem;line-height:1.6;white-space:pre-wrap}
+.item .full{display:none}
+.empty{padding:1.2rem;background:var(--bg);border-radius:6px;color:var(--dim);text-align:center;line-height:1.6}
+.empty b{color:var(--red)}
+table{width:100%;border-collapse:collapse;margin:.8rem 0}
+th,td{padding:.55rem .8rem;text-align:left;border-bottom:1px solid var(--border);font-size:.9rem}
+th{color:var(--dim);font-weight:600}
+.chain{font-family:monospace;font-size:.85rem;padding:.5rem .8rem;background:var(--bg);border-radius:6px;margin-bottom:.5rem}
+.chain .arrow{color:var(--accent2)}
+.warn{color:var(--red);font-size:.85rem;margin-top:.6rem}
+.ok{color:var(--green)}
+.note{color:var(--dim);font-size:.85rem;margin-top:1.4rem;line-height:1.7;border-top:1px solid var(--border);padding-top:1.2rem}
+.note a{color:var(--accent2);text-decoration:none}
+.statgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.8rem;margin:1rem 0}
+.stat{background:var(--bg);border-radius:8px;padding:1rem;text-align:center}
+.stat .num{font-size:1.8rem;font-weight:700;color:var(--accent)}
+.stat .lbl{font-size:.8rem;color:var(--dim);margin-top:.2rem}
+h3{margin:1.4rem 0 .6rem;font-size:1rem;color:var(--dim)}
+.toast{position:fixed;bottom:1.5rem;right:1.5rem;background:var(--green);color:#fff;padding:.7rem 1.2rem;border-radius:8px;opacity:0;transition:opacity .3s;pointer-events:none;font-size:.9rem}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>🧠 MemTether <span class="badge">demo</span><span class="badge teal">static</span></h1>
+<div class="sub">跨客户端 AI 记忆中枢 —— 多个异构 AI 客户端通过<b>文件级指针</b>共享同一份物理 SQLite，<br>不做同步、不做云、不做副本。<br>本页运行在<b>全合成演示库</b>上（100 facts + 10 assets，零真实数据）。</div>
+
+<div class="tabs">
+<div class="tab active" data-tab="search">🔍 检索</div>
+<div class="tab" data-tab="remember">✍️ 写入</div>
+<div class="tab" data-tab="stats">📊 统计</div>
+<div class="tab" data-tab="governance">🔗 治理</div>
+</div>
+
+<div class="panel" id="p-search">
+<div class="row">
+<input type="text" id="q" placeholder="试试：向量 / 拒答 / 双时间轴 / 投影 / 指针 / 评测 / 停用词">
+<button onclick="doSearch()">搜索</button>
+</div>
+<div style="color:var(--dim);font-size:.82rem;margin-bottom:1rem">生产版是五路召回（向量 bge-m3 + FTS5/BM25 + 关键词 + 字面 + PPR 图谱）→ RRF → 精排 → 拒答闸门。此处仅演示关键词路 + 拒答行为。</div>
+<div class="result" id="qres"></div>
+</div>
+
+<div class="panel" id="p-remember" style="display:none">
+<div class="row"><input type="text" id="w-content" placeholder="结论：本机 Clash 代理端口是 7890（第一句就是结论）"></div>
+<div class="row">
+<select id="w-type"><option>fact</option><option>decision</option><option>experience</option><option>incident</option></select>
+<input type="text" id="w-source" placeholder="来源（归属强制）" value="visitor">
+<button onclick="doRemember()">写入</button>
+</div>
+<div class="result" id="wres"></div>
+</div>
+
+<div class="panel" id="p-stats" style="display:none"><div id="stats"></div></div>
+
+<div class="panel" id="p-governance" style="display:none">
+<h3>supersession 替代链</h3>
+<div class="row"><input type="text" id="t-uid" placeholder="uid（从搜索结果复制）"><button onclick="doChain()">查链</button></div>
+<div id="chainres"></div>
+<h3>冲突候选（简化版扫描）</h3>
+<button onclick="doConflicts()">扫描</button>
+<div id="confres" style="margin-top:1rem"></div>
+</div>
+
+<div class="note">
+<a href="https://github.com/MemTether/MemTether" target="_blank">GitHub</a> ·
+<a href="https://pypi.org/project/memtether/" target="_blank">PyPI</a> · Apache-2.0 ·
+本地完整体验：<code>pip install "memtether[vector]" && python -m memsearch --rebuild && uvicorn api_server:app --port 8080</code>
+<br>向量 / 精排 / 拒答阈值需要本地模型（bge-m3 CPU 推理），此静态页不含。
+</div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const DATA = {"generated_at":"2026-09-29 09:50:18","facts":[{"uid":"demo-experience-0001","type":"experience","source":"gammacli","content":"结论：语义路要固定后端与维度，换模型必须重建索引，否则向量集合不可比。","updated_at":"2026-08-16 08:26:57","tags":"ops,bench"},{"uid":"demo-experience-0002","type":"experience","source":"alphachat","content":"结论：新工作区开箱即用的关键是\"与工作区无关\"的注入槽位，靠父目录放文件覆盖不到。","updated_at":"2026-08-20 03:03:48","tags":"perf,memory"},{"uid":"demo-experience-0003","type":"experience","source":"alphachat","content":"结论：临时脚本里含明文凭据的，绝不能提交；提交前必须用独立规则集复扫。","updated_at":"2026-08-18 03:04:21","tags":"retrieval,sync,bench"},{"uid":"demo-experience-0004","type":"experience","source":"betamind","content":"结论：跨客户端共享一律用文件级指针，不做复制；复制会漂移，指针不会。","updated_at":"2026-08-28 00:03:22","tags":"perf,sync"},{"uid":"demo-experience-0005","type":"experience","source":"betamind","content":"结论：投影超预算的后果是整体截断而不是截掉末尾，所以必须留余量并显式告警。","updated_at":"2026-08-15 12:09:41","tags":"perf,sync"},{"uid":"demo-experience-0006","type":"experience","source":"betamind","content":"结论：短进程模式下每个查询都要重新加载模型，一次问多个问题可以摊薄冷启动。","updated_at":"2026-08-09 03:45:11","tags":"perf,memory,retrieval"},{"uid":"demo-experience-0007","type":"experience","source":"betamind","content":"结论：给检索加拒答能力时，默认必须是\"照常返回 + 加提示\"，直接拒答会让读者误以为库里真的没有。","updated_at":"2026-08-11 19:42:52","tags":"memory"},{"uid":"demo-experience-0008","type":"experience","source":"deltahub","content":"结论：词形匹配对\"同形不同属性\"的提问原理上无解——库里有这个实体，但没有被问的那个属性。","updated_at":"2026-08-19 04:17:28","tags":"proj,sync"},{"uid":"demo-experience-0009","type":"experience","source":"epsilon_ai","content":"结论：同一份记忆被多个客户端读取时，写入必须带来源标识，否则归属会算到别的客户端头上。","updated_at":"2026-08-15 02:25:17","tags":"memory"},{"uid":"demo-experience-0010","type":"experience","source":"betamind","content":"结论：判断内容多不多要看字符数，不能看字节数；中英混排下字节数约为字符数的 1.5 倍。","updated_at":"2026-08-02 23:48:22","tags":"sync"},{"uid":"demo-experience-0011","type":"experience","source":"deltahub","content":"结论：评测集饱和后就失去鉴别力，此时换模型看不出差别，必须换改述式题集。","updated_at":"2026-08-25 23:00:08","tags":"memory"},{"uid":"demo-experience-0012","type":"experience","source":"betamind","content":"结论：共享什么取决于\"用户为什么装第二个实例\"，不是\"什么能共享\"。","updated_at":"2026-08-04 16:09:26","tags":"bench"},{"uid":"demo-experience-0013","type":"experience","source":"alphachat","content":"结论：切换客户端后若发现检索变慢，先看是否退化成纯关键词路径——向量栈缺失时不会报错，只会静默降级。","updated_at":"2026-08-25 09:40:23","tags":"memory"},{"uid":"demo-experience-0014","type":"experience","source":"alphachat","content":"结论：同一件事只存一处，存两处必然漂移。指针要指向唯一真源。","updated_at":"2026-08-20 20:42:29","tags":"ops,demo,sync"},{"uid":"demo-experience-0015","type":"experience","source":"betamind","content":"结论：新工作区开箱即用的关键是\"与工作区无关\"的注入槽位，靠父目录放文件覆盖不到。","updated_at":"2026-08-07 13:14:39","tags":"perf"},{"uid":"demo-experience-0016","type":"experience","source":"epsilon_ai","content":"结论：同一份记忆被多个客户端读取时，写入必须带来源标识，否则归属会算到别的客户端头上。","updated_at":"2026-08-28 11:26:45","tags":"proj"},{"uid":"demo-experience-0017","type":"experience","source":"deltahub","content":"结论：切换客户端后若发现检索变慢，先看是否退化成纯关键词路径——向量栈缺失时不会报错，只会静默降级。","updated_at":"2026-08-04 08:43:15","tags":"memory,retrieval,sync"},{"uid":"demo-experience-0018","type":"experience","source":"deltahub","content":"结论：临时脚本里含明文凭据的，绝不能提交；提交前必须用独立规则集复扫。","updated_at":"2026-08-20 17:24:41","tags":"sync,ops,demo"},{"uid":"demo-experience-0019","type":"experience","source":"deltahub","content":"结论：同一件事只存一处，存两处必然漂移。指针要指向唯一真源。","updated_at":"2026-08-04 16:41:38","tags":"retrieval,bench"},{"uid":"demo-experience-0020","type":"experience","source":"deltahub","content":"结论：共享什么取决于\"用户为什么装第二个实例\"，不是\"什么能共享\"。","updated_at":"2026-08-25 11:48:36","tags":"retrieval,demo,bench"},{"uid":"demo-experience-0021","type":"experience","source":"gammacli","content":"结论：词形匹配对\"同形不同属性\"的提问原理上无解——库里有这个实体，但没有被问的那个属性。","updated_at":"2026-08-17 15:42:13","tags":"bench,perf"},{"uid":"demo-experience-0022","type":"experience","source":"alphachat","content":"结论：投影超预算的后果是整体截断而不是截掉末尾，所以必须留余量并显式告警。","updated_at":"2026-08-24 13:05:57","tags":"sync"},{"uid":"demo-experience-0023","type":"experience","source":"gammacli","content":"结论：语义路要固定后端与维度，换模型必须重建索引，否则向量集合不可比。","updated_at":"2026-08-25 20:40:20","tags":"perf"},{"uid":"demo-experience-0024","type":"experience","source":"alphachat","content":"结论：短进程模式下每个查询都要重新加载模型，一次问多个问题可以摊薄冷启动。","updated_at":"2026-08-03 02:33:38","tags":"bench,proj,sync"},{"uid":"demo-experience-0025","type":"experience","source":"epsilon_ai","content":"结论：给检索加拒答能力时，默认必须是\"照常返回 + 加提示\"，直接拒答会让读者误以为库里真的没有。","updated_at":"2026-08-12 01:25:15","tags":"perf,memory,demo"},{"uid":"demo-experience-0026","type":"experience","source":"deltahub","content":"结论：评测集饱和后就失去鉴别力，此时换模型看不出差别，必须换改述式题集。","updated_at":"2026-08-15 14:16:28","tags":"demo"},{"uid":"demo-experience-0027","type":"experience","source":"gammacli","content":"结论：判断内容多不多要看字符数，不能看字节数；中英混排下字节数约为字符数的 1.5 倍。","updated_at":"2026-08-26 10:30:55","tags":"retrieval,ops"},{"uid":"demo-experience-0028","type":"experience","source":"alphachat","content":"结论：跨客户端共享一律用文件级指针，不做复制；复制会漂移，指针不会。","updated_at":"2026-08-17 04:55:35","tags":"memory,retrieval,demo"},{"uid":"demo-experience-0029","type":"experience","source":"alphachat","content":"结论：投影超预算的后果是整体截断而不是截掉末尾，所以必须留余量并显式告警。","updated_at":"2026-08-17 07:52:59","tags":"proj"},{"uid":"demo-experience-0030","type":"experience","source":"betamind","content":"结论：跨客户端共享一律用文件级指针，不做复制；复制会漂移，指针不会。","updated_at":"2026-08-06 04:22:42","tags":"perf,sync,ops"},{"uid":"demo-experience-0031","type":"experience","source":"epsilon_ai","content":"结论：评测集饱和后就失去鉴别力，此时换模型看不出差别，必须换改述式题集。","updated_at":"2026-08-16 20:01:40","tags":"memory,demo,bench"},{"uid":"demo-experience-0032","type":"experience","source":"epsilon_ai","content":"结论：短进程模式下每个查询都要重新加载模型，一次问多个问题可以摊薄冷启动。","updated_at":"2026-08-02 13:27:15","tags":"demo,sync"},{"uid":"demo-experience-0033","type":"experience","source":"betamind","content":"结论：词形匹配对\"同形不同属性\"的提问原理上无解——库里有这个实体，但没有被问的那个属性。","updated_at":"2026-08-06 08:55:28","tags":"sync"},{"uid":"demo-experience-0034","type":"experience","source":"alphachat","content":"结论：共享什么取决于\"用户为什么装第二个实例\"，不是\"什么能共享\"。","updated_at":"2026-08-08 19:52:58","tags":"ops,retrieval"},{"uid":"demo-fact-0035","type":"fact","source":"deltahub","content":"双时间轴区分\"某时刻什么为真\"与\"系统当时认为什么为真\"。","updated_at":"2026-08-12 11:19:24","tags":"demo,sync,perf"},{"uid":"demo-fact-0036","type":"fact","source":"deltahub","content":"拒答判据的两个阈值改任何一处都必须重跑标定，复核零误拒是否仍成立。","updated_at":"2026-08-12 11:57:32","tags":"ops"},{"uid":"demo-fact-0037","type":"fact","source":"alphachat","content":"演示库的字符预算按字符数计，不是字节数；官方槽位是硬上限。","updated_at":"2026-08-11 14:54:36","tags":"bench,proj"},{"uid":"demo-fact-0038","type":"fact","source":"gammacli","content":"来源标识用于区分是哪个客户端写入的，取值来自注册表。","updated_at":"2026-08-01 05:22:55","tags":"memory"},{"uid":"demo-fact-0039","type":"fact","source":"epsilon_ai","content":"发布链路有四段闸门：同步前自检、清单闸门、后置守卫、同步后独立复扫。","updated_at":"2026-08-07 13:49:12","tags":"ops,perf"},{"uid":"demo-fact-0040","type":"fact","source":"gammacli","content":"索引元数据里记录了向量维度，维度不一致会硬报错而不是静默出错。","updated_at":"2026-08-19 11:41:50","tags":"memory,perf"},{"uid":"demo-fact-0041","type":"fact","source":"deltahub","content":"本演示库由脚本合成，不含任何真实数据；种子固定，产出可复现。","updated_at":"2026-08-27 23:09:42","tags":"proj"},{"uid":"demo-fact-0042","type":"fact","source":"alphachat","content":"停用词表由本机语料频次自动生成，语料变化后需重建。","updated_at":"2026-08-22 10:58:30","tags":"proj"},{"uid":"demo-fact-0043","type":"fact","source":"gammacli","content":"工具资产表记录名称、别名、入口、能力与已知问题，用于任务前取配方。","updated_at":"2026-08-17 03:55:45","tags":"demo,perf"},{"uid":"demo-fact-0044","type":"fact","source":"gammacli","content":"配方表按任务模式匹配，给出首选工具与已知坑；本演示库中该表为空。","updated_at":"2026-08-13 15:45:52","tags":"ops"},{"uid":"demo-fact-0045","type":"fact","source":"deltahub","content":"检索走混合路径：向量 + 精确串 + 字面，任一路失败会退化，退化不抛异常。","updated_at":"2026-08-09 07:30:47","tags":"ops,demo"},{"uid":"demo-fact-0046","type":"fact","source":"betamind","content":"记忆分四类：事实 / 决策 / 事故 / 经验。经验与事故最容易在裁剪时被饿死，需保底。","updated_at":"2026-08-03 12:47:35","tags":"bench,perf"},{"uid":"demo-fact-0047","type":"fact","source":"deltahub","content":"投影是给注入侧看的精简版，真源始终是数据库文件。","updated_at":"2026-08-05 22:50:17","tags":"memory"},{"uid":"demo-fact-0048","type":"fact","source":"gammacli","content":"工具资产的路径在演示库中一律为虚构路径，避免暴露真实安装位置。","updated_at":"2026-08-21 17:16:44","tags":"sync,memory,bench"},{"uid":"demo-fact-0049","type":"fact","source":"epsilon_ai","content":"工具资产表记录名称、别名、入口、能力与已知问题，用于任务前取配方。","updated_at":"2026-08-09 23:56:59","tags":"ops"},{"uid":"demo-fact-0050","type":"fact","source":"alphachat","content":"工具资产的路径在演示库中一律为虚构路径，避免暴露真实安装位置。","updated_at":"2026-08-09 00:03:21","tags":"proj"},{"uid":"demo-fact-0051","type":"fact","source":"epsilon_ai","content":"双时间轴区分\"某时刻什么为真\"与\"系统当时认为什么为真\"。","updated_at":"2026-08-13 23:08:19","tags":"memory"},{"uid":"demo-fact-0052","type":"fact","source":"epsilon_ai","content":"来源标识用于区分是哪个客户端写入的，取值来自注册表。","updated_at":"2026-08-02 02:47:47","tags":"perf"},{"uid":"demo-fact-0053","type":"fact","source":"gammacli","content":"检索走混合路径：向量 + 精确串 + 字面，任一路失败会退化，退化不抛异常。","updated_at":"2026-08-28 12:52:59","tags":"bench"},{"uid":"demo-fact-0054","type":"fact","source":"gammacli","content":"发布链路有四段闸门：同步前自检、清单闸门、后置守卫、同步后独立复扫。","updated_at":"2026-08-01 21:18:03","tags":"perf,retrieval"},{"uid":"demo-fact-0055","type":"fact","source":"deltahub","content":"停用词表由本机语料频次自动生成，语料变化后需重建。","updated_at":"2026-08-11 18:14:33","tags":"demo,sync"},{"uid":"demo-fact-0056","type":"fact","source":"gammacli","content":"索引元数据里记录了向量维度，维度不一致会硬报错而不是静默出错。","updated_at":"2026-08-17 21:25:51","tags":"perf"},{"uid":"demo-fact-0057","type":"fact","source":"gammacli","content":"拒答判据的两个阈值改任何一处都必须重跑标定，复核零误拒是否仍成立。","updated_at":"2026-08-15 19:56:13","tags":"retrieval,memory"},{"uid":"demo-fact-0058","type":"fact","source":"alphachat","content":"配方表按任务模式匹配，给出首选工具与已知坑；本演示库中该表为空。","updated_at":"2026-08-23 09:51:11","tags":"sync,proj"},{"uid":"demo-fact-0059","type":"fact","source":"alphachat","content":"记忆分四类：事实 / 决策 / 事故 / 经验。经验与事故最容易在裁剪时被饿死，需保底。","updated_at":"2026-08-22 09:58:51","tags":"perf"},{"uid":"demo-fact-0060","type":"fact","source":"epsilon_ai","content":"本演示库由脚本合成，不含任何真实数据；种子固定，产出可复现。","updated_at":"2026-08-13 21:45:33","tags":"perf,memory,retrieval"},{"uid":"demo-fact-0061","type":"fact","source":"epsilon_ai","content":"投影是给注入侧看的精简版，真源始终是数据库文件。","updated_at":"2026-08-25 04:10:54","tags":"demo,retrieval"},{"uid":"demo-fact-0062","type":"fact","source":"alphachat","content":"演示库的字符预算按字符数计，不是字节数；官方槽位是硬上限。","updated_at":"2026-08-26 19:29:58","tags":"sync,demo,memory"},{"uid":"demo-decision-0063","type":"decision","source":"deltahub","content":"决定：许可采用宽松许可，避免使用者顾虑。","updated_at":"2026-08-13 04:05:43","tags":"retrieval,ops"},{"uid":"demo-decision-0064","type":"decision","source":"gammacli","content":"决定：评测不自报分数、不与别家比数值，只公开评分口径与失真警告。","updated_at":"2026-08-10 13:36:34","tags":"proj,memory"},{"uid":"demo-decision-0065","type":"decision","source":"gammacli","content":"决定：拒答能力默认只加提示不隐藏结果，真正拒答需显式开启。","updated_at":"2026-08-27 04:00:25","tags":"memory,ops,retrieval"},{"uid":"demo-decision-0066","type":"decision","source":"betamind","content":"决定：临时脚本与含凭据的文件一律不提交，靠独立规则集兜底。","updated_at":"2026-08-20 19:56:41","tags":"perf"},{"uid":"demo-decision-0067","type":"decision","source":"deltahub","content":"决定：对外只发布合成演示库，真库永不出仓。","updated_at":"2026-08-11 11:39:53","tags":"sync,proj,bench"},{"uid":"demo-decision-0068","type":"decision","source":"gammacli","content":"决定：只发布引擎与演示数据，真实记忆数据不随仓库分发。","updated_at":"2026-08-01 16:33:19","tags":"perf,ops"},{"uid":"demo-decision-0069","type":"decision","source":"deltahub","content":"决定：向量后端默认走本地模型，不依赖外部接口；资源占用以不常驻为原则。","updated_at":"2026-08-23 16:21:55","tags":"perf,sync,memory"},{"uid":"demo-decision-0070","type":"decision","source":"alphachat","content":"决定：共享用指针而非复制，避免两处状态漂移。","updated_at":"2026-08-23 21:06:39","tags":"demo"},{"uid":"demo-decision-0071","type":"decision","source":"gammacli","content":"决定：评测不自报分数、不与别家比数值，只公开评分口径与失真警告。","updated_at":"2026-08-19 09:41:11","tags":"memory"},{"uid":"demo-decision-0072","type":"decision","source":"epsilon_ai","content":"决定：向量后端默认走本地模型，不依赖外部接口；资源占用以不常驻为原则。","updated_at":"2026-08-28 16:29:55","tags":"perf,bench,sync"},{"uid":"demo-decision-0073","type":"decision","source":"betamind","content":"决定：临时脚本与含凭据的文件一律不提交，靠独立规则集兜底。","updated_at":"2026-08-07 04:55:54","tags":"bench"},{"uid":"demo-decision-0074","type":"decision","source":"betamind","content":"决定：许可采用宽松许可，避免使用者顾虑。","updated_at":"2026-08-06 12:37:20","tags":"bench,proj"},{"uid":"demo-decision-0075","type":"decision","source":"alphachat","content":"决定：只发布引擎与演示数据，真实记忆数据不随仓库分发。","updated_at":"2026-08-12 13:34:06","tags":"sync,retrieval"},{"uid":"demo-decision-0076","type":"decision","source":"epsilon_ai","content":"决定：共享用指针而非复制，避免两处状态漂移。","updated_at":"2026-08-17 05:59:17","tags":"demo,memory,ops"},{"uid":"demo-decision-0077","type":"decision","source":"epsilon_ai","content":"决定：对外只发布合成演示库，真库永不出仓。","updated_at":"2026-08-24 01:56:45","tags":"demo,retrieval,bench"},{"uid":"demo-decision-0078","type":"decision","source":"epsilon_ai","content":"决定：拒答能力默认只加提示不隐藏结果，真正拒答需显式开启。","updated_at":"2026-08-26 10:57:32","tags":"sync,memory,ops"},{"uid":"demo-decision-0079","type":"decision","source":"betamind","content":"决定：许可采用宽松许可，避免使用者顾虑。","updated_at":"2026-08-22 23:04:51","tags":"perf,demo"},{"uid":"demo-decision-0080","type":"decision","source":"betamind","content":"决定：共享用指针而非复制，避免两处状态漂移。","updated_at":"2026-08-05 15:42:54","tags":"memory"},{"uid":"demo-decision-0081","type":"decision","source":"epsilon_ai","content":"决定：只发布引擎与演示数据，真实记忆数据不随仓库分发。","updated_at":"2026-08-16 20:36:58","tags":"memory"},{"uid":"demo-decision-0082","type":"decision","source":"betamind","content":"决定：向量后端默认走本地模型，不依赖外部接口；资源占用以不常驻为原则。","updated_at":"2026-08-12 02:17:56","tags":"ops,memory"},{"uid":"demo-decision-0083","type":"decision","source":"epsilon_ai","content":"决定：临时脚本与含凭据的文件一律不提交，靠独立规则集兜底。","updated_at":"2026-08-01 09:48:37","tags":"perf"},{"uid":"demo-decision-0084","type":"decision","source":"epsilon_ai","content":"决定：评测不自报分数、不与别家比数值，只公开评分口径与失真警告。","updated_at":"2026-08-25 21:29:25","tags":"perf,ops,bench"},{"uid":"demo-incident-0085","type":"incident","source":"epsilon_ai","content":"历史扫描显示旧提交里有明文路径，工作区却干净——问题在历史，不在当前文件。","updated_at":"2026-08-27 18:49:03","tags":"bench"},{"uid":"demo-incident-0086","type":"incident","source":"deltahub","content":"扫描器报出两百余条假阳性，根因是跨模块复用常量时字段解包顺序写错。","updated_at":"2026-08-25 22:56:34","tags":"perf,proj,ops"},{"uid":"demo-incident-0087","type":"incident","source":"deltahub","content":"一次同步把人工维护的说明文件推平成模板版，事后从备份还原；根因是保护名单判据不一致。","updated_at":"2026-08-08 09:01:29","tags":"proj,bench"},{"uid":"demo-incident-0088","type":"incident","source":"deltahub","content":"镜像脚本只覆盖了一半实例的工作区，自检却全绿——检查清单本身漏了对象。","updated_at":"2026-08-25 14:24:49","tags":"bench,proj"},{"uid":"demo-incident-0089","type":"incident","source":"epsilon_ai","content":"巡检发现投影超限：3904 / 3900 字符——超限是静默整体截断，注入时会丢内容。","updated_at":"2026-08-13 11:32:53","tags":"retrieval"},{"uid":"demo-incident-0090","type":"incident","source":"alphachat","content":"客户端重启后配置未生效，根因是审批记录有内存缓存，改文件在同进程内不会被重读。","updated_at":"2026-08-14 02:09:32","tags":"sync,retrieval"},{"uid":"demo-incident-0091","type":"incident","source":"alphachat","content":"一次同步把人工维护的说明文件推平成模板版，事后从备份还原；根因是保护名单判据不一致。","updated_at":"2026-08-18 20:08:56","tags":"proj,memory"},{"uid":"demo-incident-0092","type":"incident","source":"betamind","content":"客户端重启后配置未生效，根因是审批记录有内存缓存，改文件在同进程内不会被重读。","updated_at":"2026-08-18 04:15:22","tags":"ops,demo,memory"},{"uid":"demo-incident-0093","type":"incident","source":"alphachat","content":"历史扫描显示旧提交里有明文路径，工作区却干净——问题在历史，不在当前文件。","updated_at":"2026-08-05 22:56:24","tags":"proj"},{"uid":"demo-incident-0094","type":"incident","source":"alphachat","content":"镜像脚本只覆盖了一半实例的工作区，自检却全绿——检查清单本身漏了对象。","updated_at":"2026-08-24 08:47:42","tags":"ops"},{"uid":"demo-incident-0095","type":"incident","source":"gammacli","content":"扫描器报出两百余条假阳性，根因是跨模块复用常量时字段解包顺序写错。","updated_at":"2026-08-17 14:12:42","tags":"retrieval"},{"uid":"demo-incident-0096","type":"incident","source":"betamind","content":"巡检发现投影超限：3904 / 3900 字符——超限是静默整体截断，注入时会丢内容。","updated_at":"2026-08-09 21:50:17","tags":"retrieval"},{"uid":"demo-incident-0097","type":"incident","source":"betamind","content":"历史扫描显示旧提交里有明文路径，工作区却干净——问题在历史，不在当前文件。","updated_at":"2026-08-14 02:19:12","tags":"memory"},{"uid":"demo-incident-0098","type":"incident","source":"epsilon_ai","content":"一次同步把人工维护的说明文件推平成模板版，事后从备份还原；根因是保护名单判据不一致。","updated_at":"2026-08-04 09:13:49","tags":"memory"},{"uid":"demo-incident-0099","type":"incident","source":"alphachat","content":"镜像脚本只覆盖了一半实例的工作区，自检却全绿——检查清单本身漏了对象。","updated_at":"2026-08-05 10:22:16","tags":"bench,ops,memory"},{"uid":"demo-incident-0100","type":"incident","source":"deltahub","content":"巡检发现投影超限：3904 / 3900 字符——超限是静默整体截断，注入时会丢内容。","updated_at":"2026-08-17 13:45:34","tags":"proj"}],"supersessions":[],"assets":[{"uid":"demo-tool-001","name":"DemoEditor","path":"/opt/demo/tools/archiver","capabilities":"轻量文本编辑器","source":"deltahub"},{"uid":"demo-tool-002","name":"DemoArchiver","path":"/opt/demo/suite/terminal","capabilities":"归档压缩工具","source":"epsilon_ai"},{"uid":"demo-tool-003","name":"DemoTerminal","path":"/srv/demo/stack/worker","capabilities":"多标签终端","source":"deltahub"},{"uid":"demo-tool-004","name":"DemoStack","path":"/srv/demo/stack/scheduler","capabilities":"本地服务编排","source":"betamind"},{"uid":"demo-tool-005","name":"DemoScheduler","path":"/opt/demo/tools/editor","capabilities":"定时任务管理","source":"epsilon_ai"},{"uid":"demo-tool-006","name":"DemoVault","path":"/opt/demo/tools/archiver","capabilities":"凭据保管箱","source":"alphachat"},{"uid":"demo-tool-007","name":"DemoProbe","path":"/opt/demo/suite/terminal","capabilities":"网络探测","source":"gammacli"},{"uid":"demo-tool-008","name":"DemoMirror","path":"/srv/demo/stack/worker","capabilities":"目录镜像","source":"deltahub"},{"uid":"demo-tool-009","name":"DemoLint","path":"/srv/demo/stack/scheduler","capabilities":"配置校验","source":"epsilon_ai"},{"uid":"demo-tool-010","name":"DemoTrace","path":"/opt/demo/tools/editor","capabilities":"调用链追踪","source":"epsilon_ai"}]};
+
+// ---------- helpers ----------
+const $ = id => document.getElementById(id);
+function toast(msg){const t=$("toast");t.textContent=msg;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),2500)}
+function esc(s){const d=document.createElement("div");d.textContent=s||"";return d.innerHTML}
+function head(c){const i=(c||"").indexOf("。");let s=i>0?c.slice(0,i):c;return s.length>140?s.slice(0,140)+"…":s}
+function tokens(q){return (q||"").split(/[\s，,。;；]+/).filter(Boolean)}
+
+// ---------- tabs ----------
+document.querySelectorAll(".tab").forEach(t=>{
+  t.onclick=()=>{
+    document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
+    document.querySelectorAll(".panel").forEach(x=>x.style.display="none");
+    t.classList.add("active");
+    $("p-"+t.dataset.tab).style.display="block";
+    if(t.dataset.tab==="stats") renderStats();
+  }
+});
+
+// ---------- search ----------
+function doSearch(){
+  const q=$("q").value.trim();
+  const toks=tokens(q);
+  const box=$("qres");
+  if(!toks){box.innerHTML='<div class="empty">请输入查询</div>';return}
+  const t0=performance.now();
+  const scored=[];
+  for(const f of DATA.facts){
+    const text=(f.content||"").toLowerCase();
+    let s=0,hits=0;
+    for(const t of toks){
+      const tl=t.toLowerCase();
+      if(text.includes(tl)){hits++;s+=text.split(tl).length*(tl.length>3?2:1)}
+    }
+    if(hits){scored.push({f,s:s/(1+0.1*hits)})}
+  }
+  scored.sort((a,b)=>b.s-a.s);
+  const top=scored.slice(0,8);
+  const ms=Math.round(performance.now()-t0);
+  if(!top.length){
+    box.innerHTML=`<div class="empty"><b>❌ 未命中</b><br>查询「${esc(q)}」在 ${DATA.facts.length} 条 active 记忆里没有找到——<br>这是<b>拒答能力</b>：库里没有就说没有，不瞎编。</div>`;
+    return;
+  }
+  box.innerHTML=top.map(({f},i)=>`
+    <div class="item" onclick="this.classList.toggle('expanded')">
+      <div class="meta">${i+1}. ${esc(f.uid)} [${esc(f.type)}·${esc(f.source)}]</div>
+      <div class="head">${esc(head(f.content))}</div>
+      <div class="full">${esc(f.content)}</div>
+    </div>`).join("")+
+    `<div class="note" style="border:none;padding-top:.4rem">检索耗时 ${ms}ms · 点条目展开全文</div>`;
+}
+
+// ---------- remember ----------
+function doRemember(){
+  const content=$("w-content").value.trim();
+  const type=$("w-type").value;
+  const source=$("w-source").value.trim()||"visitor";
+  const box=$("wres");
+  if(!content){box.innerHTML='<div class="empty">内容为空</div>';return}
+  const now=new Date().toISOString().replace("T"," ").slice(0,19);
+  const uid="fact-"+now.replace(/[-: ]/g,"")+"-"+Math.random().toString(36).slice(2,14);
+  DATA.facts.unshift({uid,type,source,content,updated_at:now,tags:JSON.stringify(["visitor"])});
+  box.innerHTML=`<div class="empty ok">✅ 已写入（会话内存，刷新即消失）<br><code style="font-size:.85rem">${esc(uid)}</code><br><br>来源=<b>${esc(source)}</b> 类型=<b>${esc(type)}</b> —— 演示 gateway.remember() 的最小行为：<b>来源归属强制</b> + <b>双时间轴</b>（valid_from = recorded_at = 现在）。<br><span class="warn">静态页无持久化 —— 生产版写入 SQLite 真源。</span></div>`;
+  toast("已写入（内存）");
+}
+
+// ---------- stats ----------
+function renderStats(){
+  const active=DATA.facts.length;
+  const types={},sources={};
+  for(const f of DATA.facts){types[f.type]=(types[f.type]||0)+1;sources[f.source]=(sources[f.source]||0)+1}
+  const typeRows=Object.entries(types).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<tr><td>${esc(k)}</td><td>${v}</td></tr>`).join("");
+  const srcRows=Object.entries(sources).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([k,v])=>`<tr><td>${esc(k)}</td><td>${v}</td></tr>`).join("");
+  $("stats").innerHTML=`
+    <div class="statgrid">
+      <div class="stat"><div class="num">${active}</div><div class="lbl">active facts</div></div>
+      <div class="stat"><div class="num">${DATA.supersessions.length}</div><div class="lbl">supersessions</div></div>
+      <div class="stat"><div class="num">${DATA.assets.length}</div><div class="lbl">tool_assets</div></div>
+    </div>
+    <table><tr><th>类型</th><th>条数</th></tr>${typeRows}</table>
+    <table><tr><th>来源</th><th>条数</th></tr>${srcRows}</table>
+    <div class="note" style="border:none;padding:0">数据快照生成于 ${esc(DATA.generated_at)} · hub_score 四维评分卡见 GitHub</div>`;
+}
+
+// ---------- governance ----------
+function doChain(){
+  const uid=$("t-uid").value.trim();
+  const box=$("chainres");
+  if(!uid){box.innerHTML='<div class="empty">请输入 uid</div>';return}
+  const links=DATA.supersessions.filter(s=>s.old_uid===uid||s.new_uid===uid);
+  if(!links.length){box.innerHTML=`<div class="empty">\`${esc(uid)}\` 无替代链记录</div>`;return}
+  box.innerHTML=links.map(s=>`<div class="chain">${esc(s.old_uid.slice(0,22))}… <span class="arrow">→</span> ${esc(s.new_uid.slice(0,22))}… <span style="color:var(--dim)">(${esc(s.reason)})</span></div>`).join("");
+}
+function doConflicts(){
+  const box=$("confres");
+  const pos=["可用","成功","通过","正常","支持","有效","可以"];
+  const neg=["不可用","失败","拒绝","异常","不支持","失效","无法","错误"];
+  const found=[];
+  const facts=DATA.facts;
+  for(let i=0;i<facts.length&&found.length<5;i++){
+    for(let j=i+1;j<facts.length&&found.length<5;j++){
+      const a=(facts[i].content||"").toLowerCase(),b=(facts[j].content||"").toLowerCase();
+      for(const p of pos){
+        if(a.includes(p)&&!b.includes(p)){
+          for(const n of neg){
+            if(b.includes(n)&&!a.includes(n)){
+              const ta=new Set((facts[i].content.match(/[a-z0-9_\-]{4,}/gi)||[]).map(x=>x.toLowerCase()));
+              const tb=new Set((facts[j].content.match(/[a-z0-9_\-]{4,}/gi)||[]).map(x=>x.toLowerCase()));
+              const common=[...ta].filter(x=>tb.has(x));
+              if(common.length){found.push({a:facts[i],b:facts[j],p,n,common});break}
+            }
+          }
+          break;
+        }
+      }
+    }
+  }
+  if(!found.length){
+    box.innerHTML=`<div class="empty ok">无显式冲突候选（扫描 ${facts.length*(facts.length-1)/2} 对）<br><span style="color:var(--dim)">这正是 conflict_reviews 常态：多数对无矛盾。生产版 governance.py 是实体级极性判定 + 人工复核留痕。</span></div>`;
+  }else{
+    box.innerHTML=found.map(({a,b,p,n,common})=>`<div class="chain" style="border-left:3px solid var(--red)">⚠ ${esc(common.slice(0,3).join(", "))}：<br>${esc(a.uid.slice(0,18))}…(${esc(a.source)})[${esc(p)}] vs ${esc(b.uid.slice(0,18))}…(${esc(b.source)})[${esc(n)}]</div>`).join("");
+  }
+}
+
+// Enter key on search
+$("q").addEventListener("keydown",e=>{if(e.key==="Enter")doSearch()});
+</script>
+</body>
+</html>

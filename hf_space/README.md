@@ -3,9 +3,7 @@ title: MemTether Demo
 emoji: 🧠
 colorFrom: indigo
 colorTo: purple
-sdk: gradio
-sdk_version: "4.44.1"
-app_file: app.py
+sdk: static
 pinned: true
 license: apache-2.0
 short_description: 跨客户端 AI 记忆中枢 — 文件级指针共享同一物理 SQLite
@@ -19,12 +17,12 @@ short_description: 跨客户端 AI 记忆中枢 — 文件级指针共享同一�
 
 | Tab | 演示的生产链路 |
 |---|---|
-| 🔍 检索 | keyword 路（生产版：五路召回 + RRF + cross-encoder 精排 + 拒答闸门） |
-| ✍️ 写入 | gateway.remember() 最小行为：来源归属强制 + 双时间轴 |
+| 🔍 检索 | keyword 路 + 拒答行为（生产版：五路召回 + RRF + cross-encoder 精排 + 拒答闸门） |
+| ✍️ 写入 | gateway.remember() 最小行为：来源归属强制 + 双时间轴（内存级，刷新消失） |
 | 📊 统计 | hub_score 四维评分卡的数据口径 |
 | 🔗 治理 | supersession 替代链（不删旧）+ 冲突检测（人工复核候选生成器） |
 
-运行在**全合成演示库**上（100 facts + 10 assets，零个人数据）。
+纯静态单文件（数据以 JSON 内嵌于 HTML，38KB 总量，零服务端、零依赖、秒开）。运行在**全合成演示库**上（100 facts + 10 assets，零真实数据）。
 
 ## 与同类项目的核心差异
 
