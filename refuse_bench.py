@@ -77,7 +77,9 @@ def corpus_rows():
     con = sqlite3.connect(os.path.join(HERE, 'memory.db'))
     cur = con.cursor()
     rows = []
-    cur.execute('select content from facts')
+    # 2026-09-29 修：只扫 active facts —— supersession 不删旧是治理设计，但 superseded 行不会被 preflight/memsearch 返回给用户，
+    # 拒答校验的对象应是「用户实际能检索到什么」，不是全库历史文本。此前扫全表导致 N26 被自己的修正复盘文本反复命中。
+    cur.execute("select content from facts where status = 'active'")
     rows += [r[0] or '' for r in cur.fetchall()]
     cur.execute('select name, capabilities, path from tool_assets')
     rows += [' | '.join(str(x or '') for x in r) for r in cur.fetchall()]
@@ -174,7 +176,7 @@ def verify(verbose=True):
                 else:
                     warn_only.append('%s: 词 %r 库内出现 x%d，但未与问题主语共现 —— 被谈起而非被回答，不判失败'
                                      % (n.get('id'), tok, c))
-        for pat in n.get('must_be_unanswered', []):
+        for pat in (n.get('must_be_unanswered') or []):
             m = re.search(pat, blob, re.I)
             if m:
                 problems.append('must_be_unanswered 命中 %r -> %r' % (pat, m.group(0)))
@@ -217,6 +219,7 @@ def _query_all(queries, model_key, limit=10):
     with os.fdopen(fd, 'w', encoding='utf-8') as f:
         json.dump(queries, f, ensure_ascii=False)
     env['RB_Q'] = path
+    env['PYTHONIOENCODING'] = 'utf-8'
     script = r'''
 import os, sys, json
 sys.path.insert(0, %r)
