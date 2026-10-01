@@ -401,7 +401,7 @@ def check_env(raise_on_missing=False):
             missing.append(m)
     if missing and raise_on_missing:
         raise RuntimeError(
-            '缺少 %s —— memsearch 需要 E:\\RUANJIAN\\memory_hub\\.venv-memory\\Scripts\\python.exe\n'
+            '缺少 %s —— memsearch 需要 venv-memory 解释器\n'
             '当前解释器: %s\n'
             '正确用法: PYTHONPATH= "%s" mem.py search "<关键词>"'
             % (', '.join(missing), sys.executable, VENV_PY))
@@ -1681,4 +1681,6 @@ if __name__ == '__main__':
             print('  %s | %s' % ('垃圾' if is_generic_garbage(t) else '正常', t[:45]))
     if a.search:
         print(json.dumps(search_hybrid(a.search), ensure_ascii=False, indent=2))
+
+
 
