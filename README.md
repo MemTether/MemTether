@@ -1,4 +1,4 @@
-<div align="center">
+﻿<div align="center">
 
 <a href="https://github.com/MemTether/MemTether">
   <img src="https://capsule-render.vercel.app/api?type=waving&color=gradient&customColorList=6,11,20&height=180&section=header&text=MemTether&fontSize=48&fontColor=fff&animation=fadeIn&desc=Cross-client%20AI%20Memory%20Hub&descSize=18&descAlignY=65&descAlign=center" width="100%" alt="MemTether"/>
@@ -75,6 +75,8 @@ MemTether 的答案更简单：**让它们指向同一份文件**。
 | 中英双语查询扩展 | ✅ synonyms.json | ❌ | ❌ | ❌ | ❌ | ❌ |
 | 四因子重排（语义+时效+频率+类型） | ✅ z-score + sigmoid | ❌ | ⚠️ 时效 only | ❌ | ❌ | ❌ |
 | 三层结果去重（supersession+content+tag） | ✅ | ❌ | ⚠️ 部分去重 | ❌ | ❌ | ❌ |
+| 确定性推理脚手架（counting/temporal/comparison） | ✅ 内嵌于检索 | ❌ | ❌ | ❌ | ❌ | ❌ |
+| 覆盖优先 packet 编译 | ✅ ≤16 items/12k chars | ❌ | ❌ | ❌ | ❌ | ❌ |
 | 低置信度拒答 | ✅ 内嵌于检索 | ❌ | ❌ | ❌ | ❌ | ❌ |
 | 技能锻造（skill_forge + 预算守卫） | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | 客户端自动接入（23 个适配器） | ✅ 一条命令 | ⚠️ 手动 | ⚠️ 手动 | ❌ | ⚠️ 手动 | ❌ |
