@@ -70,13 +70,11 @@
   ],
   "proxy": [
     "代理",
-    "Clash",
-    "7890"
+    "Clash"
   ],
   "代理": [
     "proxy",
-    "Clash",
-    "7890"
+    "Clash"
   ],
   "git push": [
     "推送",
