@@ -715,6 +715,28 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
                  回写不由本函数负责（走 gateway.bump_qvalue / `mem.py qvalue`）。
     """
     q = (query or '').strip()
+    # ★2026-10-01 查询扩展（中英文同义词）：加载 synonyms.json 自动扩展查询
+    _syn_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'synonyms.json')
+    _expanded_terms = set()
+    if os.path.exists(_syn_path):
+        try:
+            with open(_syn_path, 'r', encoding='utf-8') as _sf:
+                _syn_map = json.load(_sf)
+            _words = re.split(r'[\s,，。；;]+', q)
+            for _w in _words:
+                _w_lower = _w.lower().strip()
+                if _w_lower in _syn_map:
+                    _expanded_terms.update(_syn_map[_w_lower])
+                for _syn_group in _syn_map.values():
+                    if _w_lower in [s.lower() for s in _syn_group]:
+                        _expanded_terms.update(_syn_group)
+            _expanded_terms.update(_words)
+            _expanded_terms.discard('')
+        except Exception:
+            pass
+    if _expanded_terms and len(_expanded_terms) > 1:
+        q = ' '.join(sorted(_expanded_terms))
+
     if not q:
         return {'query': q, 'results': [], 'ttl_expired_n': 0}
 

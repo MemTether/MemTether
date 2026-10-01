@@ -1,0 +1,251 @@
+{
+  "browser": [
+    "浏览器",
+    "Edge",
+    "Chrome",
+    "web",
+    "网页"
+  ],
+  "浏览器": [
+    "browser",
+    "Edge",
+    "Chrome",
+    "web",
+    "网页"
+  ],
+  "search": [
+    "搜索",
+    "查询",
+    "检索",
+    "look up",
+    "find"
+  ],
+  "搜索": [
+    "search",
+    "查询",
+    "检索",
+    "find"
+  ],
+  "web": [
+    "网页",
+    "web_search",
+    "网络"
+  ],
+  "网页": [
+    "web",
+    "网络"
+  ],
+  "memory": [
+    "记忆",
+    "存储",
+    "remember",
+    "中枢"
+  ],
+  "记忆": [
+    "memory",
+    "remember",
+    "中枢"
+  ],
+  "agent": [
+    "客户端",
+    "AI助手",
+    "tool",
+    "工具"
+  ],
+  "客户端": [
+    "agent",
+    "AI助手",
+    "tool"
+  ],
+  "incident": [
+    "事故",
+    "血证",
+    "教训",
+    "incident"
+  ],
+  "事故": [
+    "incident",
+    "血证",
+    "教训"
+  ],
+  "proxy": [
+    "代理",
+    "Clash",
+    "7890"
+  ],
+  "代理": [
+    "proxy",
+    "Clash",
+    "7890"
+  ],
+  "git push": [
+    "推送",
+    "push",
+    "GitHub"
+  ],
+  "推送": [
+    "push",
+    "git push",
+    "GitHub"
+  ],
+  "cookie": [
+    "Cookie",
+    "登录态",
+    "凭据"
+  ],
+  "security": [
+    "安全",
+    "禁区",
+    "security"
+  ],
+  "安全": [
+    "security",
+    "禁区"
+  ],
+  "edge": [
+    "Edge",
+    "浏览器",
+    "browser"
+  ],
+  "codex": [
+    "Codex",
+    "codex-cli",
+    "openai"
+  ],
+  "headless": [
+    "无头",
+    "headless",
+    "dump-dom"
+  ],
+  "无头": [
+    "headless",
+    "dump-dom"
+  ],
+  "tool": [
+    "工具",
+    "asset",
+    "资产"
+  ],
+  "工具": [
+    "tool",
+    "asset",
+    "资产"
+  ],
+  "禁区": [
+    "forbidden",
+    "blocked",
+    "security",
+    "安全"
+  ],
+  "投影": [
+    "projection",
+    "MEMORY.md",
+    "注入"
+  ],
+  "projection": [
+    "投影",
+    "MEMORY.md"
+  ],
+  "benchmark": [
+    "基准",
+    "评测",
+    "hard_bench",
+    "测试"
+  ],
+  "基准": [
+    "benchmark",
+    "hard_bench"
+  ],
+  "vector": [
+    "向量",
+    "embedding",
+    "chromadb"
+  ],
+  "向量": [
+    "vector",
+    "embedding"
+  ],
+  "supersession": [
+    "取代",
+    "替代",
+    "retire"
+  ],
+  "取代": [
+    "supersession",
+    "retire"
+  ],
+  "find": [
+    "search",
+    "搜索",
+    "查询",
+    "look up",
+    "检索"
+  ],
+  "look up": [
+    "find",
+    "search",
+    "搜索"
+  ],
+  "web search": [
+    "搜索",
+    "search",
+    "搜索引擎"
+  ],
+  "web_search": [
+    "web search",
+    "搜索",
+    "search"
+  ],
+  "how to": [
+    "怎么",
+    "如何",
+    "步骤",
+    "procedure",
+    "方法"
+  ],
+  "怎么": [
+    "how to",
+    "如何",
+    "步骤",
+    "方法"
+  ],
+  "如何": [
+    "how to",
+    "怎么",
+    "步骤",
+    "方法"
+  ],
+  "error": [
+    "错误",
+    "fail",
+    "失败",
+    "bug"
+  ],
+  "错误": [
+    "error",
+    "fail",
+    "失败",
+    "bug"
+  ],
+  "path": [
+    "路径",
+    "directory",
+    "目录",
+    "位置"
+  ],
+  "路径": [
+    "path",
+    "directory",
+    "目录"
+  ],
+  "config": [
+    "配置",
+    "settings",
+    "设置"
+  ],
+  "配置": [
+    "config",
+    "settings",
+    "设置"
+  ]
+}
