@@ -1,4 +1,4 @@
-# Changelog
+﻿# Changelog
 
 本文件记录 MemTether 的对外变更。格式遵循
 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
@@ -443,3 +443,23 @@ Apache-2.0（含专利授权）。第三方归属见 `NOTICE`。
 - `0.2.0`：MCP Server 封装（`add_memories` / `search_memory` /
   `list_memories` / `delete_all_memories`）；技能自动沉淀闭环。
 - 接口在 `0.1.x` 期间可能变动，`1.0` 前不做兼容承诺。
+
+## [0.1.0a10] - 2026-10-01
+
+### Added
+- Bilingual query expansion: `synonyms.json` with 47 zh-en synonym groups
+- `memsearch.py` auto-loads synonyms.json and expands search terms before FTS/vector lookup
+- Tool assets added to FTS5 index (previously only in vector store)
+
+### Fixed
+- FTS5 index: cleaned 420 stale entries, rebuilt 194 missing entries (100% active coverage)
+- Q-Value differentiation: procedures=0.8, decisions=0.6, incidents=0.55, high-use=0.65 (was 99.7% flat at 0.5)
+- Tool assets Q-Value: bumped to 0.7 (was 0.5)
+- Vector index consistency: 1215==1215 (removed 1 stale entry)
+- Removed machine-specific proxy port from synonyms.json
+
+### Improved
+- asset_bench: 22/23 → 23/23 (A1 "eNSP 装在哪里" now finds tool_asset with correct path)
+- Cross-language search: browser↔浏览器 overlap from 0 to 10/10
+- hard_bench: 62/62 (no regression)
+- e2e_verify: 13/13 (no regression)
