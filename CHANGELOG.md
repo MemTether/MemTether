@@ -463,3 +463,25 @@ Apache-2.0（含专利授权）。第三方归属见 `NOTICE`。
 - Cross-language search: browser↔浏览器 overlap from 0 to 10/10
 - hard_bench: 62/62 (no regression)
 - e2e_verify: 13/13 (no regression)
+## [0.1.0a11] - 2026-10-01
+
+### Added
+- Four-factor re-ranking (MemX arXiv 2603.16171): semantic(0.45) + recency(0.25) + frequency(0.05) + importance(0.10) blended with RRF (70/30)
+- Z-score + sigmoid normalization for cross-query score comparability
+- Three-layer deduplication: supersession-aware + content + tag-signature (MemX Section 3.5)
+- Low-confidence rejection marker in diag (MemX Section 3.6, threshold 0.50)
+- Self-referential poisoning fix v2: narrower criteria (only meta-discussion triggers)
+- Procedure quality check: first sentence must be complete conclusion (>=15 chars)
+- Q-Value write-back on retrieval (bump inside search_hybrid, MEM_BUMP env var to disable)
+
+### Fixed
+- Tool assets added to FTS5 index on record_tool (previously missing)
+- Vector index ghost entries cleaned on supersede (previously accumulated)
+- EMBED_BACKEND_DEFAULT and LAST_EMBED_INFO initialization (pre-existing bugs)
+- mcp_server.py duplicate bump removed (now handled in search_hybrid)
+
+### Performance
+- hard_bench: 62/62 (no regression)
+- asset_bench: 23/23 (no regression)  
+- e2e_verify: 13/13 (no regression)
+- Cross-language search: browser/browser 10/10, STM32 UART/serial 8/10

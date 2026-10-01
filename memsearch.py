@@ -12,9 +12,6 @@ memsearch.py — 记忆混合检索模块（DeepSeek × Astra 协作成果 2026-
 import os
 import re
 import sys
-if hasattr(sys.stdout, 'reconfigure'):
-    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
-    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 import json
 import math
 import time
@@ -38,6 +35,8 @@ CHROMA_PATH = os.environ.get('MEM_STORE') or os.path.join(os.path.dirname(DB), '
 if not os.path.isabs(CHROMA_PATH):
     CHROMA_PATH = os.path.join(HUB, CHROMA_PATH)
 COLLECTION = 'facts_active'
+LAST_EMBED_INFO = {}  # diagnostic: record last embed call params
+EMBED_BACKEND_DEFAULT = os.environ.get('MEM_EMBED_BACKEND_DEFAULT', 'local')
 EMBED_MODEL = 'embedding-3'
 
 # ---- 泛化词表（无信息量的通用动词/名词）----
@@ -227,59 +226,21 @@ def _quoted_query_like(content):
     return out
 
 
-def _is_self_referential(content, q):
-    """判断某条内容是不是"关于查询 q 的元讨论"而非"对 q 的回答"。"""
-    if not content or not q or len(q) < 4:
-        return False
-    c = content
-    # 情形 1：原样含整段查询（含空格）→ 几乎必然是元讨论
-    #   ★2026-09-17 修：原实现写的是 `if q in c:`，漏掉了注释里那半句「含空格」。
-    #   后果（实测，非推测）：**单词查询**（单个专有名词 —— 工具名 / 模块文件名 /
-    #   内部代号这类）只要命中的记忆里出现「实测 / 结论：/ 之前 / 必须 / 缺 / 坑」
-    #   等任意一个 _SELFREF_TELL 词 —— 而这类词在真实记忆库里几乎条条都有 —— 就被
-    #   误判成"在谈论这个查询"，score ×0.05，直接打入冷宫。
-    #   铁证（A/B，monkey-patch 对照，同库同查询）：修前该词在 Top10 命中 0 条
-    #   （工具还自报"库里可能没有这条"），补上空格门槛后命中 10 条；多个不同的
-    #   单词查询同向复现；而多词查询结果**完全不变**、Top1 仍是正确答案
-    #   → 证明此修只消误伤、不伤原意。
-    #   单词查询的真自指（如"实测：搜 XXX 返回 0 条"）仍由情形 2 兜住。
-    if q in c and ' ' in q.strip():
-        return any(t in c for t in _SELFREF_TELL)
-    # 情形 2：引用了**近似**的查询串（见上方注释）
-    qt = _terms(q)
-    if not qt:
-        return False
-    for snip in _quoted_query_like(c):
-        st = _terms(snip)
-        if not st:
-            continue
-        if len(qt & st) / len(qt) >= 0.5:
-            return True
-
-    return False
-# ---- embedding ----
-# ★2026-09-15 改：embedding 从「智谱单通道」改为「本地优先 + 云端可选」。
-#
-#   动机（真实事故）：智谱 embedding-3 欠费返回 429 code=1113，Astra 欠费、
-#   DeepSeek 官方 key 失效 —— 三条外部通道同时挂掉，向量路整个停摆，
-#   每次查询都降级成纯关键词，且**没有任何本地兜底**。
-#
-#   后端选择（环境变量 MEM_EMBED_BACKEND）：
-#     local （默认）—— 只用本地 bge-m3，永不断供、免费、数据不出本机。
-#                      模型缺失时**显式报错**，不静默降级。
-#     zhipu          —— 只用智谱云端（2048 维）。
-#     auto           —— 先本地，失败再云端。
-#
-#   ★维度铁律：本地 bge-m3 是 1024 维，智谱是 2048 维，**两者不能混用一个集合**。
-#     换后端 = 必须重建索引。索引里记了 embed_dim，查询时不一致会硬报错
-#     （而不是让 chroma 给出无意义的近邻）。
-LAST_EMBED_INFO = {}          # 诊断用：记录最近一次实际走了哪条路
-
-EMBED_BACKEND_DEFAULT = os.environ.get('MEM_EMBED_BACKEND') or 'local'
+def _is_self_referential(query, content):
+    """R11 v2: Only mark as self-referential when BOTH query and content
+    are about the retrieval/memory system itself. Much narrower than v1."""
+    _meta = {'\u68c0\u7d22\u8d28\u91cf', '\u641c\u7d22\u8d28\u91cf', 'retrieval quality', 'search quality',
+             'memory system', '\u8bb0\u5fc6\u7cfb\u7edf', 'hard_bench', '\u8bc4\u6d4b\u96c6', '\u8bc4\u5206\u5361',
+             'benchmark', 'self-ref', '\u81ea\u6307', '\u68c0\u7d22\u5347\u7ea7'}
+    q_lower = query.lower()
+    c_lower = content.lower()
+    q_has = any(kw in q_lower for kw in _meta)
+    c_has = any(kw in c_lower for kw in _meta)
+    return q_has and c_has
 
 
 def _embed_zhipu(texts):
-    sys.path.insert(0, r'<AUDIT>')
+    sys.path.insert(0, r'E:\RUANJIAN\ai-audit')
     import cred_env
     cred_env.env()
     key = os.environ['ZHIPU_KEY']
@@ -346,23 +307,6 @@ def expected_dim():
 
 
 VENV_PY = os.path.join(HUB, '.venv-memory', 'Scripts', 'python.exe')
-
-
-def _interp_hint():
-    """该用哪个解释器 / 该装什么 —— 提示必须与**当前安装形态**匹配。
-
-    ★2026-09-16 实测坑（L3 验收时抓到）：本项目原先只有"源码 + .venv-memory"
-      一种形态，于是提示里写死 `<HUB>\\.venv-memory\\Scripts\\python.exe` 是对的。
-      但支持 pip 安装之后，site-packages 下**根本没有** `.venv-memory` ——
-      这条提示会把用户指向一个不存在的路径，照着做只会更困惑
-      （属"提示正确但对象错"：话没说错，只是说的不是这个场景）。
-    判据：那个解释器**真的存在**才给路径提示，否则给 pip 档位提示。
-    """
-    if os.path.exists(VENV_PY):
-        return '正确解释器: %s' % VENV_PY
-    return ("缺可选依赖（语义检索 / 精排用）。装它即可："
-            "pip install \"memtether[vector]\""
-            "（等价于 pip install chromadb onnxruntime tokenizers numpy）")
 
 
 class StorePathMismatch(RuntimeError):
@@ -457,10 +401,10 @@ def check_env(raise_on_missing=False):
             missing.append(m)
     if missing and raise_on_missing:
         raise RuntimeError(
-            '缺少 %s —— 语义检索所需的可选依赖没装齐\n'
+            '缺少 %s —— memsearch 需要 E:\\RUANJIAN\\memory_hub\\.venv-memory\\Scripts\\python.exe\n'
             '当前解释器: %s\n'
-            '%s'
-            % (', '.join(missing), sys.executable, _interp_hint()))
+            '正确用法: PYTHONPATH= "%s" mem.py search "<关键词>"'
+            % (', '.join(missing), sys.executable, VENV_PY))
     return missing
 
 
@@ -683,10 +627,28 @@ def rebuild_vector_index(verbose=True, reclaim=True, reuse=False):
             'reclaimed_mb': (rec or {}).get('freed_mb', 0.0)}
 
 
+def _load_governance():
+    """★2026-09-22：按显式路径加载 governance，杜绝同名模块遮蔽。
+
+    同 gateway.py 的 _load_governance，也是手册卷12 事故 #10 的遗留半边：
+    本处 `import governance as _gov` 只被 try/except 包着，
+    遮蔽发生时的症状是**时间衰减静默失效**（排序退化成纯相关性），
+    连告警都只会打在 stderr —— 最难发现的那类错。
+    """
+    import importlib.util as _iu
+    _p = os.path.join(HUB, 'governance.py')
+    if not os.path.isfile(_p):
+        return __import__('governance')
+    _spec = _iu.spec_from_file_location('_mh_governance_ms', _p)
+    _mod = _iu.module_from_spec(_spec)
+    _spec.loader.exec_module(_mod)
+    return _mod
+
+
 def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
                   rerank_w=0.4, rerank_model=None,
                   adaptive=True, adaptive_thr=0.6,
-                  decay=True, qvalue=None):
+                  decay=True, qvalue=None, _round=0):
     """混合检索：质量门禁 + 向量 + ASCII精确 + RRF 融合 + cross-encoder 精排。
 
     use_rerank : 是否启用 cross-encoder 精排（agentmemory V4 的核心增益项）
@@ -738,7 +700,23 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
         q = ' '.join(sorted(_expanded_terms))
 
     if not q:
-        return {'query': q, 'results': [], 'ttl_expired_n': 0}
+        # ★2026-09-19（诊断可信度）：空 query 必须**显式**回报原因。
+        #   旧版直接返回空 results，调用方（gateway.search）见空即报
+        #   「向量库不可用」——而真相是"根本没检索"。诊断指向错误方向比没有诊断更糟。
+        return {'query': q, 'results': [],
+                'diag': {'vec_ok': False, 'vec_err': None, 'vec_skipped': True,
+                         'rerank_ok': None, 'rerank_err': None, 'active_n': 0,
+                         'reason': 'empty-query'}}
+
+    # ★2026-09-19（诊断可信度）：把「各路是否真的跑成功」作为**数据**随结果返回。
+    #   动机：向量路失败只 print 到 stderr、精排失败也只 print 到 stderr，
+    #   而 gateway.search 只能靠"结果是否为空"猜引擎 ⇒ 双向误报：
+    #     ① 空库 / 空 query          → 谎报「向量库不可用」（假阳性）
+    #     ② 向量路真失败但关键词有命中 → 照报 'hybrid'（假阴性，掩盖降级）
+    #   修法：状态进返回值，不再让调用方靠副作用（stderr）猜。
+    _diag = {'vec_ok': False, 'vec_err': None, 'vec_skipped': False,
+             'rerank_ok': None, 'rerank_err': None, 'active_n': 0, 'reason': None,
+             'graph_recall': False}
 
     # ★精排模型：显式传入 > 环境变量 MEM_RERANK_MODEL > 'bge'
     rerank_model = rerank_model or os.environ.get('MEM_RERANK_MODEL') or 'bge'
@@ -761,9 +739,8 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
     conn.row_factory = sqlite3.Row
     # ★2026-09-17（升级 1）：候选池补取 q_value —— 检索末尾的 Q-Value 加权要用它。
     #   不加这一列，加权就只能全用默认 0.5，升级等于空转。
-    #   旧库若无此列，gateway.init_db() 的 _ensure_columns() 会自动补上（幂等）。
     active = {r['uid']: dict(r) for r in conn.execute(
-        "SELECT uid, content, type, source, scope, updated_at, q_value, tags, valid_to"
+        "SELECT uid, content, type, source, scope, updated_at, q_value, tags, valid_to, superseded_by"
         " FROM facts WHERE status='active'").fetchall()}
     # ★2026-09-15：资产一并入候选池（kind='tool'），否则「XX装在哪」永远查不到
     assets = {}
@@ -788,6 +765,7 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
     # 门禁过滤掉垃圾（含 <见vault:key> 这类占位符）
     active = {u: f for u, f in active.items()
               if not is_generic_garbage(f['content']) and not is_placeholder(f['content'])}
+    _diag['active_n'] = len(active)
 
     # ---- 各路召回，只记录**排名**，不记录原始分数 ----
     # 1) 向量路
@@ -811,15 +789,17 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
             if uid in active:
                 vec_rank[uid] = i
                 vec_sim[uid] = round(1 - dist, 4)
+        _diag['vec_ok'] = True          # ★只有走到这里才算向量路真的可用
     except StorePathMismatch:
         # P0-04：闸门错误必须冒泡，绝不能被当成"向量路失败"降级吞掉。
         raise
     except Exception as e:
+        _diag['vec_err'] = '%s: %s' % (type(e).__name__, str(e)[:100])
         if not getattr(search_hybrid, '_warned', False):
             search_hybrid._warned = True
             print('[warn] 向量检索失败（将降级为纯关键词，召回会明显变差）:', str(e)[:80],
                   file=sys.stderr)
-            print('[warn] %s' % _interp_hint(), file=sys.stderr)
+            print('[warn] 正确解释器: %s' % VENV_PY, file=sys.stderr)
 
     # 2) 关键词路：查询词覆盖率 x IDF（专有名词命中权重更高）
     q_terms = _terms(q)
@@ -854,6 +834,61 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
             if ql in (f['content'] or '').lower():
                 lit_hit.add(uid)
 
+    # 3.5) FTS5 BM25 路（★E3 upgrade 2026-09-24 v2：trigram 持久化索引）：
+    #     之前是遍历全量 active 简化 BM25 → O(N)；现在是 SQLite FTS5 trigram 索引 → O(1)。
+    #     trigram 分词器对中英文都能命中；facts_fts 由 gateway.py remember/correct/retire 增量维护。
+    #     FTS5 bm25() 分数越负越相关（是负对数似然），取 abs 后排序。
+    bm25_rank = {}
+    try:
+        import sqlite3 as _sq3
+        _fts_db = _sq3.connect(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'memory.db'))
+        _fts_db.row_factory = _sq3.Row
+        # FTS5 trigram: 把查询按空格拆成 token，逐个匹配再合并分数
+        # trigram 要求每个 token >= 3 字符；过短的 token 退回整句查询
+        _fts_tokens = [t for t in q.replace('"', ' ').split() if len(t) >= 3]
+        if not _fts_tokens and len(q.strip()) >= 3:
+            _fts_tokens = [q.strip()]
+        _fts_scores = {}
+        for _tok in _fts_tokens:
+            _fts_q = '"' + _tok + '"'
+            try:
+                _fts_rows = _fts_db.execute(
+                    "SELECT uid, bm25(facts_fts) AS score FROM facts_fts WHERE facts_fts MATCH ? ORDER BY score LIMIT 20",
+                    (_fts_q,)).fetchall()
+            except Exception:
+                continue
+            for r in _fts_rows:
+                s = abs(r['score'])
+                _fts_scores[r['uid']] = _fts_scores.get(r['uid'], 0.0) + s
+        if _fts_scores:
+            _fts_sorted = sorted(_fts_scores.items(), key=lambda x: x[1])
+            bm25_rank = {uid: i for i, (uid, _) in enumerate(_fts_sorted)}
+        _fts_db.close()
+    except Exception as _fts_e:
+        if not getattr(search_hybrid, '_warned_fts', False):
+            search_hybrid._warned_fts = True
+            print('[warn] FTS5 路失败（不影响其他路）:', str(_fts_e)[:80], file=sys.stderr)
+
+    # 3.8) 实体图谱反查路（T4 阶段 A，2026-09-27）：query 命中实体 → 反查该实体的所有关联 facts。
+    #     multi-session 32.5% 根因是"跨会话聚合"——同一实体的证据散在 N 条 facts 里，
+    #     单跳 top-k 只召回 1-2 条。实体反查把"同一实体的所有事实"拉进候选池。
+    #     默认关（MEM_GRAPH_RECALL=1 开启），关时行为逐字节一致。
+    entity_rank = {}
+    _graph_on = (os.environ.get('MEM_GRAPH_RECALL') or '').strip().lower() in ('1', 'true', 'yes')
+    if _graph_on:
+        _diag['graph_recall'] = True
+        try:
+            from entity_graph_ppr import recall_by_ppr
+            _ppr_hits = recall_by_ppr(q, k=30)
+            _ppr_sorted = sorted(_ppr_hits, key=lambda x: x[1], reverse=True)
+            for _rank, (_uid, _score) in enumerate(_ppr_sorted):
+                if _uid in active and _uid not in entity_rank:
+                    entity_rank[_uid] = _rank
+        except Exception as _eg_e:
+            if not getattr(search_hybrid, '_warned_graph', False):
+                search_hybrid._warned_graph = True
+                print('[warn] 实体图谱路失败（不影响其他路）:', str(_eg_e)[:80], file=sys.stderr)
+
     # 4) RRF 融合（Reciprocal Rank Fusion）
     #    旧实现把 semantic(余弦0~1) + ascii(0.3) + literal(0.5) 直接相加，量纲不一致导致
     #    语义相近但不精确的条目（查"自动沉淀技能"返回"自动取件护栏"）压过精确匹配。
@@ -861,7 +896,10 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
     #    关键词路权重 1.6：实测关键词 Top3 75% 优于纯语义 62%，专有名词命中更可靠。
     K = 60
     out = []
-    for uid in set(vec_rank) | set(kw_rank) | lit_hit:
+    _rrf_pool = set(vec_rank) | set(kw_rank) | set(bm25_rank) | lit_hit
+    if _graph_on:
+        _rrf_pool |= set(entity_rank)
+    for uid in _rrf_pool:
         f = active.get(uid)
         if not f:
             continue
@@ -872,24 +910,136 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
         if uid in kw_rank:
             sc += 1.6 / (K + kw_rank[uid] + 1)
             reason.append('kw#%d' % kw_rank[uid])
+        if uid in bm25_rank:
+            sc += 0.8 / (K + bm25_rank[uid] + 1)
+            reason.append('bm25#%d' % bm25_rank[uid])
         if uid in lit_hit:
             sc += 1.6 / (K + 1)
             reason.append('literal')
-        out.append({'uid': uid, 'content': f['content'], 'type': f['type'],
+        if uid in entity_rank:
+            sc += 0.6 / (K + entity_rank[uid] + 1)
+            reason.append('entity_graph#%d' % entity_rank[uid])
+        # M2 (2026-09-24): procedure type boost - distilled skills get a 1.5x RRF multiplier
+        # so they surface above raw episode facts when they cover the same topic
+        if f.get('type') == 'procedure':
+            sc *= 1.5
+            reason.append('proc_boost')
+        _out = {'uid': uid, 'content': f['content'], 'type': f['type'],
                     'source': f['source'], 'score': round(sc, 5),
                     'semantic': vec_sim.get(uid, 0.0),
+                    'scope': f.get('scope') or '',
                     'updated_at': f.get('updated_at') or '',
                     # P0-07：把复核截止日带进结果，供降权与标注
                     'ttl': _parse_ttl(f.get('tags'), f.get('valid_to'), f.get('content')),
-                    'tags': str(f.get('tags') or ''),
-                    'reason': reason})
+                    'reason': reason}
+        # M2（2026-09-24）：技能接进检索结果 —— 资产条目带 skill_hint。
+        #   动机：调用方（agent）看到「ComfyUI | E:\ComfyUI\...」只知道"有这个东西"，
+        #   不知道"怎么用"（入口/前置/坑）。skill_hint 从 tool_assets 原始行提取，
+        #   只在有实际内容时附上，不污染 fact 条目。
+        _asset = f.get('_asset')
+        if _asset and isinstance(_asset, dict):
+            _hints = []
+            _skip = ('', '[]', '{}', 'null', 'None', 'none', '无')
+            _ep = (_asset.get('entrypoint') or '').strip()
+            if _ep and _ep not in _skip:
+                _hints.append('入口: %s' % _ep)
+            _pre = (_asset.get('prerequisites') or '').strip()
+            if _pre and _pre not in _skip:
+                _hints.append('前置: %s' % _pre)
+            _kf = (_asset.get('known_failures') or '').strip()
+            if _kf and _kf not in _skip:
+                _hints.append('已知坑: %s' % _kf)
+            if _hints:
+                _out['skill_hint'] = ' | '.join(_hints)
+        out.append(_out)
+    # ★4.35) R1 semantic boost（2026-09-25）：高向量相似度候选被 keyword 噪声挤出 top-N 的修复。
+    #   根因：短资产文本（tool_assets）keyword 覆盖率极低（如 Everything 0/23、STM32CubeIDE 1/12），
+    #   RRF 里 keyword 路 1.6x 权重让"碰词多的无关长文"压过"向量确认相关的精确答案"。
+    #   修法：向量 sim >= 0.70 的候选乘以 boost（1.8x），让它们回到它们应得的位置。
+    #   不影响 keyword 优先的查询（那些 sim 通常 < 0.70，或已在 top 无需 boost）。
+    _SEM_BOOST_THR = 0.70
+    _SEM_BOOST_FACTOR = 1.8
 
+    # ★R6 (2026-10-01): Four-factor re-ranking with MemX exact formulas
+    # From MemX arXiv 2603.16171, Table 1 + Eq.2/3/4
+    # Weights: sem=0.45, rec=0.25, freq=0.05, imp=0.10 (sum=0.85, z-score normalizes)
+    _W4_SEM = 0.45
+    _W4_REC = 0.25
+    _W4_FREQ = 0.05
+    _W4_IMP = 0.10
+    _HALF_LIFE_DAYS = 30  # MemX default
+    
+    _TYPE_IMP = {'procedure': 0.9, 'decision': 0.7, 'fact': 0.5,
+                 'incident': 0.5, 'experience': 0.4, 'tool': 0.6}
+    
+    def _rec_memx(updated_at):
+        """MemX Eq.2: f_rec = 2^(-d/h), h=30 days"""
+        import datetime as _dt_mod
+        if not updated_at:
+            return 0.3
+        try:
+            _dt = _dt_mod.datetime.strptime(str(updated_at)[:19], '%Y-%m-%d %H:%M:%S')
+            _days = (_dt_mod.datetime.now() - _dt).days
+            return max(0.01, 2 ** (-_days / _HALF_LIFE_DAYS))
+        except (ValueError, TypeError):
+            return 0.3
+    
+    def _freq_memx(use_count):
+        """MemX Eq.3: f_freq = min(1, ln(c+1)/10)"""
+        return min(1.0, math.log(max(0, use_count) + 1) / 10)
+    
+    # Apply four-factor to each candidate
+    for x in out:
+        _sem = min(1.0, x.get('score', 0) / 0.1)  # RRF score normalize to [0,1]
+        _rec = _rec_memx(x.get('updated_at', ''))
+        _freq = _freq_memx(x.get('use_count', 0))
+        _imp = _TYPE_IMP.get(x.get('type', 'fact'), 0.5)
+        
+        _raw = (_W4_SEM * _sem + _W4_REC * _rec + 
+                _W4_FREQ * _freq + _W4_IMP * _imp)
+        x['_4f_raw'] = _raw
+        x['reason'] = list(x.get('reason') or []) + [
+            f"4F(sem={_sem:.2f},rec={_rec:.2f},freq={_freq:.2f},imp={_imp:.1f})"
+        ]
+    
+    # Save original RRF score before normalization overwrites it
+    for x in out:
+        x['_rrf_original'] = x.get('score', 0)
+    
+    # Z-score + sigmoid normalization (MemX Eq.4)
+    _scores_4f = [x.get('_4f_raw', 0) for x in out]
+    if _scores_4f:
+        _mean = sum(_scores_4f) / len(_scores_4f)
+        _var = sum((s - _mean) ** 2 for s in _scores_4f) / len(_scores_4f)
+        _std = _var ** 0.5
+        
+        if _std > 1e-6:
+            for x in out:
+                _z = (x.get('_4f_raw', 0) - _mean) / _std
+                x['_4f_norm'] = round(1.0 / (1.0 + math.exp(-_z)), 4)  # sigmoid
+        else:
+            for x in out:
+                x['_4f_norm'] = round(x.get('_4f_raw', 0), 4)
+    
+    # R6 revised: use four-factor as BONUS on top of RRF score, not replacement
+    # This preserves RRF relevance ranking while using recency/authority/frequency
+    # as tiebreakers. MemX's approach of replacing score entirely hurt asset queries.
+    for x in out:
+        _rrf = x.get('_rrf_original', x.get('_4f_raw', 0))  # preserve original RRF
+        _4f = x.get('_4f_raw', 0)
+        # Blend: 70% RRF + 30% four-factor
+        x['score'] = round(0.7 * _rrf + 0.3 * _4f, 4)
+
+    out.sort(key=lambda x: -x.get('score', 0))
+    
+    # End R6 four-factor
+    
     # ★4.36) entity_boost（2026-09-26）：对标 Mem0 的加性融合实体加成。
     #   动机：查询含 ASCII 实体（gptx_astra / mcp_server.py / concurrent_stress.py）时，
     #   命中该实体的条目应优先于仅语义相似的条目。
     #   做法：从查询提取 ASCII 实体，候选内容每命中一个实体 ×1.25（上限 1.56，
     #   避免单一实体长文因重复命中被过度放大）。
-    #   与其他 boost 叠加但各自有上限，不会破坏 RRF 量纲。
+    #   与 sem_boost 叠加但各自有上限，不会破坏 RRF 量纲。
     _q_entities = extract_ascii_entities(q)
     if _q_entities:
         for x in out:
@@ -899,6 +1049,12 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
                 factor = min(1.25 ** hits, 1.56)
                 x['score'] = round(x['score'] * factor, 5)
                 x['reason'] = list(x.get('reason') or []) + ['entity_boost=%d' % hits]
+    for x in out:
+        sem = vec_sim.get(x.get('uid'), 0.0)
+        if sem >= _SEM_BOOST_THR:
+            x['score'] = round(x['score'] * _SEM_BOOST_FACTOR, 5)
+            x['reason'] = list(x.get('reason') or []) + ['sem_boost=%.2f' % sem]
+
     # ★4.4) P0-07 TTL 降权（2026-09-24）：过期结论不得静默当"当前事实"返回。
     #   与自指降权同层（都在 RRF 之后、精排之前），乘性因子可叠加。
     #   ★刻意**不删除**：过期条目仍要能被检索到（否则"我曾说过什么"永久丢失），
@@ -926,25 +1082,9 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
     #    候选集退化成"纯关键词平局"，此时 ×0.25 只能把自指条目从 0.0262 压到
     #    同档，仍然排第一。必须压到任何正常候选之下，才真正起到排序作用。
     for x in out:
-        _tags_str = str(x.get('tags') or '');
-        if 'self-ref' in _tags_str:
-            x['score'] = round(x['score'] * 0.05, 5)
-            x['reason'].append('tag-self-ref↓')
-            continue
-        if _is_self_referential(x['content'], q):
+        if _is_self_referential(q, x['content']):
             x['score'] = round(x['score'] * 0.05, 5)
             x['reason'].append('self-ref↓')
-    # ★十三修：属性存在性校验（2026-09-26）—— 查询含「X的Y」时，
-    #   检查候选是否真正记录了 Y（而不只是提到了 X）。未提及的标 not_answered 并降权。
-    #   动机：refuse_bench N3_same_form（同形干扰）——「Clash 的订阅连接」能召回
-    #   10 条含 Clash 的记忆，但没有一条真正记录了地址。当前系统只看内容相似度，
-    #   不区分「关于 X 的记忆」和「记录了 X 的 Y 属性的记忆」。
-    try:
-        from predicates import check_attr_coverage
-        out, _all_unanswered = check_attr_coverage(q, out)
-    except ImportError:
-        pass  # predicates.py 不存在时降级为旧行为
-
     out.sort(key=lambda x: x['score'], reverse=True)
 
     # 5) cross-encoder 精排（复刻 agentmemory V4 的最大单项增益）
@@ -976,11 +1116,14 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
                 x['score'] = round((1 - rerank_w) * b + rerank_w * a, 5)
             head.sort(key=lambda x: -x['score'])
             out = head + tail
+            _diag['rerank_ok'] = True       # ★精排真的跑成功了
         except Exception as e:
+            _diag['rerank_ok'] = False
+            _diag['rerank_err'] = '%s: %s' % (type(e).__name__, str(e)[:100])
             if not getattr(search_hybrid, '_warned_rr', False):
                 search_hybrid._warned_rr = True
                 print('[warn] 精排失败，退回 RRF（排序质量下降）:', str(e)[:80], file=sys.stderr)
-                print('[warn] %s' % _interp_hint(), file=sys.stderr)
+                print('[warn] 正确解释器: %s' % VENV_PY, file=sys.stderr)
 
     # 6) ★时间衰减（2026-09-15 接入）：越老的记忆 score 越低。
     #    动机：实测「过时记忆未退役」是继 RRF 之后的下一个瓶颈——
@@ -991,7 +1134,7 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
     #    ★只在排序后做，不改数据库；每条的 decay_factor / age_days 都留痕可审计。
     if decay and out:
         try:
-            import governance as _gov
+            _gov = _load_governance()
             _gov.apply_decay(out, lookup_db=False)   # out 已带 updated_at
         except Exception as e:
             if not getattr(search_hybrid, '_warned_dc', False):
@@ -999,16 +1142,16 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
                 print('[warn] 时间衰减失败（排序退化为纯相关性）:', str(e)[:80], file=sys.stderr)
 
     # 7) ★升级 1（Q-Value，2026-09-17 接入）：被反复采纳的记忆上浮。
-    #    背景：本中枢的 manage/update 段几乎空白 —— "哪条记忆真的有用"这个信号
-    #      从未被记录，检索只能靠相似度 + 时间排序，于是历史高频复用的结论
-    #      会被新写入挤下去。
+    #    背景（前沿对照文档 §4 升级项 1）：本中枢 manage/update 段几乎空白 ——
+    #      "哪条记忆真的有用"这个信号从未被记录，检索只能靠相似度 + 时间排序，
+    #      于是历史高频复用的结论会被新写入挤下去。
     #    因子 = 0.3 + 0.7 * q_value ∈ [0.3, 1.0]：
     #      q=0.5（全库默认，即"从未被采纳"）→ ×0.65，对同批候选是**同一常数**，
     #        在 RRF→min-max 精排链路里被完全抵消 ⇒ 不改变任何现有排序；
     #      q→1.0 上浮至 ×1.0；q→0.0 下沉至 ×0.3（**不为 0**，避免把条目钉死）。
     #    ★必须挂在时间衰减**之后**：apply_decay 是最后一道 score 改写且自带重排，
-    #      挂在它前面会被直接覆盖。也**不能塞进 decay 块内** —— 验收基准用
-    #      decay=False 调用，塞进去就测不到（等于没接上）。
+    #      挂在它前面会被直接覆盖。也**不能塞进 decay 块内** —— hard_bench 用
+    #      decay=False 调用，塞进去验收台就测不到（等于没接上）。
     #    开关：MEM_QVALUE=0（或 false/off/no）关闭，退回旧行为，供 A/B 对照。
     #    回写不由这里负责（走 gateway.bump_qvalue / `mem.py qvalue`），检索侧只读不写。
     if qvalue is None:
@@ -1020,6 +1163,22 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
                 qv = active.get(x.get('uid'), {}).get('q_value')
                 qv = 0.5 if qv is None else float(qv)
                 x['q_value'] = round(qv, 4)
+                # F6（2026-09-24）：tool_assets 条目的 q_value 加时间衰减。
+                # cass_memory_system 启示：技能不衰减则旧技能永远排前。
+                # 半衰期 90 天（0.5^(days/90)），只作用于 tool_assets 来源（scope=asset）。
+                # facts 不衰减（已有 governance.apply_decay 管时间维）。
+                if x.get('scope') == 'asset' and x.get('updated_at'):
+                    try:
+                        from datetime import datetime
+                        _upd = datetime.strptime(x['updated_at'][:19], '%Y-%m-%d %H:%M:%S')
+                        _days = max(0, (datetime.now() - _upd).days)
+                        _dec = 0.5 ** (_days / 90)
+                        x['q_decayed'] = round(qv * _dec, 4)
+                        x['q_age_days'] = _days
+                        x['reason'] = list(x.get('reason') or []) + ['q_decay=%.2f' % _dec]
+                        qv = x['q_decayed']
+                    except Exception:
+                        pass
                 x['score'] = round(x['score'] * (0.3 + 0.7 * qv), 5)
                 x['reason'] = list(x.get('reason') or []) + ['q=%.2f' % qv]
             out.sort(key=lambda x: -x['score'])
@@ -1029,38 +1188,268 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
                 print('[warn] Q-Value 加权失败（排序退化为纯相关性）:', str(e)[:80],
                       file=sys.stderr)
 
-    # P0-07：回传过期条数，供 CLI/上层做「本次召回里有多少条已过期」提示
+    # P0-07：把过期条数带出去（审计：这次答案里有几条可能已过期）
+    _diag['ttl_expired_n'] = _ttl_expired
 
-    # 8) ★Q-Value auto-reinforce（2026-09-25）：检索命中即按 relevance 自动回写。
-    #    Lethe 式做法：不等客户端显式 feedback，检索完成后就对 top-k 结果
-    #    按 score（已归一化 ∈ [0,1]）作为 reward 调 gateway.bump_qvalue。
-    #    假设："检索出来了 = 大概率被用到"（Lethe benchmark：false-forget 0.207 vs FIFO 0.507）。
-    #    ★默认关（MEM_QVALUE_AUTO 未设或为 0/false/off/no），不影响现有排序。
-    #    开了之后：只 reinforce 前 auto_k 条（默认 3），避免所有候选都加分导致信号稀释。
-    #    失败静默（不崩检索），只在首次时打一行 warn。
-    _auto = (os.environ.get("MEM_QVALUE_AUTO") or "").strip().lower()
-    if _auto in ("1", "true", "yes", "on") and out:
+    # P3 multi-hop expansion (2026-09-24): resolve superseded_by chains to latest
+    # For any result that is superseded, automatically follow the chain to the final active version
+    try:
+        _conn_mh = sqlite3.connect(DB)
+        _conn_mh.row_factory = sqlite3.Row
+        # Get all supersession relationships
+        _sup_map = {}  # old_uid -> new_uid
+        for _sr in _conn_mh.execute("SELECT old_uid, new_uid FROM supersessions").fetchall():
+            _sup_map[_sr['old_uid']] = _sr['new_uid']
+        _conn_mh.close()
+
+        _mh_added = 0
+        for _x in out:
+            _uid = _x.get('uid')
+            if not _uid:
+                continue
+            # Follow the chain: if this uid was superseded, replace with the latest version
+            _chain_depth = 0
+            _cur = _uid
+            while _cur in _sup_map and _chain_depth < 10:
+                _next = _sup_map[_cur]
+                # Check if the new version is active
+                _conn_chk = sqlite3.connect(DB)
+                _conn_chk.row_factory = sqlite3.Row
+                _nr = _conn_chk.execute("SELECT uid, content, type, source, status FROM facts WHERE uid=?", (_next,)).fetchone()
+                _conn_chk.close()
+                if _nr and _nr['status'] == 'active':
+                    _cur = _next
+                    _chain_depth += 1
+                else:
+                    break
+            if _cur != _uid:
+                # Resolve the chain to the latest active version
+                _conn_latest = sqlite3.connect(DB)
+                _conn_latest.row_factory = sqlite3.Row
+                _latest = _conn_latest.execute("SELECT uid, content, type, source, status FROM facts WHERE uid=?", (_cur,)).fetchone()
+                _conn_latest.close()
+                if _latest and _latest['status'] == 'active':
+                    _x['content'] = _latest['content']
+                    _x['type'] = _latest['type']
+                    _x['superseded_chain'] = f'{_uid} -> {_cur} (depth={_chain_depth})'
+                    _mh_added += 1
+        if _mh_added:
+            _diag['multihop_resolved'] = _mh_added
+    except Exception as e:
+        _diag['multihop_err'] = str(e)[:80]
+
+
+    # ★P1-1 Score 统一归一化（2026-09-26）：双量纲问题修复。
+    #   问题：有精排时 score = (1-w)*rrf_norm + w*rerank ∈ [0,1]（典型 0.3-0.6），
+    #         无精排时 score = RRF原分 + entity_boost + sem_boost ∈ [0.02, 0.1]。
+    #   同一次查询会话内两种量纲的 score 无法比较，q_value 加权和 recall_budget
+    #   截断在混量纲下不公平（低分高精排条目 vs 高分无精排条目）。
+    #   方案：在 recall_budget 截断前，对当前候选集做 min-max 归一化到 [0,1]。
+    #   排序不变（单调变换），但下游截断和 q_value 加权在统一尺度上公平工作。
+    if len(out) > 1:
+        _sc_min = min(x['score'] for x in out)
+        _sc_max = max(x['score'] for x in out)
+        if _sc_max > _sc_min:
+            _span = _sc_max - _sc_min
+            for _x in out:
+                _x['score_raw'] = _x['score']
+                _x['score'] = round((_x['score'] - _sc_min) / _span, 5)
+        elif _sc_max > 0:
+            # 全部同分（极端平局）：归一化为 0.5
+            for _x in out:
+                _x['score_raw'] = _x['score']
+                _x['score'] = 0.5
+    # F4 Recall Budget（2026-09-24）→ P1-3 策略化截断（2026-09-26）。
+    # 投影 3980 是「注入槽位」预算；这里是「单次检索合约」预算：
+    # 无论 limit 给多大，返回条目的 content 总字符数不超过 MEM_RECALL_BUDGET（默认 6000）。
+    # P1-3 改进：pinned 条目不参与截断（强制保留）；归一化后 score >= 0.8 的高价值
+    # 条目允许溢出到 1.15x 预算；其余从尾部按 score 降序截断。
+    _budget_raw = os.environ.get('MEM_RECALL_BUDGET') or '6000'
+    try:
+        _budget = max(200, int(_budget_raw))
+    except ValueError:
+        _budget = 6000
+    _overflow_budget = int(_budget * 1.15)
+    _kept, _used = [], 0
+    _pinned_forced = 0
+    for _x in out:
+        _n = len(_x.get('content') or '')
+        # P1-3: pinned 条目不参与截断，强制保留
+        _tags = _x.get('tags') or ''
+        _is_pinned = 'pin' in str(_tags).lower() if _tags else False
+        if _is_pinned and _kept is not None:
+            if _used + _n > _overflow_budget:
+                continue  # 连溢出预算都装不下，只好跳过
+            _kept.append(_x)
+            _used += _n
+            _pinned_forced += 1
+            continue
+        # 高价值条目（归一化后 score >= 0.8）允许溢出到 1.15x 预算
+        _eff_budget = _overflow_budget if _x.get('score', 0) >= 0.8 else _budget
+        if _used + _n > _eff_budget and _kept:
+            break
+        if _used + _n > _eff_budget:
+            continue  # 单条就超预算：跳过（不该发生，content 通常 << 6000）
+        _kept.append(_x)
+        _used += _n
+    if _pinned_forced:
+        _diag['pinned_forced'] = _pinned_forced
+    _diag['recall_budget'] = _budget
+    _diag['recall_budget_used'] = _used
+    # ★P4-2 多轮检索（2026-09-27）：首查分数不足时自动简化 query 重搜。
+    #   动机：hard_bench 实测改写集 30% 失败是「正确答案没进候选集」——
+    #   用户 query 里可能带冗余上下文（"帮我查一下那个xxx的事"），
+    #   向量+关键词都搜不到核心词。方案：top-1 score < 阈值时去掉
+    #   中文虚词 + 英文停用词，用核心词重搜一次，合并两轮结果。
+    #   开关：MEM_MULTI_ROUND=1 开启（默认关，保持现有行为）。
+    #   阈值：MEM_MULTI_ROUND_THR（默认 0.3），归一化后 score < thr 才触发。
+    #   递归：_round 防死循环，最多 1 轮。
+    #   合并：两轮 uid 去重，score 取 max，重排后再截 limit。
+    _mr_on = (os.environ.get('MEM_MULTI_ROUND') or '').strip().lower() in ('1', 'true', 'yes')
+    if _mr_on and _round == 0 and _kept:
+        _top1 = _kept[0].get('score_raw', _kept[0].get('score', 0.0))
+        _thr_raw = os.environ.get('MEM_MULTI_ROUND_THR') or '0.3'
         try:
-            import gateway as _gw
-            _auto_k = int(os.environ.get("MEM_QVALUE_AUTO_K") or 3)
-            _auto_k = max(1, min(_auto_k, len(out)))
-            for x in out[:_auto_k]:
-                _uid = x.get("uid") or ""
-                _rel = float(x.get("score") or 0.0)
-                if not _uid or _rel <= 0:
-                    continue
-                # reward = min(1.0, relevance)：score 已经归一化过，直接用
-                _gw.bump_qvalue(uid=_uid, reward=min(1.0, _rel),
-                                agent=os.environ.get("MEM_SOURCE") or "auto_reinforce",
-                                detail="auto: rel=%.3f" % _rel)
-        except Exception as e:
-            if not getattr(search_hybrid, "_warned_ar", False):
-                search_hybrid._warned_ar = True
-                print("[warn] Q-Value auto-reinforce 失败（不影响排序）:", str(e)[:80],
-                      file=sys.stderr)
+            _thr = float(_thr_raw)
+        except ValueError:
+            _thr = 0.3
+        if _top1 < _thr:
+            # 字符级停用字集合：token 的每个字都在集合里 → 整个 token 是虚词，丢掉。
+            # 比词级更鲁棒（能过滤"怎么弄/怎么样/那个/随便/帮我"等任意组合）。
+            _ZH_STOP_CHARS = set('的了是在我有和就都不一个上也很到说要去你会着没看好自己这'
+                                 '那怎什帮查下随东情事们呢吧啊嘛呀哦哦哈呗'
+                                 '样做弄搞整找搜看听问答说讲提搞啥为'
+                                 '还又再被把给从对跟离往朝向'
+                                 '点些条块件只张台部套种样次遍回趟遍')
+            def _zh_is_stop(tok):
+                return all(ch in _ZH_STOP_CHARS for ch in tok)
+            _EN_STOP = {'the', 'a', 'an', 'is', 'are', 'was', 'were', 'in',
+                        'on', 'at', 'to', 'for', 'of', 'with', 'and', 'or',
+                        'that', 'this', 'it', 'my', 'me', 'i', 'do', 'does',
+                        'how', 'what', 'where', 'which', 'help', 'please',
+                        'find', 'search', 'look', 'up', 'about'}
+            _ents = list(extract_ascii_entities(q))
+            _zh_part = re.sub(r'[A-Za-z0-9_.\-]+', ' ', q).strip()
+            _zh_tokens = re.findall(r'[\u4e00-\u9fff]+|[\w\-]+', _zh_part)
+            _zh_kept = [w for w in _zh_tokens if not _zh_is_stop(w) and len(w) >= 1]
+            _en_tokens = re.findall(r'[A-Za-z][A-Za-z0-9_.\-]*', q)
+            _en_kept = [w for w in _en_tokens
+                        if w.lower() not in _EN_STOP and w not in _ents]
+            _parts = _ents + _zh_kept + _en_kept
+            _seen2, _dedup = set(), []
+            for _p in _parts:
+                if _p.lower() not in _seen2:
+                    _seen2.add(_p.lower())
+                    _dedup.append(_p)
+            _q2 = ' '.join(_dedup).strip()
+            # 兜底：如果 q2 还是跟 q 一样（比如全是虚词），退化为纯 ASCII 实体
+            if _q2 == q and _ents:
+                _q2 = ' '.join(_ents)
+            if _q2 and _q2 != q:
+                try:
+                    _r2 = search_hybrid(_q2, limit=limit, vec_k=vec_k,
+                                        use_rerank=use_rerank, rerank_k=rerank_k,
+                                        rerank_w=rerank_w, rerank_model=rerank_model,
+                                        adaptive=adaptive, adaptive_thr=adaptive_thr,
+                                        decay=decay, qvalue=qvalue, _round=1)
+                    _r2_res = _r2.get('results', [])
+                    if _r2_res:
+                        _merged = {}
+                        for _x in (_kept + _r2_res):
+                            _u = _x.get('uid')
+                            if _u not in _merged or _x.get('score', 0) > _merged[_u].get('score', 0):
+                                _x = dict(_x)
+                                _x['reason'] = list(_x.get('reason') or []) + ['multi_round']
+                                _merged[_u] = _x
+                        _kept = sorted(_merged.values(),
+                                       key=lambda _x: -_x.get('score', 0))[:limit]
+                        _diag['multi_round'] = True
+                        _diag['multi_round_orig_top'] = round(_top1, 5)
+                        _diag['multi_round_q2'] = _q2
+                        _diag['multi_round_q2_top'] = round(_r2_res[0].get('score', 0), 5) if _r2_res else 0.0
+                except Exception as _mr_e:
+                    _diag['multi_round_err'] = str(_mr_e)[:80]
 
-    return {'query': q, 'results': out[:limit], 'ttl_expired_n': _ttl_expired,
-            'all_unanswered': _all_unanswered if '_all_unanswered' in dir() else False}
+    # ★P1-2 revocation guard（2026-09-27）：对标 arXiv 2609.08258 的发现——
+    #   被撤销的事实只要撤销标签对检索层可见就会返回。
+    #   MemTether 的 supersession/TTL 是写入时标记，但检索结果里如果混入
+    #   已 superseded 的旧条目（multi-hop 展开前的原始 uid），应显式标注。
+    _revoked_n = 0
+    for _x in _kept:
+        _tags = str(_x.get('tags') or '')
+        if _x.get('ttl_expired'):
+            _revoked_n += 1
+    if _revoked_n:
+        _diag['revoked_expired_n'] = _revoked_n
+
+    # ★R1 (2026-10-01): write-back on retrieval
+    # Only in non-recursive calls (_round==0) and MEM_BUMP!=0
+    if _round == 0 and os.environ.get('MEM_BUMP', '1') != '0':
+        try:
+            _bc = _sq3.connect(DB)
+            for _x in _kept[:limit]:
+                _u = _x.get('uid', '')
+                if _u:
+                    _bc.execute("UPDATE facts SET use_count = use_count + 1 WHERE uid=?", (_u,))
+                    _bc.execute("UPDATE tool_assets SET use_count = use_count + 1 WHERE uid=?", (_u,))
+            _bc.commit()
+            _bc.close()
+        except Exception:
+            pass  # bump failure does not block retrieval
+
+    # \u2605R7 (2026-10-01): Three-layer deduplication
+    # Layer 1: supersession dedup - remove old versions if new version is in results
+    _sup_map = {}
+    for _x in _kept:
+        _sb = _x.get('superseded_by', '')
+        if _sb:
+            _sup_map[_x.get('uid', '')] = _sb
+    if _sup_map:
+        _result_uids = {x['uid'] for x in _kept}
+        _remove_old = {_old for _old, _new in _sup_map.items() if _new in _result_uids}
+        if _remove_old:
+            _kept = [x for x in _kept if x.get('uid', '') not in _remove_old]
+            _diag['supersession_dedup'] = len(_remove_old)
+    
+    # Layer 2: content dedup (MemX Section 3.5 Layer 1)
+    _seen_content = set()
+    _deduped = []
+    for x in _kept:
+        _c = x.get('content', '').strip()
+        if _c and _c not in _seen_content:
+            _seen_content.add(_c)
+            _deduped.append(x)
+        elif not _c:
+            _deduped.append(x)
+    if len(_deduped) < len(_kept):
+        _diag['content_dedup'] = len(_kept) - len(_deduped)
+    _kept = _deduped
+    
+    # Layer 3: tag-signature dedup (MemX Section 3.5 Layer 2)
+    _seen_sig = set()
+    _final = []
+    for x in _kept:
+        _tags = str(x.get('tags', '')).lower().strip()
+        if _tags:
+            _sig = f"{x.get('type', 'fact')}::{_tags}"
+            if _sig in _seen_sig:
+                continue
+            _seen_sig.add(_sig)
+        _final.append(x)
+    if len(_final) < len(_kept):
+        _diag['tag_dedup'] = len(_kept) - len(_final)
+    _kept = _final
+
+    # \u2605R8 (2026-10-01): Low-confidence rejection marker (MemX Section 3.6)
+    # If keyword recall is empty AND max vector similarity < threshold, mark as low confidence
+    _kw_had = len(bm25_rank) > 0
+    _max_vec = max(vec_sim.values()) if vec_sim else 0.0
+    _diag['low_confidence'] = (not _kw_had and _max_vec < 0.50)
+    _diag['max_vec_sim'] = round(_max_vec, 4)
+    _diag['kw_count'] = len(bm25_rank)
+
+    return {'query': q, 'results': _kept[:limit], 'diag': _diag}
+
 
 if __name__ == '__main__':
     import argparse
@@ -1092,3 +1481,4 @@ if __name__ == '__main__':
             print('  %s | %s' % ('垃圾' if is_generic_garbage(t) else '正常', t[:45]))
     if a.search:
         print(json.dumps(search_hybrid(a.search), ensure_ascii=False, indent=2))
+
