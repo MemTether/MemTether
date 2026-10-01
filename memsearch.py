@@ -846,7 +846,10 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
         except Exception:
             pass
     if _expanded_terms and len(_expanded_terms) > 1:
-        q = ' '.join(sorted(_expanded_terms))
+        # R4 fixed: don't concatenate - store for multi-path RRF after main search
+        # The main search uses the original query; alt queries are searched separately
+        _alt_query_terms = sorted(_expanded_terms - set(q.split()))
+        # q stays unchanged - alt terms are used AFTER main search completes
 
     if not q:
         # ★2026-09-19（诊断可信度）：空 query 必须**显式**回报原因。
@@ -1037,6 +1040,35 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
             if not getattr(search_hybrid, '_warned_graph', False):
                 search_hybrid._warned_graph = True
                 print('[warn] 实体图谱路失败（不影响其他路）:', str(_eg_e)[:80], file=sys.stderr)
+
+
+    # R10b: consolidation index lookup (Mnemon arXiv 2609.36059)
+    try:
+        from consolidation import search_index as _consol_search
+        _consol_results = _consol_search(q, limit=3)
+        for _cr in _consol_results:
+            if _cr.get('type') == 'topic_timeline':
+                for _entry in _cr.get('entries', []):
+                    _uid = _entry.get('uid', '')
+                    if _uid in active and _uid not in {x.get('uid') for x in out}:
+                        x = dict(active[_uid])
+                        x['score'] = 0.03  # low but above noise floor
+                        x['reason'] = list(x.get('reason') or []) + [
+                            f"consolidation:{_cr.get('topic', '?')}"
+                        ]
+                        out.append(x)
+            elif _cr.get('type') == 'standing_instruction':
+                # Standing instructions always rank high
+                _inst_uid = _cr.get('uid', '')
+                if _inst_uid in active and _inst_uid not in {x.get('uid') for x in out}:
+                    x = dict(active[_inst_uid])
+                    x['score'] = 0.08  # high boost for standing instructions
+                    x['reason'] = list(x.get('reason') or []) + ['consolidation:standing_instruction']
+                    out.append(x)
+    except ImportError:
+        pass  # consolidation.py not available
+    except Exception:
+        pass
 
     # 4) RRF 融合（Reciprocal Rank Fusion）
     #    旧实现把 semantic(余弦0~1) + ascii(0.3) + literal(0.5) 直接相加，量纲不一致导致
@@ -1604,6 +1636,11 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
     _scaffold = build_scaffold(_q_type, q, _kept[:limit])
     if _scaffold:
         _diag['scaffold'] = _scaffold
+        # Make scaffold visible to the LLM by prepending it to the first result
+        if _kept:
+            _kept[0] = dict(_kept[0])
+            _kept[0]['content'] = _scaffold + '\n\n' + _kept[0].get('content', '')
+            _kept[0]['reason'] = list(_kept[0].get('reason') or []) + ['scaffold_prepended']
     
     # Apply packet compilation for aggregation-type questions
     if _q_type in ('counting', 'aggregation', 'comparison', 'knowledge-update'):
