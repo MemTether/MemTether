@@ -645,6 +645,155 @@ def _load_governance():
     return _mod
 
 
+
+
+# ==================== R10: Scaffold & Packet Compiler (v6) ====================
+# Based on Auditable Memory (arXiv 2609.38021) and Mnemon (arXiv 2609.36059)
+
+def detect_question_type(query):
+    """Detect the type of question to choose aggregation strategy."""
+    q = query.lower()
+    if any(kw in q for kw in ['how many', 'count', 'number of', 'how much',
+                               'sum of', 'average of', 'mean of']):
+        return 'counting'
+    if any(kw in q for kw in ['compare', 'difference between', 'better than',
+                               'worse than', 'which is more', 'versus', ' vs ']):
+        return 'comparison'
+    if any(kw in q for kw in ['before the', 'after the', 'when did', 'what year',
+                               'timeline', 'chronological', 'in order']):
+        return 'temporal'
+    if any(kw in q for kw in ['no longer', 'still valid', 'has changed',
+                               'current version', 'latest version']):
+        return 'knowledge-update'
+    if any(kw in q for kw in ['list all', 'summarize', 'every mention',
+                               'all instances', 'each time']):
+        return 'aggregation'
+    return 'single-session'
+
+
+def build_scaffold(question_type, query, results):
+    """Generate deterministic reasoning scaffolds for specific question types.
+    Based on Auditable Memory (arXiv 2609.38021) Stage 4."""
+    if not results:
+        return None
+    
+    scaffold_lines = []
+    
+    if question_type == 'counting':
+        # Extract entities from query and count occurrences in results
+        entities = extract_ascii_entities(query)
+        if entities:
+            scaffold_lines.append("[scaffold: counting]")
+            for e in entities:
+                count = sum(1 for r in results 
+                           if e.lower() in r.get('content', '').lower())
+                if count > 0:
+                    scaffold_lines.append(f"  '{e}' appears in {count}/{len(results)} results")
+        else:
+            # Count unique sources/types
+            type_counts = {}
+            for r in results:
+                t = r.get('type', '?')
+                type_counts[t] = type_counts.get(t, 0) + 1
+            scaffold_lines.append("[scaffold: counting by type]")
+            for t, c in sorted(type_counts.items(), key=lambda x: -x[1]):
+                scaffold_lines.append(f"  {t}: {c} results")
+    
+    elif question_type == 'temporal':
+        # Sort results by time
+        dated = [(r.get('updated_at', ''), r.get('content', '')[:80]) 
+                 for r in results if r.get('updated_at')]
+        if dated:
+            scaffold_lines.append("[scaffold: temporal ordering]")
+            for date, content in sorted(dated)[:10]:
+                scaffold_lines.append(f"  {date[:10]}: {content}")
+    
+    elif question_type == 'comparison':
+        # Show top pairs for comparison
+        scaffold_lines.append("[scaffold: comparison]")
+        for i in range(min(3, len(results) - 1)):
+            a = results[i]
+            b = results[i + 1]
+            scaffold_lines.append(
+                f"  Compare: [{a.get('type','?')}/{a.get('source','?')}] vs [{b.get('type','?')}/{b.get('source','?')}]"
+            )
+    
+    elif question_type in ('knowledge-update', 'aggregation'):
+        # Group by source and type for diversity
+        scaffold_lines.append(f"[scaffold: {question_type}]")
+        type_counts = {}
+        source_counts = {}
+        for r in results:
+            t = r.get('type', '?')
+            s = r.get('source', '?')
+            type_counts[t] = type_counts.get(t, 0) + 1
+            source_counts[s] = source_counts.get(s, 0) + 1
+        scaffold_lines.append(f"  Types: {type_counts}")
+        scaffold_lines.append(f"  Sources: {source_counts}")
+        scaffold_lines.append(f"  Total: {len(results)} results, "
+                              f"score range: {min(r.get('score',0) for r in results):.3f} - "
+                              f"{max(r.get('score',0) for r in results):.3f}")
+    
+    if scaffold_lines:
+        return '\n'.join(scaffold_lines)
+    return None
+
+
+def compile_packet(results, max_items=16, max_chars=12000):
+    """Coverage-first packet compilation.
+    Based on Auditable Memory (arXiv 2609.38021) Stage 3.
+    Select results to maximize topic/source/type coverage within budget."""
+    if len(results) <= max_items:
+        return results
+    
+    # Phase 1: Take top-scored results (half the budget)
+    sorted_r = sorted(results, key=lambda x: -x.get('score', 0))
+    selected = sorted_r[:max_items // 2]
+    selected_uids = {x['uid'] for x in selected}
+    seen_types = {x.get('type') for x in selected}
+    seen_sources = {x.get('source') for x in selected}
+    
+    # Phase 2: Fill remaining with diversity bonuses
+    remaining = [x for x in sorted_r if x['uid'] not in selected_uids]
+    for x in remaining:
+        if len(selected) >= max_items:
+            break
+        bonus = 0
+        if x.get('type') not in seen_types:
+            bonus += 0.2
+        if x.get('source') not in seen_sources:
+            bonus += 0.1
+        adjusted = x.get('score', 0) + bonus
+        x = dict(x)  # copy to avoid mutating original
+        x['_adjusted_score'] = adjusted
+        selected.append(x)
+        selected_uids.add(x['uid'])
+        seen_types.add(x.get('type'))
+        seen_sources.add(x.get('source'))
+    
+    # Sort by score and trim to budget
+    selected.sort(key=lambda x: -x.get('_adjusted_score', x.get('score', 0)))
+    
+    # Trim by character budget
+    total_chars = 0
+    final = []
+    for x in selected:
+        content_len = len(x.get('content', ''))
+        if total_chars + content_len > max_chars:
+            # Truncate content to fit
+            remaining_budget = max_chars - total_chars
+            if remaining_budget > 100:
+                x = dict(x)
+                x['content'] = x['content'][:remaining_budget]
+                final.append(x)
+            break
+        final.append(x)
+        total_chars += content_len
+    
+    return final
+
+# ==================== End R10 ====================
+
 def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
                   rerank_w=0.4, rerank_model=None,
                   adaptive=True, adaptive_thr=0.6,
@@ -1447,6 +1596,20 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
     _diag['low_confidence'] = (not _kw_had and _max_vec < 0.50)
     _diag['max_vec_sim'] = round(_max_vec, 4)
     _diag['kw_count'] = len(bm25_rank)
+
+    # \u2605R10 integration: scaffold + packet compiler
+    _q_type = detect_question_type(q)
+    _diag['question_type'] = _q_type
+    
+    _scaffold = build_scaffold(_q_type, q, _kept[:limit])
+    if _scaffold:
+        _diag['scaffold'] = _scaffold
+    
+    # Apply packet compilation for aggregation-type questions
+    if _q_type in ('counting', 'aggregation', 'comparison', 'knowledge-update'):
+        _kept = compile_packet(_kept[:limit], max_items=16, max_chars=12000)
+        _diag['packet_compiled'] = True
+        _diag['packet_size'] = len(_kept)
 
     return {'query': q, 'results': _kept[:limit], 'diag': _diag}
 

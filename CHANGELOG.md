@@ -485,3 +485,21 @@ Apache-2.0（含专利授权）。第三方归属见 `NOTICE`。
 - asset_bench: 23/23 (no regression)  
 - e2e_verify: 13/13 (no regression)
 - Cross-language search: browser/browser 10/10, STM32 UART/serial 8/10
+## [0.1.0a12] - 2026-10-01
+
+### Added
+- Question type detection: counting/comparison/temporal/knowledge-update/aggregation
+- Deterministic reasoning scaffolds (Auditable Memory arXiv 2609.38021 Stage 4)
+  - counting: entity occurrence counting in results
+  - temporal: chronological ordering of results
+  - comparison: top result pairing
+  - aggregation: type/source distribution summary
+- Coverage-first packet compiler (Auditable Memory Stage 3): max 16 items, 12k chars
+  - Phase 1: top-scored results
+  - Phase 2: diversity bonus for unseen types/sources
+  - Character budget trimming
+- All scaffolds and packet metadata exposed in diag for full auditability
+
+### Improved
+- Question type detection priority reordered (counting before aggregation)
+- Scaffold integrated into search_hybrid() return pipeline
