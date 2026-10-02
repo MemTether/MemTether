@@ -208,6 +208,97 @@ def _cmd_stats(_args):
     return 0
 
 
+
+def _cmd_init(args):
+    """Initialize a new memory DB."""
+    db_path = os.environ.get("MEM_DB") or DEFAULT_DB
+    if os.path.exists(db_path) and not getattr(args, "force", False):
+        print(f"DB already exists: {db_path}")
+        print("Use --force to overwrite")
+        return
+    
+    # Call the existing demo generator
+    here = os.path.dirname(os.path.abspath(__file__))
+    demo_script = os.path.join(here, "scripts", "make_demo_db.py")
+    if os.path.exists(demo_script):
+        import subprocess
+        r = subprocess.run([sys.executable, demo_script, "--out", db_path],
+                          capture_output=True, text=True)
+        if r.returncode == 0:
+            print(f"✅ Created memory DB: {db_path}")
+        else:
+            print(f"❌ Failed to create DB: {r.stderr[:200]}")
+    else:
+        # Fallback: create empty DB
+        os.makedirs(os.path.dirname(db_path), exist_ok=True)
+        import sqlite3
+        conn = sqlite3.connect(db_path)
+        conn.close()
+        print(f"✅ Created empty memory DB: {db_path}")
+
+
+def _cmd_connect(args):
+    """Connect AI clients to the memory hub."""
+    # Delegate to tether_connect.py
+    here = os.path.dirname(os.path.abspath(__file__))
+    connect_script = os.path.join(here, "tether_connect.py")
+    if not os.path.exists(connect_script):
+        print("❌ tether_connect.py not found")
+        return
+    
+    import subprocess
+    cmd_args = [sys.executable, connect_script]
+    if getattr(args, "all", False):
+        cmd_args.append("apply")
+    elif getattr(args, "client", None):
+        cmd_args.extend(["apply", "--client", args.client])
+    else:
+        cmd_args.append("detect")
+    
+    os.execv(sys.executable, cmd_args)
+
+
+
+def _cmd_init(args):
+    """Initialize a new memory DB with demo data."""
+    db_path = os.environ.get("MEM_DB") or DEFAULT_DB
+    if os.path.exists(db_path) and not getattr(args, "force", False):
+        print(f"DB already exists: {db_path}")
+        print("Use --force to overwrite")
+        return
+    here = os.path.dirname(os.path.abspath(__file__))
+    demo_script = os.path.join(here, "scripts", "make_demo_db.py")
+    if os.path.exists(demo_script):
+        import subprocess
+        r = subprocess.run([sys.executable, demo_script, "--out", db_path],
+                          capture_output=True, text=True)
+        if r.returncode == 0:
+            print(f"Created memory DB: {db_path}")
+        else:
+            print(f"Failed: {r.stderr[:200]}")
+    else:
+        os.makedirs(os.path.dirname(db_path) or ".", exist_ok=True)
+        import sqlite3
+        sqlite3.connect(db_path).close()
+        print(f"Created empty memory DB: {db_path}")
+
+
+def _cmd_connect(args):
+    """Connect AI clients to the memory hub (delegates to tether_connect)."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    connect_script = os.path.join(here, "tether_connect.py")
+    if not os.path.exists(connect_script):
+        print("tether_connect.py not found")
+        return
+    import subprocess
+    cmd = [sys.executable, connect_script]
+    if getattr(args, "all", False):
+        cmd.append("apply")
+    else:
+        cmd.append("detect")
+    os.execv(sys.executable, cmd)
+
+
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
     p = argparse.ArgumentParser(
@@ -236,6 +327,15 @@ def main(argv=None):
 
     sp = sub.add_parser("stats", help="统计")
     sp.set_defaults(func=_cmd_stats)
+
+    sp = sub.add_parser("init", help="Initialize a new memory DB (with demo data)")
+    sp.add_argument("--force", action="store_true", help="Overwrite existing DB")
+    sp.set_defaults(func=_cmd_init)
+
+    sp = sub.add_parser("connect", help="Connect AI clients to the memory hub")
+    sp.add_argument("--all", action="store_true", help="Connect all detected clients")
+    sp.add_argument("client", nargs="?", default=None, help="Specific client")
+    sp.set_defaults(func=_cmd_connect)
 
     args = p.parse_args(argv)
     if not getattr(args, "cmd", None):
