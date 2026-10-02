@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 320" font-family="'JetBrains Mono','Fira Code','Consolas',monospace">
+  <defs>
+    <linearGradient id="bg1" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1a1b26"/>
+      <stop offset="100%" stop-color="#16161e"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="8" y="0" width="864" height="320" fill="url(#bg1)" rx="14"/>
+
+  <rect x="8" y="0" width="864" height="40" fill="#24283b" rx="14"/>
+  <rect x="8" y="28" width="864" height="12" fill="#24283b"/>
+  <circle cx="34" cy="20" r="7" fill="#f7768e"/>
+  <circle cx="56" cy="20" r="7" fill="#e0af68"/>
+  <circle cx="78" cy="20" r="7" fill="#9ece6a"/>
+  <text x="440" y="26" text-anchor="middle" fill="#565f89" font-size="14">Two AI clients, one shared memory</text>
+
+  <!-- Left: Claude Code -->
+  <text x="42" y="78" fill="#7aa2f7" font-size="18" font-weight="bold">Claude Code (Client A)</text>
+
+  <text x="42" y="112" fill="#565f89" font-size="16">$</text>
+  <text x="62" y="112" fill="#a9b1d6" font-size="16">memtether remember "User prefers dark theme"</text>
+
+  <text x="42" y="142" fill="#9ece6a" font-size="16">✓ Written to shared memory hub</text>
+  <text x="42" y="164" fill="#565f89" font-size="13">  uid: fact-20261002-abc123</text>
+  <text x="42" y="182" fill="#565f89" font-size="13">  source: claude-code | shared: true</text>
+
+  <text x="42" y="218" fill="#565f89" font-size="16">$</text>
+  <text x="62" y="218" fill="#a9b1d6" font-size="16">memtether remember "Project uses SQLite + FTS5"</text>
+
+  <text x="42" y="248" fill="#9ece6a" font-size="16">✓ Written to shared memory hub</text>
+
+  <!-- Divider -->
+  <line x1="440" y1="55" x2="440" y2="310" stroke="#24283b" stroke-width="1"/>
+
+  <!-- Right: Cursor -->
+  <text x="460" y="78" fill="#bb9af7" font-size="18" font-weight="bold">Cursor (Client B)</text>
+
+  <text x="460" y="112" fill="#565f89" font-size="16">$</text>
+  <text x="480" y="112" fill="#a9b1d6" font-size="16">memtether search "theme preference"</text>
+
+  <rect x="458" y="126" width="400" height="72" fill="#1f2335" rx="8" stroke="#7aa2f7" stroke-width="1.5"/>
+  <text x="472" y="150" fill="#e0af68" font-size="14">📌 Shared Memory Found</text>
+  <text x="472" y="170" fill="#a9b1d6" font-size="16">"User prefers dark theme"</text>
+  <text x="472" y="190" fill="#565f89" font-size="13">source: claude-code • written 3s ago</text>
+
+  <text x="460" y="224" fill="#565f89" font-size="16">$</text>
+  <text x="480" y="224" fill="#a9b1d6" font-size="16">memtether search "database tech"</text>
+
+  <rect x="458" y="238" width="400" height="72" fill="#1f2335" rx="8" stroke="#bb9af7" stroke-width="1.5"/>
+  <text x="472" y="262" fill="#e0af68" font-size="14">📌 Shared Memory Found</text>
+  <text x="472" y="282" fill="#a9b1d6" font-size="16">"Project uses SQLite + FTS5"</text>
+  <text x="472" y="302" fill="#565f89" font-size="13">source: claude-code • written 1s ago</text>
+</svg>
