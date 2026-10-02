@@ -211,11 +211,7 @@ def _guard_source(source, fallback=None):
 
 # ---- SQLite schema ----
 SCHEMA = """
-CR
-        CREATE VIRTUAL TABLE IF NOT EXISTS facts_fts USING fts5(uid UNINDEXED, content, tokenize='trigram');
-        CREATE TRIGGER IF NOT EXISTS facts_fts_insert AFTER INSERT ON facts BEGIN INSERT INTO facts_fts(uid, content) VALUES (NEW.uid, NEW.content); END;
-        CREATE TRIGGER IF NOT EXISTS facts_fts_delete AFTER DELETE ON facts BEGIN DELETE FROM facts_fts WHERE uid = OLD.uid; END;
-        CREATE TRIGGER IF NOT EXISTS facts_fts_retire AFTER UPDATE OF status ON facts WHEN NEW.status != 'active' BEGIN DELETE FROM facts_fts WHERE uid = NEW.uid; END;EATE TABLE IF NOT EXISTS facts (
+        CREATE TABLE IF NOT EXISTS facts (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   uid TEXT UNIQUE,            -- 稳定唯一 id
   type TEXT,                  -- fact/decision/incident/preference/environment/tool/path
@@ -391,6 +387,21 @@ def init_db():
     conn = get_conn()
     conn.executescript(SCHEMA)
     _ensure_columns(conn)
+    conn.commit()
+    conn.close()
+
+    _init_fts_triggers()  # FTS + triggers
+
+
+def _init_fts_triggers():
+    """Initialize FTS5 table and triggers (SQLite-level sync, no Python try/except)."""
+    conn = get_conn()
+    conn.executescript("""
+        CREATE VIRTUAL TABLE IF NOT EXISTS facts_fts USING fts5(uid UNINDEXED, content, tokenize='trigram');
+        CREATE TRIGGER IF NOT EXISTS facts_fts_insert AFTER INSERT ON facts BEGIN INSERT INTO facts_fts(uid, content) VALUES (NEW.uid, NEW.content); END;
+        CREATE TRIGGER IF NOT EXISTS facts_fts_delete AFTER DELETE ON facts BEGIN DELETE FROM facts_fts WHERE uid = OLD.uid; END;
+        CREATE TRIGGER IF NOT EXISTS facts_fts_retire AFTER UPDATE OF status ON facts WHEN NEW.status != 'active' BEGIN DELETE FROM facts_fts WHERE uid = NEW.uid; END;
+    """)
     conn.commit()
     conn.close()
 
