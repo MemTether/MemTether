@@ -2,6 +2,28 @@
 
 <a href="https://github.com/MemTether/MemTether">
   <img src="https://capsule-render.vercel.app/api?type=waving&color=gradient&customColorList=6,11,20&height=180&section=header&text=MemTether&fontSize=48&fontColor=fff&animation=fadeIn&desc=Cross-client%20AI%20Memory%20Hub&descSize=18&descAlignY=65&descAlign=center" width="100%" alt="MemTether"/>
+
+<a href="https://github.com/MemTether/MemTether">
+  <img src="assets/demo.svg" width="100%" alt="MemTether Demo — Cross-client AI Memory Hub"/>
+</a>
+
+## Your AI agents can now share memories.
+
+**Local-first · No cloud · No API fees · One physical memory.db shared by 23+ clients**
+
+**Features:** 🔒 Source attribution · ⏱️ Bi-temporal (T + T′ axes) · 📊 Q-Value usage ranking · 🔄 Supersession (never delete) · 🔀 4-factor re-ranking · 🏗️ SQLite FTS5 triggers · 🔌 MCP server · 📦 PyPI package
+
+**Quick Start:**
+```bash
+pip install memtether
+python -m memtether init
+python -m memtether connect --all
+```
+
+[中文说明](README.zh-CN.md) | [Architecture](docs/) | [Benchmarks](#benchmarks) | [PyPI](https://pypi.org/project/memtether/)
+
+---
+
 </a>
 
 ### 让多个 AI 客户端共享同一份物理记忆
