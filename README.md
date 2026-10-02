@@ -28,21 +28,19 @@
 # 1. Install
 pip install memtether
 
-# 2. Generate a demo memory DB (see it working immediately)
-memtether demo
+# 2. Initialize (creates a demo memory DB)
+memtether init
 
-# 3. Search the demo
-memtether search "shared memory"
+# 3. Connect all detected AI clients (Claude Code, Cursor, Windsurf, etc.)
+memtether connect --all
 ```
 
-Then connect your real AI clients:
+Try it:
 
 ```bash
-# Auto-detect and connect all installed clients (Claude Code, Cursor, Windsurf, etc.)
-memtether-connect --all
-
-# Verify connections
-memtether-connect verify
+memtether search "shared memory"
+memtether remember "my first shared memory"
+memtether stats
 ```
 
 Or on Windows, double-click `install.bat` for one-click setup.
