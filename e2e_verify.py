@@ -25,7 +25,7 @@ from interpreter import resolve_python, require_modules      # noqa: E402
 
 # ★2026-09-18 改：不再写死 `.venv-memory`（发布库里没有这个目录 → WinError 2）。
 PY, PY_SRC = resolve_python(HUB, announce=True)
-DB = os.path.join(HUB, 'memory.db')
+DB = os.environ.get('MEM_DB') or os.path.join(HUB, 'memory.db')
 ENV = dict(os.environ)
 ENV['PYTHONPATH'] = ''
 
