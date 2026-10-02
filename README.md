@@ -4,9 +4,9 @@
 
 <img src="assets/demo.svg" width="100%" alt="MemTether Demo"/>
 
-# Your AI agents can now share memories.
+<h1>Your AI agents can now share memories.</h1>
 
-**Local-first - No cloud - No API fees - One physical memory.db shared by 23+ clients**
+<b>Local-first - No cloud - No API fees - One physical memory.db shared by 23+ clients</b>
 
 [![PyPI](https://img.shields.io/pypi/v/memtether?color=%2334D058&label=pypi)](https://pypi.org/project/memtether/)
 [![Python](https://img.shields.io/pypi/pyversions/memtether)](https://pypi.org/project/memtether/)
