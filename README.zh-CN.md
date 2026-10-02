@@ -31,21 +31,19 @@
 # 1. 安装
 pip install memtether
 
-# 2. 生成演示库（立刻看到效果）
-memtether demo
+# 2. 初始化（创建演示记忆库）
+memtether init
 
-# 3. 搜索演示
-memtether search "shared memory"
+# 3. 接入所有已检测到的 AI 客户端
+memtether connect --all
 ```
 
-然后接入你的真实客户端：
+试试：
 
 ```bash
-# 自动检测并接入所有已安装的客户端
-memtether-connect --all
-
-# 验证连接
-memtether-connect verify
+memtether search "shared memory"
+memtether remember "我的第一条共享记忆"
+memtether stats
 ```
 
 Windows 用户可以双击 `install.bat` 一键完成。
