@@ -92,7 +92,8 @@ py-modules = [
     # —— 引擎核心
     "gateway",              # 唯一写入入口（带 source 归属）
     "mem",                  # 多 agent 共享总线 + CLI
-    "memsearch",            # 混合检索（向量 + 关键词 + 字面，RRF + 精排）
+    "memsearch",
+    "consolidation",            # 混合检索（向量 + 关键词 + 字面，RRF + 精排）
     "embed_local",          # 本地 bge-m3 推理
     "rerank",               # cross-encoder 精排（需 numpy）
     "governance",           # 退役 / 冲突治理
