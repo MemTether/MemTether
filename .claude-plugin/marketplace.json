@@ -1,0 +1,15 @@
+{
+  "name": "memtether",
+  "description": "Cross-client AI memory hub",
+  "version": "0.1.0a15",
+  "mcp_servers": [
+    {
+      "name": "memtether",
+      "command": "python",
+      "args": [
+        "-m",
+        "mcp_server"
+      ]
+    }
+  ]
+}
