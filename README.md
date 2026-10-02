@@ -2,7 +2,7 @@
 
 <img src="https://capsule-render.vercel.app/api?type=waving&color=gradient&customColorList=6,11,20&height=180&section=header&text=MemTether&fontSize=48&fontColor=fff&animation=fadeIn&desc=Cross-client%20AI%20Memory%20Hub&descSize=18&descAlignY=65&descAlign=center" width="100%" alt="MemTether"/>
 
-<img src="assets/demo.svg" width="860" alt="MemTether Demo"/>
+<img src="assets/demo.svg" width="100%" alt="MemTether Demo"/>
 
 # Your AI agents can now share memories.
 
