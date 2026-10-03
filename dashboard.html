@@ -150,7 +150,7 @@ async function doList() {
     el.innerHTML = html || '<span class="status">' + (lang === 'zh' ? '空' : 'Empty') + '</span>';
   } catch(e) { el.innerHTML = '<span class="err">' + e.message + '</span>'; }
 }
-window.onload = checkHealth;
+async function doRetire(uid) { if (!uid) return; try { const r = await fetch(api() + '/retire', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({uid: uid, source: 'dashboard'}) }); const d = await r.json(); if (d.ok) doList(); } catch(e) { alert(e.message); } } window.onload = checkHealth; setInterval(() => { loadStats(); }, 30000);
 </script>
 
 <script>
