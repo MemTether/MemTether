@@ -299,6 +299,31 @@ def _cmd_connect(args):
     os.execv(sys.executable, cmd)
 
 
+
+
+def _cmd_dashboard(args):
+    """Start the API server and open the web dashboard."""
+    import threading, webbrowser, time
+    port = args.port
+    url = f"http://localhost:{port}/dashboard"
+    
+    def _open_browser():
+        time.sleep(3)
+        webbrowser.open(url)
+    
+    print(f"Starting MemTether API server on port {port}...")
+    print(f"Dashboard: {url}")
+    print("Press Ctrl+C to stop.")
+    
+    threading.Thread(target=_open_browser, daemon=True).start()
+    
+    try:
+        import uvicorn
+        uvicorn.run("api_server:app", host="0.0.0.0", port=port, log_level="info")
+    except KeyboardInterrupt:
+        print("\nServer stopped.")
+
+
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
     p = argparse.ArgumentParser(
@@ -333,6 +358,8 @@ def main(argv=None):
     sp.set_defaults(func=_cmd_init)
 
     sp = sub.add_parser("connect", help="Connect AI clients to the memory hub")
+    sp = sub.add_parser("dashboard", help="Start the web dashboard (API server + browser UI)")
+    sp.add_argument("--port", type=int, default=8820, help="Port to run on (default 8820)")
     sp.add_argument("--all", action="store_true", help="Connect all detected clients")
     sp.add_argument("client", nargs="?", default=None, help="Specific client")
     sp.set_defaults(func=_cmd_connect)
