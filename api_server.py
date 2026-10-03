@@ -17,6 +17,16 @@ from pydantic import BaseModel, Field
 
 app = FastAPI(title="MemTether API", description="Cross-client AI memory hub", version="0.1.0a9")
 
+from fastapi.middleware.cors import CORSMiddleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # In production, restrict this
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
 class RememberRequest(BaseModel):
     content: str = Field(..., min_length=1)
     type: str = Field(default="fact")
