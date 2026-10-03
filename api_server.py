@@ -59,6 +59,14 @@ class QValueRequest(BaseModel):
 from fastapi.responses import HTMLResponse
 import os
 
+
+
+@app.get("/", response_class=HTMLResponse)
+def root():
+    """Redirect to dashboard."""
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/dashboard")
+
 @app.get("/dashboard", response_class=HTMLResponse)
 def dashboard():
     """Serve the web dashboard."""
