@@ -32,7 +32,10 @@
   .badge { display: inline-block; padding: 4px 10px; border-radius: 12px; font-size: 0.85em; font-weight: bold; }
   .badge-ok { background: rgba(63,185,80,0.15); color: var(--green); }
   .badge-err { background: rgba(248,81,73,0.15); color: #f85149; }
-</style>
+'
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-spinner { display: inline-block; width: 24px; height: 24px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; }
+</style>'
 </head>
 <body>
 <h1>⚙️ MemTether 控制台</h1>
@@ -45,7 +48,7 @@
   </div>
 </div><div class="api-bar">
   <span>API：</span>
-  <input id="api-url" value="http://127.0.0.1:8820" />
+  <input id="api-url" value="http://localhost:8820" />
   <button onclick="checkHealth()">连接</button>
   <span id="health-status"></span>
 </div>
@@ -129,6 +132,9 @@ async function doRemember() {
   } catch(e) { remember-status.innerHTML = '<span class="err">' + e.message + '</span>'; }
 }
 async function doList() {
+  const t = i18n[lang];
+  list-results.innerHTML = '<div style="text-align:center;padding:20px;"><span style="display:inline-block;width:24px;height:24px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite;"></span><br><br><span class="status">' + (lang === 'zh' ? '加载中...' : 'Loading...') + '</span></div>';
+  try {
   try {
     const r = await fetch(api() + '/list?limit=20');
     const d = await r.json();
