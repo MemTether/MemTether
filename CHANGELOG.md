@@ -8,6 +8,17 @@
 > 原因见 README「关于可验证性」一节 —— 基准口径不一致时，自报数字是负资产。
 > 本文件只记录**行为变更**与**可复现的验证命令**，不记录"提升了百分之几"。
 
+## [0.1.0a16] - 2026-10-03
+
+### Added
+- `mcp-name` in README for MCP Registry PyPI ownership verification
+- `server.json` for MCP Server Registry submission (io.github.lanbass869-cell/memtether)
+- SVG demo references in README.zh-CN.md
+
+### Fixed
+- Removed `topic_index.json` from repo (contained PII, never should have been committed)
+- Refreshed publish_guard baseline
+
 ## [0.1.0a9] - 2026-09-28
 
 ### Added
