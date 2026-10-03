@@ -35,7 +35,10 @@ memtether init
 
 # 3. Connect all detected AI clients (Claude Code, Cursor, Windsurf, etc.)
 memtether connect --all
+memtether dashboard
 ```
+
+This starts the API server and opens the web dashboard in your browser.
 
 Try it:
 
@@ -277,7 +280,7 @@ MemTether includes a built-in REST API server (FastAPI) for non-CLI access:
 
 ```bash
 # Start the API server
-memtether api --port 8820
+memtether dashboard --port 8820
 ```
 
 | Endpoint | Method | Description |
