@@ -358,11 +358,13 @@ def main(argv=None):
     sp.set_defaults(func=_cmd_init)
 
     sp = sub.add_parser("connect", help="Connect AI clients to the memory hub")
-    sp = sub.add_parser("dashboard", help="Start the web dashboard (API server + browser UI)")
-    sp.add_argument("--port", type=int, default=8820, help="Port to run on (default 8820)")
     sp.add_argument("--all", action="store_true", help="Connect all detected clients")
     sp.add_argument("client", nargs="?", default=None, help="Specific client")
     sp.set_defaults(func=_cmd_connect)
+
+    sp = sub.add_parser("dashboard", help="Start the web dashboard (API server + browser UI)")
+    sp.add_argument("--port", type=int, default=8820, help="Port to run on (default 8820)")
+    sp.set_defaults(func=_cmd_dashboard)
 
     args = p.parse_args(argv)
     if not getattr(args, "cmd", None):
