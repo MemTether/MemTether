@@ -30,7 +30,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "memtether"
-version = "0.1.0a16"
+version = "0.1.0a17"
 description = "Cross-client memory hub for AI agents — one physical memory, many clients"
 readme = "README.md"
 license = {text = "Apache-2.0"}
@@ -88,6 +88,7 @@ memtether-connect = "tether_connect:main"
 #   否则 `pip install` 出来的包**不带** clients/，工具一跑就 ImportError。
 packages = ["scripts", "clients", "integrations"]
 include-package-data = false
+package-data = {"*" = ["dashboard.html", "start_dashboard.bat"]}
 py-modules = [
     # —— 引擎核心
     "gateway",              # 唯一写入入口（带 source 归属）
@@ -162,6 +163,11 @@ py-modules = [
     "memtether_paths",       # 路径解析
     "memtether_pipeline",    # 管线编排
     "test_pii_roundtrip",    # PII 往返测试
+    "api_server",            # REST API 服务器（FastAPI；[server] extra）
+    "stress_board",          # 租约 fencing 压力测试
+    "test_multi_client",     # 多客户端读写一致性测试
+    "test_p3_4",             # 冲突自动替代测试
+    "test_p4_2_generic",     # 通用冲突模式测试
 ]
 
 

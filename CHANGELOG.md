@@ -1,4 +1,4 @@
-﻿# Changelog
+# Changelog
 
 本文件记录 MemTether 的对外变更。格式遵循
 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
@@ -7,6 +7,21 @@
 > **关于数字的说明**：本项目**不自报分数、不与其它实现比较数值**。
 > 原因见 README「关于可验证性」一节 —— 基准口径不一致时，自报数字是负资产。
 > 本文件只记录**行为变更**与**可复现的验证命令**，不记录"提升了百分之几"。
+
+## [0.1.0a17] - 2026-10-04
+
+### Added
+- Web dashboard (`dashboard.html`) served at `/dashboard` with bilingual UI, live stats auto-refresh, and retire action
+- `memtether dashboard` CLI command: starts the API server and opens the browser
+- `start_dashboard.bat` one-click launcher (Windows)
+- Project icon (`assets/memtether.ico` + `assets/memtether-icon.png`)
+- `.github/FUNDING.yml` (GitHub Sponsors)
+- MCP Registry badge in README (EN + zh-CN)
+
+### Fixed
+- `scripts/check_packaging.py` now passes: py-modules registered `api_server` / `stress_board` / `test_multi_client` / `test_p3_4` / `test_p4_2_generic`; NOTICE declares blake3 / fastapi / uvicorn / httpx
+- `api_server.py` internal version string aligned to package version
+- Removed stray quote character in `dashboard.html` `<style>` block
 
 ## [0.1.0a16] - 2026-10-03
 

@@ -28,6 +28,10 @@ Copyright 2026 MemTether contributors
   onnxruntime   1.30.0    MIT           本地 ONNX 推理（embedding / 精排）                 [vector] extra
   tokenizers    0.23.2    Apache-2.0    本地分词（bge-m3 等）                              [vector] extra
   mem0ai        2.0.20    Apache-2.0    可选语义写入（import_mem0.py；需自备 cred_env.py）  非必需，未声明为依赖
+  blake3        1.0.9     Apache-2.0    per-fact 内容哈希（content_blake3，缺省回退 sha256）  [blake3] extra
+  fastapi       0.141.1   MIT           REST API 框架（api_server.py）                     [server] extra
+  uvicorn       0.52.4    BSD-3-Clause  ASGI 服务器（api_server.py / Docker 默认入口）      [server] extra
+  httpx         0.28.1    BSD-3-Clause  FastAPI TestClient 依赖（tests/test_api_server.py） [server] extra
 
   说明：
 
