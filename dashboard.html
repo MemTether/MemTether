@@ -79,15 +79,15 @@
 </div>
 <script>
 const $ = id => document.getElementById(id);
-const api = () => api-url.value.replace(/\/$/, '');
+const api = () => document.getElementById('api-url').value.replace(/\/$/, '');
 async function checkHealth() {
   try {
     const r = await fetch(api() + '/health');
     const d = await r.json();
-    health-status.innerHTML = d.ok ? '<span class="badge badge-ok">✅ 已连接</span>' : '<span class="badge badge-err">❌ 错误</span>';
+    document.getElementById('health-status').innerHTML = d.ok ? '<span class="badge badge-ok">✅ 已连接</span>' : '<span class="badge badge-err">❌ 错误</span>';
     loadStats();
   } catch(e) {
-    health-status.innerHTML = '<span class="badge badge-err">❌ 无法连接</span>';
+    document.getElementById('health-status').innerHTML = '<span class="badge badge-err">❌ 无法连接</span>';
   }
 }
 async function loadStats() {
@@ -101,11 +101,11 @@ async function loadStats() {
       const val = typeof v === 'object' ? Object.entries(v).map(([k2,v2]) => k2+'='+v2).join(', ') : v;
       html += '<div class="stat-row"><span>' + label + '</span><span class="val">' + val + '</span></div>';
     }
-    stats-content.innerHTML = html;
-  } catch(e) { stats-content.innerHTML = '<span class="err">' + e.message + '</span>'; }
+    document.getElementById('stats-content').innerHTML = html;
+  } catch(e) { document.getElementById('stats-content').innerHTML = '<span class="err">' + e.message + '</span>'; }
 }
 async function doSearch() {
-  const q = search-query.value;
+  const q = document.getElementById('search-query').value;
   if (!q) return;
   try {
     const r = await fetch(api() + '/search', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({query: q}) });
@@ -117,24 +117,24 @@ async function doSearch() {
       const content = (item.content || '').substring(0, 300);
       html += '<div class="result-item"><div class="src">来源: ' + src + '</div><div class="content">' + content + '</div></div>';
     }
-    search-results.innerHTML = html;
-  } catch(e) { search-results.innerHTML = '<span class="err">' + e.message + '</span>'; }
+    document.getElementById('search-results').innerHTML = html;
+  } catch(e) { document.getElementById('search-results').innerHTML = '<span class="err">' + e.message + '</span>'; }
 }
 async function doRemember() {
-  const content = remember-content.value;
-  const source = remember-source.value;
+  const content = document.getElementById('remember-content').value;
+  const source = document.getElementById('remember-source').value;
   if (!content) return;
   try {
     const r = await fetch(api() + '/remember', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({content, source}) });
     const d = await r.json();
-    remember-status.innerHTML = d.ok ? '<span class="ok">✅ 已写入</span>' : '<span class="err">❌ 失败</span>';
-    remember-content.value = '';
-  } catch(e) { remember-status.innerHTML = '<span class="err">' + e.message + '</span>'; }
+    document.getElementById('remember-status').innerHTML = d.ok ? '<span class="ok">✅ 已写入</span>' : '<span class="err">❌ 失败</span>';
+    document.getElementById('remember-content').value = '';
+  } catch(e) { document.getElementById('remember-status').innerHTML = '<span class="err">' + e.message + '</span>'; }
 }
 async function doList() {
   const t = i18n[lang];
-  list-results.innerHTML = '<div style="text-align:center;padding:20px;"><span style="display:inline-block;width:24px;height:24px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite;"></span><br><br><span class="status">' + (lang === 'zh' ? '加载中...' : 'Loading...') + '</span></div>';
-  try {
+  const el = document.getElementById('list-results');
+  el.innerHTML = '<div style="text-align:center;padding:20px;"><span style="display:inline-block;width:24px;height:24px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite;"></span><br><br><span class="status">' + (lang === 'zh' ? '加载中...' : 'Loading...') + '</span></div>';
   try {
     const r = await fetch(api() + '/list?limit=20');
     const d = await r.json();
@@ -147,8 +147,8 @@ async function doList() {
         }
       }
     }
-    list-results.innerHTML = html || '<span class="status">空</span>';
-  } catch(e) { list-results.innerHTML = '<span class="err">' + e.message + '</span>'; }
+    el.innerHTML = html || '<span class="status">' + (lang === 'zh' ? '空' : 'Empty') + '</span>';
+  } catch(e) { el.innerHTML = '<span class="err">' + e.message + '</span>'; }
 }
 window.onload = checkHealth;
 </script>
