@@ -1,0 +1,106 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 640" font-family="'JetBrains Mono','Fira Code','Consolas',monospace">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1a1b26"/>
+      <stop offset="100%" stop-color="#16161e"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#7aa2f7"/>
+      <stop offset="100%" stop-color="#bb9af7"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect x="8" y="0" width="864" height="640" fill="url(#bg)" rx="14"/>
+
+  <!-- Title bar -->
+  <rect x="8" y="0" width="864" height="40" fill="#24283b" rx="14"/>
+  <rect x="8" y="28" width="864" height="12" fill="#24283b"/>
+  <circle cx="34" cy="20" r="7" fill="#f7768e"/>
+  <circle cx="56" cy="20" r="7" fill="#e0af68"/>
+  <circle cx="78" cy="20" r="7" fill="#9ece6a"/>
+  <text x="440" y="26" text-anchor="middle" fill="#565f89" font-size="14">MemTether — Cross-client AI Memory Hub</text>
+
+  <!-- Left panel: Claude Code (Client A) -->
+  <text x="42" y="78" fill="#7aa2f7" font-size="17" font-weight="bold">Claude Code (Client A)</text>
+
+  <text x="42" y="108" fill="#565f89" font-size="14">$</text>
+  <text x="60" y="108" fill="#a9b1d6" font-size="14">memtether remember "User prefers dark theme"</text>
+
+  <text x="42" y="134" fill="#9ece6a" font-size="14">✓ Written to shared memory hub</text>
+  <text x="42" y="154" fill="#565f89" font-size="12">  uid: fact-20261002-abc123</text>
+  <text x="42" y="172" fill="#565f89" font-size="12">  source: claude-code | shared: true</text>
+
+  <text x="42" y="206" fill="#565f89" font-size="14">$</text>
+  <text x="60" y="206" fill="#a9b1d6" font-size="14">memtether remember "Project uses SQLite + FTS5"</text>
+
+  <text x="42" y="232" fill="#9ece6a" font-size="14">✓ Written to shared memory hub</text>
+
+  <!-- Divider -->
+  <line x1="440" y1="62" x2="440" y2="300" stroke="#24283b" stroke-width="1"/>
+
+  <!-- Right panel: Cursor (Client B) -->
+  <text x="460" y="78" fill="#bb9af7" font-size="17" font-weight="bold">Cursor (Client B)</text>
+
+  <text x="460" y="108" fill="#565f89" font-size="14">$</text>
+  <text x="478" y="108" fill="#a9b1d6" font-size="14">memtether search "theme preference"</text>
+
+  <!-- Result box 1 -->
+  <rect x="458" y="120" width="400" height="70" fill="#1f2335" rx="8" stroke="#7aa2f7" stroke-width="1.5"/>
+  <text x="472" y="142" fill="#e0af68" font-size="13">📌 Shared Memory Found</text>
+  <text x="472" y="162" fill="#a9b1d6" font-size="14">"User prefers dark theme"</text>
+  <text x="472" y="180" fill="#565f89" font-size="12">source: claude-code • written 3s ago</text>
+
+  <text x="460" y="216" fill="#565f89" font-size="14">$</text>
+  <text x="478" y="216" fill="#a9b1d6" font-size="14">memtether search "database tech"</text>
+
+  <!-- Result box 2 -->
+  <rect x="458" y="228" width="400" height="70" fill="#1f2335" rx="8" stroke="#bb9af7" stroke-width="1.5"/>
+  <text x="472" y="250" fill="#e0af68" font-size="13">📌 Shared Memory Found</text>
+  <text x="472" y="270" fill="#a9b1d6" font-size="14">"Project uses SQLite + FTS5"</text>
+  <text x="472" y="288" fill="#565f89" font-size="12">source: claude-code • written 1s ago</text>
+
+  <!-- Architecture section -->
+  <line x1="30" y1="322" x2="850" y2="322" stroke="#24283b" stroke-width="1"/>
+
+  <text x="42" y="350" fill="#565f89" font-size="13" letter-spacing="2">ARCHITECTURE</text>
+
+  <!-- Client boxes - BIGGER -->
+  <!-- Claude Code -->
+  <rect x="18" y="372" width="150" height="48" fill="#1f2335" rx="10" stroke="#7aa2f7" stroke-width="1.5"/>
+  <text x="93" y="402" text-anchor="middle" fill="#7aa2f7" font-size="15">Claude Code</text>
+  <line x1="93" y1="420" x2="93" y2="462" stroke="#3b4261" stroke-width="2"/>
+
+  <!-- Cursor -->
+  <rect x="188" y="372" width="130" height="48" fill="#1f2335" rx="10" stroke="#bb9af7" stroke-width="1.5"/>
+  <text x="253" y="402" text-anchor="middle" fill="#bb9af7" font-size="15">Cursor</text>
+  <line x1="253" y1="420" x2="253" y2="462" stroke="#3b4261" stroke-width="2"/>
+
+  <!-- Windsurf -->
+  <rect x="338" y="372" width="130" height="48" fill="#1f2335" rx="10" stroke="#9ece6a" stroke-width="1.5"/>
+  <text x="403" y="402" text-anchor="middle" fill="#9ece6a" font-size="15">Windsurf</text>
+  <line x1="403" y1="420" x2="403" y2="462" stroke="#3b4261" stroke-width="2"/>
+
+  <!-- VS Code -->
+  <rect x="488" y="372" width="130" height="48" fill="#1f2335" rx="10" stroke="#e0af68" stroke-width="1.5"/>
+  <text x="553" y="402" text-anchor="middle" fill="#e0af68" font-size="15">VS Code</text>
+  <line x1="553" y1="420" x2="553" y2="462" stroke="#3b4261" stroke-width="2"/>
+
+  <!-- + 19 more -->
+  <rect x="638" y="372" width="150" height="48" fill="#1f2335" rx="10" stroke="#f7768e" stroke-width="1.5"/>
+  <text x="713" y="402" text-anchor="middle" fill="#f7768e" font-size="15">+ 19 more</text>
+  <line x1="713" y1="420" x2="713" y2="462" stroke="#3b4261" stroke-width="2"/>
+
+  <!-- Central hub box - WIDE enough for all connector lines to touch -->
+  <!-- Box spans from x=20 to x=860 (almost full width) -->
+  <rect x="20" y="462" width="840" height="66" fill="url(#accent)" rx="12" opacity="0.12"/>
+  <rect x="20" y="462" width="840" height="66" fill="none" rx="12" stroke="url(#accent)" stroke-width="2"/>
+  <text x="440" y="490" text-anchor="middle" fill="#c0caf5" font-size="17" font-weight="bold">📦 MemTether Memory Hub</text>
+  <text x="440" y="514" text-anchor="middle" fill="#737aa2" font-size="13">SQLite + FTS5 + Bi-temporal + Source Attribution — one physical memory.db</text>
+
+  <!-- Bottom badges -->
+  <text x="440" y="568" text-anchor="middle" fill="#414868" font-size="14">Local-first  •  No cloud  •  No API fees  •  Apache 2.0</text>
+
+  <!-- Footer padding -->
+  <rect x="8" y="590" width="864" height="50" fill="none"/>
+</svg>
