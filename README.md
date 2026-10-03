@@ -24,6 +24,8 @@
 
 ## Quick Start
 
+mcp-name: io.github.lanbass869-cell/memtether
+
 ```bash
 # 1. Install
 pip install memtether
