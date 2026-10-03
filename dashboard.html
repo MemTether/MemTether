@@ -95,7 +95,7 @@ async function loadStats() {
     const labels = {facts:'记忆条数', tool_assets:'工具资产', recipes:'任务配方', supersessions:'替代链', audit_log:'审计日志', candidates:'候选'};
     for (const [k, v] of Object.entries(d)) {
       const label = labels[k] || k;
-      const val = typeof v === 'object' ? JSON.stringify(v) : v;
+      const val = typeof v === 'object' ? Object.entries(v).map(([k2,v2]) => k2+'='+v2).join(', ') : v;
       html += '<div class="stat-row"><span>' + label + '</span><span class="val">' + val + '</span></div>';
     }
     stats-content.innerHTML = html;
@@ -132,7 +132,7 @@ async function doList() {
   try {
     const r = await fetch(api() + '/list?limit=20');
     const d = await r.json();
-    const results = d.results || d.memories || d || [];
+    const results = d.items || d.results || [];
     let html = '';
     if (Array.isArray(results)) {
       for (const item of results) {
