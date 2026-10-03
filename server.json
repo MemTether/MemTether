@@ -1,6 +1,6 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "io.github.MemTether/memtether",
+  "name": "io.github.lanbass869-cell/memtether",
   "description": "Cross-client AI memory hub: agents share one SQLite memory.db via file-level pointers.",
   "repository": {
     "url": "https://github.com/MemTether/MemTether",
