@@ -25,6 +25,10 @@
 
 不是一个 API 服务，不是一个云平台，不是一个新框架。就是一个 SQLite 文件，通过文件级指针（junction/symlink）被 23 个客户端共享。
 
+<div align="center">
+<img src="assets/demo-usage.svg" width="100%" alt="MemTether 使用演示 — 两个 AI 客户端共享记忆"/>
+</div>
+
 ## 快速开始
 
 ```bash
@@ -134,6 +138,10 @@ MEM_DB=~/.memtether/demo.db python mem.py search "跨客户端共享"
 ---
 
 ## 架构
+
+<div align="center">
+<img src="assets/demo-architecture.svg" width="100%" alt="MemTether 架构 — 23 个客户端共享记忆"/>
+</div>
 
 ```
 ┌─────────┐   ┌─────────┐   ┌─────────┐   ┌─────────┐
