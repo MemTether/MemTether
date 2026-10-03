@@ -37,7 +37,13 @@
 <body>
 <h1>⚙️ MemTether 控制台</h1>
 <p class="subtitle">跨客户端 AI 记忆中枢 — 文件级指针，一个 SQLite，零云端</p>
-<div class="api-bar">
+<div class="top-bar" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:8px;">
+  <div></div>
+  <div style="display:flex;gap:4px;">
+    <button class="lang-btn active" id="btn-zh" onclick="setLang('zh')" style="background:var(--card);color:var(--muted);border:1px solid var(--border);padding:6px 14px;border-radius:6px;cursor:pointer;font-size:0.9em;">中文</button>
+    <button class="lang-btn" id="btn-en" onclick="setLang('en')" style="background:var(--card);color:var(--muted);border:1px solid var(--border);padding:6px 14px;border-radius:6px;cursor:pointer;font-size:0.9em;">English</button>
+  </div>
+</div><div class="api-bar">
   <span>API：</span>
   <input id="api-url" value="http://127.0.0.1:8820" />
   <button onclick="checkHealth()">连接</button>
@@ -140,5 +146,70 @@ async function doList() {
 }
 window.onload = checkHealth;
 </script>
-</body>
+
+<script>
+let lang = 'zh';
+const i18n = {
+  zh: {
+    title: 'MemTether 控制台',
+    subtitle: '跨客户端 AI 记忆中枢 — 文件级指针，一个 SQLite，零云端',
+    api: 'API：', connect: '连接',
+    connected: '✅ 已连接', disconnected: '❌ 无法连接',
+    stats_h: '📊 统计', search_h: '🔍 搜索记忆', remember_h: '✏️ 写入记忆', list_h: '📝 最近记忆',
+    search_ph: '输入搜索关键词...', search_btn: '搜索',
+    remember_ph: '记忆内容（第一句 = 结论）...', source_ph: '来源', remember_btn: '写入',
+    remember_ok: '✅ 已写入', list_btn: '加载最近', no_result: '没有找到相关记忆',
+    loading: '点「连接」加载',
+    labels: {facts:'记忆条数', tool_assets:'工具资产', recipes:'任务配方', supersessions:'替代链', audit_log:'审计日志', candidates:'候选'},
+    source_label: '来源: '
+  },
+  en: {
+    title: 'MemTether Dashboard',
+    subtitle: 'Cross-client AI memory hub — file-level pointers, one SQLite, zero cloud',
+    api: 'API: ', connect: 'Connect',
+    connected: '✅ Connected', disconnected: '❌ Cannot connect',
+    stats_h: '📊 Stats', search_h: '🔍 Search Memory', remember_h: '✏️ Remember', list_h: '📝 Recent Memories',
+    search_ph: 'Search query...', search_btn: 'Search',
+    remember_ph: 'Memory content (first sentence = conclusion)...', source_ph: 'Source', remember_btn: 'Remember',
+    remember_ok: '✅ Remembered', list_btn: 'Load Recent', no_result: 'No results found',
+    loading: 'Click "Connect" to load',
+    labels: {facts:'Facts', tool_assets:'Tool Assets', recipes:'Recipes', supersessions:'Supersessions', audit_log:'Audit Log', candidates:'Candidates'},
+    source_label: 'Source: '
+  }
+};
+
+function setLang(l) {
+  lang = l;
+  document.getElementById('btn-zh').classList.toggle('active', l === 'zh');
+  document.getElementById('btn-en').classList.toggle('active', l === 'en');
+  const t = i18n[lang];
+  document.querySelector('h1').innerHTML = '⚙️ ' + t.title;
+  document.querySelector('.subtitle').textContent = t.subtitle;
+  document.querySelector('.api-bar span').textContent = t.api;
+  document.getElementById('t-connect') || (document.querySelectorAll('button')[2].textContent = t.connect);
+  // Update headings
+  const cards = document.querySelectorAll('.card h2');
+  if (cards.length >= 4) {
+    cards[0].textContent = t.stats_h;
+    cards[1].textContent = t.search_h;
+    cards[2].textContent = t.remember_h;
+    cards[3].textContent = t.list_h;
+  }
+  // Update buttons and placeholders
+  const buttons = document.querySelectorAll('button');
+  let btnIdx = 0;
+  for (const b of buttons) {
+    if (b.id === 'btn-zh' || b.id === 'btn-en') continue;
+    btnIdx++;
+    if (btnIdx === 1) b.textContent = t.connect;
+    else if (btnIdx === 2) b.textContent = t.search_btn;
+    else if (btnIdx === 3) b.textContent = t.remember_btn;
+    else if (btnIdx === 4) b.textContent = t.list_btn;
+  }
+  document.getElementById('search-query').placeholder = t.search_ph;
+  document.getElementById('remember-content').placeholder = t.remember_ph;
+  document.getElementById('remember-source').placeholder = t.source_ph;
+  document.documentElement.lang = l === 'zh' ? 'zh-CN' : 'en';
+}
+</script></body>
 </html>
