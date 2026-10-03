@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MemTether Dashboard</title>
+<style>
+  :root { --bg: #0d1117; --fg: #c9d1d9; --accent: #58a6ff; --green: #3fb950; --border: #30363d; --card: #161b22; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--fg); font-family: 'SF Mono', 'Fira Code', monospace; padding: 20px; }
+  h1 { font-size: 1.5em; margin-bottom: 5px; }
+  .subtitle { color: #8b949e; margin-bottom: 20px; font-size: 0.85em; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin-bottom: 20px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+  .card h2 { font-size: 0.9em; color: var(--accent); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1px; }
+  .stat-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 0.85em; }
+  .stat-row .val { color: var(--green); }
+  input, textarea { width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--fg); padding: 8px; border-radius: 6px; font-family: inherit; font-size: 0.85em; margin-bottom: 8px; }
+  input:focus, textarea:focus { outline: none; border-color: var(--accent); }
+  button { background: var(--accent); color: var(--bg); border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-family: inherit; font-weight: bold; }
+  button:hover { opacity: 0.9; }
+  .result { margin-top: 8px; padding: 8px; background: var(--bg); border-radius: 6px; font-size: 0.8em; max-height: 300px; overflow-y: auto; }
+  .result-item { padding: 6px 0; border-bottom: 1px solid var(--border); }
+  .result-item:last-child { border-bottom: none; }
+  .status { font-size: 0.75em; color: #8b949e; margin-top: 4px; }
+  .ok { color: var(--green); } .err { color: #f85149; }
+  #api-url { width: 300px; display: inline-block; }
+</style>
+</head>
+<body>
+<h1>⚙️ MemTether Dashboard</h1>
+<p class="subtitle">Cross-client AI memory hub — file-level pointers, one SQLite, zero cloud</p>
+<div>API: <input id="api-url" value="http://127.0.0.1:8820" /> <button onclick="checkHealth()">Check</button> <span id="health-status"></span></div>
+<hr style="border-color:var(--border);margin:20px 0">
+
+<div class="grid">
+  <div class="card">
+    <h2>📊 Stats</h2>
+    <div id="stats-content" class="status">Click "Check" to load</div>
+  </div>
+
+  <div class="card">
+    <h2>🔍 Search Memory</h2>
+    <input id="search-query" placeholder="Search query..." onkeydown="if(event.key==='Enter')doSearch()">
+    <button onclick="doSearch()">Search</button>
+    <div id="search-results" class="result"></div>
+  </div>
+
+  <div class="card">
+    <h2>✏️ Remember</h2>
+    <textarea id="remember-content" rows="3" placeholder="Memory content (first sentence = conclusion)..."></textarea>
+    <input id="remember-source" placeholder="Source (e.g. my-app)" value="dashboard">
+    <button onclick="doRemember()">Remember</button>
+    <div id="remember-status" class="status"></div>
+  </div>
+
+  <div class="card">
+    <h2>📝 Recent Memories</h2>
+    <button onclick="doList()">Load Recent</button>
+    <div id="list-results" class="result"></div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const api = () => $('api-url').value.replace(/\/$/, '');
+
+async function checkHealth() {
+  try {
+    const r = await fetch(api() + '/health');
+    const d = await r.json();
+    $('health-status').innerHTML = d.ok ? '<span class="ok">✅ Connected</span>' : '<span class="err">❌ Error</span>';
+    loadStats();
+  } catch(e) {
+    $('health-status').innerHTML = '<span class="err">❌ Cannot connect</span>';
+  }
+}
+
+async function loadStats() {
+  try {
+    const r = await fetch(api() + '/stats');
+    const d = await r.json();
+    let html = '';
+    for (const [k, v] of Object.entries(d)) {
+      html += `<div class="stat-row"><span>${k}</span><span class="val">${v}</span></div>`;
+    }
+    $('stats-content').innerHTML = html;
+  } catch(e) { $('stats-content').innerHTML = '<span class="err">' + e.message + '</span>'; }
+}
+
+async function doSearch() {
+  const q = $('search-query').value;
+  if (!q) return;
+  try {
+    const r = await fetch(api() + '/search', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({query: q}) });
+    const d = await r.json();
+    const results = d.results || [];
+    let html = results.length ? '' : '<span class="status">No results</span>';
+    for (const item of results) {
+      html += `<div class="result-item"><strong>${item.source || '?'}</strong><br>${item.content ? item.content.substring(0, 200) : ''}</div>`;
+    }
+    $('search-results').innerHTML = html;
+  } catch(e) { $('search-results').innerHTML = '<span class="err">' + e.message + '</span>'; }
+}
+
+async function doRemember() {
+  const content = $('remember-content').value;
+  const source = $('remember-source').value;
+  if (!content) return;
+  try {
+    const r = await fetch(api() + '/remember', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({content, source}) });
+    const d = await r.json();
+    $('remember-status').innerHTML = d.ok ? '<span class="ok">✅ Remembered</span>' : '<span class="err">❌ ' + JSON.stringify(d) + '</span>';
+    $('remember-content').value = '';
+  } catch(e) { $('remember-status').innerHTML = '<span class="err">' + e.message + '</span>'; }
+}
+
+async function doList() {
+  try {
+    const r = await fetch(api() + '/list?limit=20');
+    const d = await r.json();
+    const results = d.results || d.memories || d || [];
+    let html = '';
+    if (Array.isArray(results)) {
+      for (const item of results) {
+        const c = typeof item === 'string' ? item : (item.content || '');
+        const s = typeof item === 'object' ? (item.source || '?') : '';
+        html += `<div class="result-item">[${s}] ${c.substring(0, 150)}</div>`;
+      }
+    } else {
+      html = '<pre>' + JSON.stringify(results, null, 2).substring(0, 1000) + '</pre>';
+    }
+    $('list-results').innerHTML = html || '<span class="status">Empty</span>';
+  } catch(e) { $('list-results').innerHTML = '<span class="err">' + e.message + '</span>'; }
+}
+
+// Auto-check on load
+window.onload = checkHealth;
+</script>
+</body>
+</html>

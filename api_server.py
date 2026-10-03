@@ -44,6 +44,20 @@ class QValueRequest(BaseModel):
     reward: float = Field(default=1.0, ge=0.0, le=1.0)
     source: str
 
+
+
+from fastapi.responses import HTMLResponse
+import os
+
+@app.get("/dashboard", response_class=HTMLResponse)
+def dashboard():
+    """Serve the web dashboard."""
+    dashboard_path = os.path.join(os.path.dirname(__file__), "dashboard.html")
+    if os.path.exists(dashboard_path):
+        with open(dashboard_path, encoding="utf-8") as f:
+            return f.read()
+    return "<h1>Dashboard not found</h1><p>Make sure dashboard.html is in the same directory as api_server.py</p>"
+
 @app.get("/health")
 def health():
     return {"ok": True, "version": "0.1.0a9"}

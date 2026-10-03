@@ -270,6 +270,32 @@ You can use MemTether **alongside** any of these.
 
 ---
 
+
+## REST API
+
+MemTether includes a built-in REST API server (FastAPI) for non-CLI access:
+
+```bash
+# Start the API server
+memtether api --port 8820
+```
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/health` | GET | Health check |
+| `/remember` | POST | Store a memory |
+| `/search` | POST | Search memories |
+| `/stats` | GET | Memory statistics |
+| `/correct` | POST | Correct/supersede a memory |
+| `/retire` | POST | Retire a memory |
+| `/list` | GET | List recent memories |
+| `/qvalue` | POST | Update Q-Value score |
+| `/dashboard` | GET | Web dashboard |
+
+A web dashboard is available at `http://localhost:8820/dashboard` when the API server is running.
+
+---
+
 ## License
 
 Apache 2.0 - see [LICENSE](LICENSE)
