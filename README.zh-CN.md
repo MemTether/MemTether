@@ -1,5 +1,7 @@
 # MemTether — 跨客户端 AI 记忆中枢
 
+mcp-name: io.github.lanbass869-cell/memtether
+
 <div align="center">
 
 **让多个 AI 客户端共享同一份物理记忆**
