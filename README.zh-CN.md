@@ -12,6 +12,7 @@ mcp-name: io.github.lanbass869-cell/memtether
 [![Python](https://img.shields.io/pypi/pyversions/memtether)](https://pypi.org/project/memtether/)
 [![CI](https://github.com/MemTether/MemTether/actions/workflows/ci.yml/badge.svg)](https://github.com/MemTether/MemTether/actions/workflows/ci.yml)
 [![License](https://img.shields.io/github/license/MemTether/MemTether)](LICENSE)
+[![MCP Registry](https://img.shields.io/badge/MCP_Registry-已收录-blue)](https://registry.modelcontextprotocol.io)
 
 [English README](README.md) | [快速开始](#快速开始) | [架构](#架构) | [评测](#评测) | [已知限制](#已知限制)
 
