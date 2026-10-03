@@ -282,6 +282,19 @@ python -m memtether rebuild
 
 ---
 
+
+## REST API
+
+MemTether 内置 REST API 服务器（FastAPI），支持非 CLI 方式访问：
+
+```bash
+memtether api --port 8820
+```
+
+启动后访问 `http://localhost:8820/dashboard` 打开 Web 控制台。
+
+---
+
 ## 许可证
 
 Apache 2.0 — 见 [LICENSE](LICENSE)
