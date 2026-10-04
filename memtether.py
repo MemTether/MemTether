@@ -24,6 +24,7 @@ pip 安装后用户期望两件事都能用：`import memtether` 和 `memtether 
 零配置开跑：`memtether demo` 生成一份**全合成**演示库即可（无任何真实数据）。
 """
 import argparse
+import json
 import os
 import subprocess
 import sys
@@ -38,7 +39,7 @@ if _HERE not in sys.path:
     #   `import memsearch`），只有包目录在 sys.path 上才解析得到。
     sys.path.insert(0, _HERE)
 
-__version__ = "0.1.0a18"
+__version__ = "0.1.0a19"
 
 DATA_DIR = os.environ.get("MEMTETHER_HOME") or os.path.join(
     os.path.expanduser("~"), ".memtether")
@@ -309,6 +310,46 @@ def _cmd_connect(args):
 
 
 
+def _cmd_export_md(args):
+    """Export active memories as markdown files — portable, greppable, git-able."""
+    import sqlite3, datetime
+    out_dir = args.out
+    os.makedirs(out_dir, exist_ok=True)
+    db_path = os.environ.get("MEM_DB") or DEFAULT_DB
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute(
+        "SELECT uid, type, content, source, created_at, updated_at FROM facts WHERE status='active' ORDER BY type, created_at"
+    ).fetchall()
+    manifest = []
+    for r in rows:
+        uid = r['uid'] or 'unknown'
+        typ = r['type'] or 'fact'
+        ts = r['created_at'] or ''
+        fn = f"{typ}_{uid[:30]}.md"
+        fp = os.path.join(out_dir, fn)
+        content = r['content'] or ''
+        frontmatter = f"""---
+uid: {uid}
+type: {typ}
+source: {r['source'] or 'unknown'}
+created: {ts}
+updated: {r['updated_at'] or ''}
+---
+
+"""
+        with open(fp, 'w', encoding='utf-8') as f:
+            f.write(frontmatter + content + chr(10))
+        manifest.append({'file': fn, 'uid': uid, 'type': typ, 'source': r['source']})
+    conn.close()
+    # write manifest.json
+    mf = os.path.join(out_dir, 'manifest.json')
+    with open(mf, 'w', encoding='utf-8') as f:
+        json.dump({'exported_at': datetime.datetime.now().isoformat(), 'count': len(manifest), 'items': manifest}, f, ensure_ascii=False, indent=1)
+    print(f"✓ Exported {len(manifest)} memories → {out_dir}/ ({len(manifest)} .md files + manifest.json)")
+    return 0
+
+
 def _cmd_setup(args):
     """One-command setup: write MCP config for a specific client, then verify."""
     here = os.path.dirname(os.path.abspath(__file__))
@@ -394,6 +435,10 @@ def main(argv=None):
     sp.add_argument("--all", action="store_true", help="Connect all detected clients")
     sp.add_argument("client", nargs="?", default=None, help="Specific client")
     sp.set_defaults(func=_cmd_connect)
+
+    sp = sub.add_parser("export-md", help="Export memories as markdown files (portable, greppable, git-able)")
+    sp.add_argument("--out", default="./memtether-export", help="Output directory")
+    sp.set_defaults(func=_cmd_export_md)
 
     sp = sub.add_parser("setup", help="One-command setup for a specific AI client (writes MCP config + verifies)")
     sp.add_argument("client", help="Client id: claude-code, cursor, windsurf, gemini-cli, codex, claude-desktop, ... (run 'memtether setup list' to see all)")

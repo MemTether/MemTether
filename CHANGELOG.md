@@ -1,3 +1,11 @@
+## 0.1.0a19 (2026-10-04)
+
+### Added
+- `GET /timeline/{uid}` — supersession chain API (forward evolution: who replaced this fact)
+- Dashboard **记忆审计** card — paste a UID, see the full supersession chain with diff-like status
+- `POST /absorb` — semantic absorb endpoint (keyword-overlap classify: duplicate/update/contradiction/related/new, dry_run default)
+- `memtether export-md` — export active memories as .md files with YAML frontmatter + manifest.json (portable, greppable, git-able)
+
 ## 0.1.0a18 (2026-10-04)
 
 ### Added

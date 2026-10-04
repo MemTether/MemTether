@@ -76,6 +76,12 @@
     <button onclick="doList()">加载最近</button>
     <div id="list-results" class="result"></div>
   </div>
+  <div class="card">
+    <h2>🔄 记忆审计</h2>
+    <input id="audit-uid" placeholder="输入 UID 查看 supersession 链..." onkeydown="if(event.key==='Enter')doAudit()">
+    <button onclick="doAudit()">查链</button>
+    <div id="audit-results" class="result"></div>
+  </div>
 </div>
 <script>
 const $ = id => document.getElementById(id);
@@ -150,7 +156,29 @@ async function doList() {
     el.innerHTML = html || '<span class="status">' + (lang === 'zh' ? '空' : 'Empty') + '</span>';
   } catch(e) { el.innerHTML = '<span class="err">' + e.message + '</span>'; }
 }
-async function doRetire(uid) { if (!uid) return; try { const r = await fetch(api() + '/retire', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({uid: uid, source: 'dashboard'}) }); const d = await r.json(); if (d.ok) doList(); } catch(e) { alert(e.message); } } window.onload = checkHealth; setInterval(() => { loadStats(); }, 30000);
+async function doRetire(uid) { if (!uid) return; try { const r = await fetch(api() + '/retire', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({uid: uid, source: 'dashboard'}) }); const d = await r.json(); if (d.ok) doList(); } catch(e) { alert(e.message); } } async function doAudit() {
+  const uid = document.getElementById('audit-uid').value.trim();
+  if (!uid) return;
+  const el = document.getElementById('audit-results');
+  el.innerHTML = '<span class="status">加载中...</span>';
+  try {
+    const r = await fetch(api() + '/timeline/' + encodeURIComponent(uid));
+    const d = await r.json();
+    const chain = d.chain || [];
+    if (!chain.length) { el.innerHTML = '<span class="status">未找到该 UID</span>'; return; }
+    let html = '<div style="font-size:0.85em;color:var(--muted);margin-bottom:8px;">supersession 链（' + chain.length + ' 步）</div>';
+    for (let i = 0; i < chain.length; i++) {
+      const f = chain[i];
+      const status = f.status === 'active' ? '<span style="color:var(--green)">● active</span>' : '<span style="color:#f85149">✕ superseded</span>';
+      const content = (f.content || '').substring(0, 150);
+      const ts = f.recorded_at || '';
+      const arrow = i < chain.length - 1 ? '<div style="text-align:center;color:var(--muted);font-size:0.8em;">↓ superseded_by</div>' : '';
+      html += '<div class="result-item"><div class="src">' + status + ' &nbsp; ' + f.uid.substring(0,25) + '… &nbsp; ' + ts + '</div><div class="content">' + content + '</div></div>' + arrow;
+    }
+    el.innerHTML = html;
+  } catch(e) { el.innerHTML = '<span class="err">' + e.message + '</span>'; }
+}
+window.onload = checkHealth; setInterval(() => { loadStats(); }, 30000);
 </script>
 
 <script>
@@ -161,7 +189,7 @@ const i18n = {
     subtitle: '跨客户端 AI 记忆中枢 — 文件级指针，一个 SQLite，零云端',
     api: 'API：', connect: '连接',
     connected: '✅ 已连接', disconnected: '❌ 无法连接',
-    stats_h: '📊 统计', search_h: '🔍 搜索记忆', remember_h: '✏️ 写入记忆', list_h: '📝 最近记忆',
+    stats_h: '📊 统计', search_h: '🔍 搜索记忆', remember_h: '✏️ 写入记忆', list_h: '📝 最近记忆', audit_h: '🔄 记忆审计',
     search_ph: '输入搜索关键词...', search_btn: '搜索',
     remember_ph: '记忆内容（第一句 = 结论）...', source_ph: '来源', remember_btn: '写入',
     remember_ok: '✅ 已写入', list_btn: '加载最近', no_result: '没有找到相关记忆',
@@ -174,7 +202,7 @@ const i18n = {
     subtitle: 'Cross-client AI memory hub — file-level pointers, one SQLite, zero cloud',
     api: 'API: ', connect: 'Connect',
     connected: '✅ Connected', disconnected: '❌ Cannot connect',
-    stats_h: '📊 Stats', search_h: '🔍 Search Memory', remember_h: '✏️ Remember', list_h: '📝 Recent Memories',
+    stats_h: '📊 Stats', search_h: '🔍 Search Memory', remember_h: '✏️ Remember', list_h: '📝 Recent Memories', audit_h: '🔄 Audit',
     search_ph: 'Search query...', search_btn: 'Search',
     remember_ph: 'Memory content (first sentence = conclusion)...', source_ph: 'Source', remember_btn: 'Remember',
     remember_ok: '✅ Remembered', list_btn: 'Load Recent', no_result: 'No results found',

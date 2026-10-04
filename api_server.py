@@ -15,7 +15,7 @@ import gateway
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-app = FastAPI(title="MemTether API", description="Cross-client AI memory hub", version="0.1.0a18")
+app = FastAPI(title="MemTether API", description="Cross-client AI memory hub", version="0.1.0a19")
 
 from fastapi.middleware.cors import CORSMiddleware
 app.add_middleware(
@@ -48,6 +48,12 @@ class RetireRequest(BaseModel):
     uid: str
     reason: str = Field(default="")
     source: str
+
+class AbsorbRequest(BaseModel):
+    content: str = Field(..., min_length=1)
+    source: str = Field(..., min_length=1)
+    type: str = Field(default="fact")
+    dry_run: bool = Field(default=True)
 
 class QValueRequest(BaseModel):
     uid: str
@@ -127,6 +133,70 @@ def list_memories(limit: int = 20):
         return {"ok": True, "count": len(rows), "items": [dict(r) for r in rows]}
     finally:
         conn.close()
+
+@app.get("/timeline/{uid}")
+def timeline_ep(uid: str):
+    """Supersession chain for a fact: forward evolution (who replaced it)."""
+    try:
+        return {"ok": True, "uid": uid, "chain": gateway.timeline(uid)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)[:300])
+
+@app.post("/absorb")
+def absorb(req: AbsorbRequest):
+    """Semantic absorb: classify incoming fact against existing memories.
+
+    Returns classification per candidate (duplicate / contradiction / related / new)
+    and optionally writes if dry_run=False. Uses gateway.remember + conflict detection.
+    """
+    import sqlite3
+    db_path = os.environ.get("MEM_DB", "memory.db")
+    try:
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        # find top candidates by simple keyword overlap (L0 absorb, no LLM)
+        words = set(req.content.lower().split())
+        rows = conn.execute(
+            "SELECT uid, content, type FROM facts WHERE status='active' ORDER BY updated_at DESC LIMIT 200"
+        ).fetchall()
+        candidates = []
+        for r in rows:
+            rwords = set((r['content'] or '').lower().split())
+            overlap = len(words & rwords) / max(len(words | rwords), 1)
+            if overlap > 0.15:
+                candidates.append({'uid': r['uid'], 'content': r['content'][:120],
+                                   'type': r['type'], 'overlap': round(overlap, 3)})
+        candidates.sort(key=lambda x: x['overlap'], reverse=True)
+        conn.close()
+
+        # classify best candidate
+        classification = 'new'
+        if candidates:
+            top = candidates[0]['overlap']
+            if top > 0.7:
+                classification = 'duplicate'
+            elif top > 0.4:
+                # check polarity for contradiction
+                neg_in = any(w in req.content.lower() for w in ('not ', 'no ', 'never ', '不能', '不要', '禁止'))
+                neg_ex = any(w in candidates[0]['content'].lower() for w in ('not ', 'no ', 'never ', '不能', '不要', '禁止'))
+                classification = 'contradiction' if (neg_in != neg_ex) else 'update'
+            elif top > 0.15:
+                classification = 'related'
+
+        result = {
+            'ok': True,
+            'classification': classification,
+            'candidates': candidates[:5],
+            'dry_run': req.dry_run,
+        }
+        if not req.dry_run and classification in ('new', 'update'):
+            wr = gateway.remember(content=req.content, type=req.type, source=req.source)
+            result['write'] = wr
+        elif not req.dry_run and classification == 'duplicate':
+            result['write'] = {'skipped': True, 'reason': 'duplicate of existing fact'}
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)[:300])
 
 @app.post("/qvalue")
 def qvalue(req: QValueRequest):
