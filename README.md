@@ -1,22 +1,20 @@
 <div align="center">
 
-<img src="https://capsule-render.vercel.app/api?type=waving&color=gradient&customColorList=6,11,20&height=180&section=header&text=MemTether&fontSize=48&fontColor=fff&animation=fadeIn&desc=Cross-client%20AI%20Memory%20Hub&descSize=18&descAlignY=65&descAlign=center" width="100%" alt="MemTether"/>
-
 <img src="assets/demo-usage.svg" width="100%" alt="MemTether Usage Demo — Two AI clients sharing memory"/>
 
-<img src="assets/demo-architecture.svg" width="100%" alt="MemTether Architecture — 23 clients connected to one memory hub"/>
+# MemTether
 
-<h1>Your AI agents can now share memories.</h1>
+**Your AI agents' memory is a file, not a pipeline.**
 
-<b>Local-first - No cloud - No API fees - One physical memory.db shared by 23+ clients</b>
+One physical SQLite database, shared by every AI client on your machine via file-level pointers.
+No cloud. No API fees. No sync. Your memory stays greppable, git-able, and yours.
 
-[![PyPI](https://img.shields.io/pypi/v/memtether?color=%2334D058&label=pypi)](https://pypi.org/project/memtether/)
-[![Python](https://img.shields.io/pypi/pyversions/memtether)](https://pypi.org/project/memtether/)
-[![CI](https://github.com/MemTether/MemTether/actions/workflows/ci.yml/badge.svg)](https://github.com/MemTether/MemTether/actions/workflows/ci.yml)
-[![License](https://img.shields.io/github/license/MemTether/MemTether)](LICENSE)
-[![Stars](https://img.shields.io/github/stars/MemTether/MemTether?style=social)](https://github.com/MemTether/MemTether/stargazers)
+[![PyPI](https://img.shields.io/pypi/v/memtether)](https://pypi.org/project/memtether/)
+[![CI](https://github.com/MemTether/MemTether/actions/workflows/ci.yml/badge.svg)](https://github.com/MemTether/MemTether/actions)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+[![MCP Registry](https://img.shields.io/badge/MCP_Registry-io.github.lanbass869--cell%2Fmemtether-blue)](https://registry.modelcontextprotocol.io)
 
-[Quick Start](#quick-start) | [Why MemTether](#why-memtether) | [Architecture](#architecture) | [Benchmarks](#benchmarks) | [Known Limitations](#known-limitations) | [中文文档](README.zh-CN.md)
+**[Try it in your browser →](https://huggingface.co/spaces/lanbass/memtether-demo)** · [pip install](#quick-start) · [中文文档](README.zh-CN.md)
 
 </div>
 
@@ -40,7 +38,6 @@ memtether dashboard
 
 This starts the API server and opens the web dashboard in your browser.
 
-**Try it in your browser (no install):** [MemTether Demo on Hugging Face Spaces](https://huggingface.co/spaces/lanbass/memtether-demo)
 
 Try it:
 
@@ -84,6 +81,8 @@ MEM_DB=~/.memtether/demo.db python mem.py search "shared memory"
 ## Why MemTether
 
 ### The problem
+
+> Memory should be a data format, not a multi-stage pipeline. MemTether treats your agents’ shared memory as a plain SQLite file — `ls` it, `grep` it, `git` it, back it up. The symlink is the deploy step.
 
 You use Claude Code for coding, Cursor for refactoring, and Windsurf for exploration. Each has its own memory. Switch tools and your AI forgets everything.
 
@@ -223,7 +222,7 @@ python -m memtether rebuild
 | **LLM judge (global)** | 55.7% | 264/474 |
 | **Multi-session strict** | 48.8% | 39/80 — above industry avg 27.9% |
 | **Multi-session LLM judge** | 60.0% | 72/120 |
-| **E-Hybrid** | 73.3% | 11/15 (small sample) |
+| **EAF (Evidence Assembly)** | 75.7% | 253/334 strict — multi-session 32.5%→60.0% |
 
 <details>
 <summary>Per-type breakdown</summary>
@@ -258,7 +257,7 @@ python -m memtether rebuild
 
 1. **`tether_connect detect`** may falsely report "not connected" for same-source-different-path configs. Use `verify` for accurate results.
 2. **DSH `cordis.patch.yml`** deep customizations cannot be safely rewritten. Use `plan` to preview.
-3. **`memory_hub` (production) and `memtether` (open source) are two copies**. Changes need directional sync.
+3. **MemTether shares one physical DB via file-level pointers.** On Windows this uses NTFS junctions; on macOS/Linux, symlinks. Both are native OS features — no sync daemon needed.
 4. **Semantic search requires optional deps** (chromadb, onnxruntime). Without them, degrades to keyword search.
 5. **Windows-first.** macOS/Linux should work but not fully tested.
 

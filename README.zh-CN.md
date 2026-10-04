@@ -228,7 +228,7 @@ python -m memtether rebuild
 | **LLM judge（全局）** | 55.7% | 264/474 |
 | **Multi-session strict** | 48.8% | 39/80 — 高于行业平均 27.9% |
 | **Multi-session LLM judge** | 60.0% | 72/120 |
-| **E-Hybrid（session summary）** | 73.3% | 11/15（小样本） |
+| **EAF（Evidence Assembly）** | 75.7% | 253/334 strict — multi-session 32.5%→60.0% |
 
 <details>
 <summary>按类型分解</summary>
@@ -267,7 +267,7 @@ python -m memtether rebuild
 
 1. **`tether_connect detect` 对同源异路径配置可能误报未接入**——工具检查 MCP 路径是否完全匹配；如果客户端被手动配置为不同路径但指向同一 server，会被误报。用 `verify` 看准确结果。
 2. **DSH `cordis.patch.yml` 深度定制**无法安全改写。用 `plan` 预览。
-3. **`memory_hub`（生产）和 `memtether`（开源）是两份同源代码**，改动需要判方向同步。
+3. **MemTether 通过文件级指针共享同一物理 DB**——Windows 用 NTFS junction，macOS/Linux 用 symlink，都是 OS 原生能力，无需同步守护进程。
 4. **语义搜索需要可选依赖**（chromadb, onnxruntime, tokenizers）。缺它们时搜索降级为关键词 + 字面（打印 `[warn]`，不崩，但排序质量下降）。
 5. **Windows 优先**。macOS/Linux 路径应该能跑但未完全测试。
 

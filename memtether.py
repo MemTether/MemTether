@@ -178,15 +178,23 @@ def _cmd_search(args):
     if not rows:
         print("（无结果）")
         return 0
+    listing = getattr(args, "list", False)
     for i, r in enumerate(rows, 1):
         if isinstance(r, dict):
             text = r.get("content") or r.get("text") or str(r)
             kind = r.get("type") or ""
-            src = r.get("source") or ""
+            src_attr = r.get("source") or ""
             score = r.get("score")
-            head = "[%s%s]" % (kind, ("/" + src) if src else "")
+            uid = r.get("uid") or r.get("id") or ""
+            head = "[%s%s]" % (kind, ("/" + src_attr) if src_attr else "")
             tail = ("  %.4f" % score) if isinstance(score, (int, float)) else ""
-            print("%2d. %s %s%s" % (i, head, text, tail))
+            if listing:
+                # L0 mode: first line only + uid + score; agent decides to read full
+                first_line = text.split("\n")[0][:120]
+                uid_str = ("  uid=" + uid) if uid else ""
+                print("%2d. %s %s%s%s" % (i, head, first_line, uid_str, tail))
+            else:
+                print("%2d. %s %s%s" % (i, head, text, tail))
         else:
             print("%2d. %s" % (i, r))
     return 0
@@ -301,6 +309,29 @@ def _cmd_connect(args):
 
 
 
+def _cmd_setup(args):
+    """One-command setup: write MCP config for a specific client, then verify."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    connect_script = os.path.join(here, "tether_connect.py")
+    if not os.path.exists(connect_script):
+        print("tether_connect.py not found"); return 1
+    client = (args.client or "").strip()
+    if client.lower() == "list":
+        import subprocess
+        r = subprocess.run([sys.executable, connect_script, "detect"], capture_output=False)
+        return r.returncode if hasattr(r, 'returncode') else 0
+    import subprocess
+    print(f"[setup] Connecting {client} ...")
+    r = subprocess.run([sys.executable, connect_script, "apply", "--client", client])
+    rc = r.returncode if hasattr(r, 'returncode') else 0
+    if rc == 0:
+        print(f"[setup] {client} connected. Restart the client to pick up the new MCP config.")
+        print(f"[setup] Verify: memtether search \"test\"  (from inside the client)")
+    else:
+        print(f"[setup] Failed to connect {client} (rc={rc}). Run 'memtether connect detect' to debug.")
+    return rc
+
+
 def _cmd_dashboard(args):
     """Start the API server and open the web dashboard."""
     import threading, webbrowser, time
@@ -341,6 +372,8 @@ def main(argv=None):
     sp = sub.add_parser("search", help="混合检索")
     sp.add_argument("query")
     sp.add_argument("--limit", type=int, default=10)
+    sp.add_argument("--list", action="store_true",
+                    help="L0 mode: return one-line summaries + UIDs instead of full content")
     sp.set_defaults(func=_cmd_search)
 
     sp = sub.add_parser("remember", help="写入一条记忆（必须带 source 归属）")
@@ -361,6 +394,10 @@ def main(argv=None):
     sp.add_argument("--all", action="store_true", help="Connect all detected clients")
     sp.add_argument("client", nargs="?", default=None, help="Specific client")
     sp.set_defaults(func=_cmd_connect)
+
+    sp = sub.add_parser("setup", help="One-command setup for a specific AI client (writes MCP config + verifies)")
+    sp.add_argument("client", help="Client id: claude-code, cursor, windsurf, gemini-cli, codex, claude-desktop, ... (run 'memtether setup list' to see all)")
+    sp.set_defaults(func=_cmd_setup)
 
     sp = sub.add_parser("dashboard", help="Start the web dashboard (API server + browser UI)")
     sp.add_argument("--port", type=int, default=8820, help="Port to run on (default 8820)")

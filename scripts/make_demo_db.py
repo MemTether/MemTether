@@ -246,14 +246,14 @@ def build(out_path, seed=SEED):
 
     # 配方表：3 条合成 recipe 演示 resolve_task 的用法
     demo_recipes = [
-        ("Deploy a Python service", "demo", "1. Create venv 2. pip install 3. uvicorn start", "python3.10+,pip", "venv", "active"),
-        ("Setup local embedding", "demo", "1. Download bge-m3 ONNX 2. Configure MEM_EMBED_BACKEND=local 3. Rebuild index", "onnxruntime,tokenizers", "vector", "active"),
-        ("Export memory snapshot", "demo", "1. Run memtether_export.py 2. Verify sha256 3. Import on target", "memtether installed", "export", "active"),
+        ("deploy-python-service", "deploy python service,run server", "demo", "1. Create venv 2. pip install 3. uvicorn start", "[]", "[]", "[]"),
+        ("setup-local-embedding", "embedding,vector,local search", "demo", "1. Download bge-m3 ONNX 2. Configure MEM_EMBED_BACKEND=local 3. Rebuild index", "[]", "[]", "[]"),
+        ("export-memory-snapshot", "export,backup,snapshot", "demo", "1. Run memtether_export.py 2. Verify sha256 3. Import on target", "[]", "[]", "[]"),
     ]
-    for name, agent, steps, prereq, rtype, status in demo_recipes:
+    for uid, task_pats, tool, steps, out_p, pits, fb in demo_recipes:
         cur.execute(
-            'INSERT INTO recipes (task_name, agent, steps, prerequisites, recipe_type, status) VALUES (?,?,?,?,?,?)',
-            (name, agent, steps, prereq, rtype, status))
+            'INSERT INTO recipes (uid, task_patterns, preferred_tool, steps, output_paths, known_pitfalls, fallback_tools) VALUES (?,?,?,?,?,?,?)',
+            (uid, task_pats, tool, steps, out_p, pits, fb))
     for i in range(12):
         cur.execute(
             'INSERT INTO audit_log (op,target,agent,detail,ts) VALUES (?,?,?,?,?)',
