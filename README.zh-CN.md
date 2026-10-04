@@ -146,6 +146,8 @@ MEM_DB=~/.memtether/demo.db python mem.py search "跨客户端共享"
 
 <div align="center">
 <img src="assets/demo-architecture.svg" width="100%" alt="MemTether 架构 — 23 个客户端共享记忆"/>
+<img src="assets/demo.gif" width="100%" alt="MemTether Demo GIF — CLI in action"/>
+
 </div>
 
 ```

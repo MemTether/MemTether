@@ -20,6 +20,9 @@ No cloud. No API fees. No sync. Your memory stays greppable, git-able, and yours
 
 ---
 
+
+<img src="assets/demo.gif" width="100%" alt="MemTether Demo — cross-client memory in action"/>
+
 ## Quick Start
 
 mcp-name: io.github.lanbass869-cell/memtether
