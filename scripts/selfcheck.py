@@ -474,7 +474,7 @@ def _version_changelog(ctx):
     if not os.path.isfile(p):
         return None, 'CHANGELOG.md 不存在'
     text, _ = _read_text(p)
-    m = re.search(r'(?m)^##\s*\[([0-9][^\]]*)\]', text)
+    m = re.search(r'(?m)^##\s*[\[\(]?([0-9][^\]\)\s]*)', text)
     return (m.group(1), None) if m else (None, 'CHANGELOG.md 里找不到 ## [x.y.z] 标题')
 
 
