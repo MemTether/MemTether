@@ -66,7 +66,10 @@ class TestMem0Exchange:
             {"id": "m0-002", "memory": "API key stored in vault", "created_at": "2026-09-02T10:00:00Z"},
         ]), encoding="utf-8")
         out = str(tmp_path / "mem0_exchange.json")
-        import mem0_exchange as mx
+        try:
+    import mem0_exchange as mx
+except ImportError:
+    mx = None
         result = mx.mem0_to_exchange(str(src), out, source="mem0")
         assert result is not None
         _verify_exchange_json(out, min_facts=2)
@@ -78,7 +81,10 @@ class TestMem0Exchange:
             {"id": "m0-r1", "memory": "Roundtrip test fact", "created_at": "2026-09-01T10:00:00Z"},
         ]), encoding="utf-8")
         out = str(tmp_path / "mem0_rt.json")
-        import mem0_exchange as mx
+        try:
+    import mem0_exchange as mx
+except ImportError:
+    mx = None
         mx.mem0_to_exchange(str(src), out, source="mem0")
         db = _tmp_db()
         _verify_import(out, db, min_facts=1)
@@ -94,7 +100,10 @@ class TestZepExchange:
             {"memory": "Zep memory item 2", "created_at": "2026-09-02T10:00:00Z"},
         ]), encoding="utf-8")
         out = str(tmp_path / "zep_exchange.json")
-        import zep_exchange as zx
+        try:
+    import zep_exchange as zx
+except ImportError:
+    zx = None
         result = zx.zep_to_exchange(str(src), out, source="zep")
         assert result is not None
         _verify_exchange_json(out, min_facts=2)
@@ -105,7 +114,10 @@ class TestZepExchange:
             {"memory": "Zep roundtrip fact", "created_at": "2026-09-01T10:00:00Z"},
         ]), encoding="utf-8")
         out = str(tmp_path / "zep_rt.json")
-        import zep_exchange as zx
+        try:
+    import zep_exchange as zx
+except ImportError:
+    zx = None
         zx.zep_to_exchange(str(src), out, source="zep")
         db = _tmp_db()
         _verify_import(out, db, min_facts=1)
@@ -125,7 +137,10 @@ class TestLettaExchange:
             ]
         }), encoding="utf-8")
         out = str(tmp_path / "letta_exchange.json")
-        import letta_exchange as lx
+        try:
+    import letta_exchange as lx
+except ImportError:
+    lx = None
         result = lx.letta_to_exchange(str(src), out, source="letta")
         assert result is not None
         _verify_exchange_json(out, min_facts=1)
@@ -137,7 +152,10 @@ class TestLettaExchange:
             "blocks": [{"label": "persona", "value": "Roundtrip block content", "limit": 2000}]
         }), encoding="utf-8")
         out = str(tmp_path / "letta_rt.json")
-        import letta_exchange as lx
+        try:
+    import letta_exchange as lx
+except ImportError:
+    lx = None
         lx.letta_to_exchange(str(src), out, source="letta")
         db = _tmp_db()
         _verify_import(out, db, min_facts=1)
@@ -153,7 +171,10 @@ class TestGraphitiExchange:
             {"fact": "Graphiti edge fact 2", "created_at": "2026-09-02T10:00:00Z", "valid_at": "2026-09-02", "invalid_at": "2026-09-15"},
         ]), encoding="utf-8")
         out = str(tmp_path / "graphiti_exchange.json")
-        import graphiti_exchange as gx
+        try:
+    import graphiti_exchange as gx
+except ImportError:
+    gx = None
         result = gx.graphiti_to_exchange(str(src), out, source="graphiti")
         assert result is not None
         data = _verify_exchange_json(out, min_facts=2)
@@ -167,7 +188,10 @@ class TestGraphitiExchange:
             {"fact": "Graphiti roundtrip", "created_at": "2026-09-01T10:00:00Z", "valid_at": "2026-09-01", "invalid_at": None},
         ]), encoding="utf-8")
         out = str(tmp_path / "graphiti_rt.json")
-        import graphiti_exchange as gx
+        try:
+    import graphiti_exchange as gx
+except ImportError:
+    gx = None
         gx.graphiti_to_exchange(str(src), out, source="graphiti")
         db = _tmp_db()
         _verify_import(out, db, min_facts=1)
@@ -183,7 +207,10 @@ class TestLangmemExchange:
             {"content": "LangMem memory 2", "timestamp": "2026-09-02T10:00:00Z"},
         ]), encoding="utf-8")
         out = str(tmp_path / "langmem_exchange.json")
-        import langmem_exchange as lx
+        try:
+    import langmem_exchange as lx
+except ImportError:
+    lx = None
         result = lx.langmem_to_exchange(str(src), out, source="langmem")
         assert result is not None
         _verify_exchange_json(out, min_facts=2)
@@ -194,7 +221,10 @@ class TestLangmemExchange:
             {"content": "LangMem roundtrip", "timestamp": "2026-09-01T10:00:00Z"},
         ]), encoding="utf-8")
         out = str(tmp_path / "langmem_rt.json")
-        import langmem_exchange as lx
+        try:
+    import langmem_exchange as lx
+except ImportError:
+    lx = None
         lx.langmem_to_exchange(str(src), out, source="langmem")
         db = _tmp_db()
         _verify_import(out, db, min_facts=1)
