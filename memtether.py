@@ -290,6 +290,14 @@ def _cmd_init(args):
         import sqlite3
         sqlite3.connect(db_path).close()
         print(f"Created empty memory DB: {db_path}")
+    
+    # Auto-connect all detected clients
+    print("\n[init] Connecting all detected AI clients...")
+    connect_script = os.path.join(here, "tether_connect.py")
+    if os.path.exists(connect_script):
+        r2 = subprocess.run([sys.executable, connect_script, "apply", "--yes"],
+                           capture_output=False)
+        print("[init] Done. Run 'memtether dashboard' to open the web UI.")
 
 
 def _cmd_connect(args):

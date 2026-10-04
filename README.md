@@ -1,92 +1,52 @@
 <div align="center">
 
-<img src="assets/demo-usage.svg" width="100%" alt="MemTether Usage Demo — Two AI clients sharing memory"/>
+<img src="assets/demo.gif" width="100%" alt="MemTether — cross-client AI memory in action"/>
 
 # MemTether
 
-**Your AI agents' memory is a file, not a pipeline.**
+**Your AI agents forget everything. MemTether gives them one shared brain.**
 
-One physical SQLite database, shared by every AI client on your machine via file-level pointers.
-No cloud. No API fees. No sync. Your memory stays greppable, git-able, and yours.
+One physical SQLite database, shared by every AI client via file-level pointers.
+No cloud. No API fees. No sync daemon. Greppable, git-able, yours.
 
 [![PyPI](https://img.shields.io/pypi/v/memtether)](https://pypi.org/project/memtether/)
 [![CI](https://github.com/MemTether/MemTether/actions/workflows/ci.yml/badge.svg)](https://github.com/MemTether/MemTether/actions)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![MCP Registry](https://img.shields.io/badge/MCP_Registry-io.github.lanbass869--cell%2Fmemtether-blue)](https://registry.modelcontextprotocol.io)
 
-**[Try it in your browser →](https://huggingface.co/spaces/lanbass/memtether-demo)** · [pip install](#quick-start) · [中文文档](README.zh-CN.md)
+[**Try in browser**](https://huggingface.co/spaces/lanbass/memtether-demo) · [Install](#quick-start) · [中文文档](README.zh-CN.md)
 
 </div>
 
 ---
 
-
-<img src="assets/demo.gif" width="100%" alt="MemTether Demo — cross-client memory in action"/>
-
 ## Quick Start
 
-mcp-name: io.github.lanbass869-cell/memtether
-
 ```bash
-# 1. Install
 pip install memtether
-
-# 2. Initialize (creates a demo memory DB)
-memtether init
-
-# 3. Connect all detected AI clients (Claude Code, Cursor, Windsurf, etc.)
-memtether connect --all
-memtether dashboard
+memtether init    # creates DB + connects all detected AI clients
 ```
 
-Or connect one client at a time:
-
-```bash
-memtether setup claude-code   # writes MCP config + verifies
-memtether setup cursor
-memtether setup gemini-cli
-# ... or run `memtether setup list` to see all 23 supported clients
-
-# Search with L0 summaries (one line + uid, agent reads full separately)
-memtether search "deploy" --list
-```
-
-This starts the API server and opens the web dashboard in your browser.
-
-
-Try it:
-
-```bash
-memtether search "shared memory"
-memtether remember "my first shared memory"
-memtether stats
-```
-
-Or on Windows, double-click `install.bat` for one-click setup.
+That's it. MemTether detects Claude Code, Cursor, Windsurf, Codex, Gemini CLI and 18 more clients on your machine, writes MCP config, and verifies.
 
 <details>
 <summary>More install options</summary>
 
 ```bash
-# From source
-git clone https://github.com/MemTether/MemTether.git && cd MemTether && pip install -e .
+# One client at a time
+memtether setup claude-code
+memtether setup cursor
+memtether setup gemini-cli    # run `memtether setup list` for all 23
 
 # With semantic search (local embedding, no cloud)
 pip install "memtether[vector]"
 
-# With REST API server
+# With REST API server + web dashboard
 pip install "memtether[server]"
+memtether dashboard
 
 # Docker
-docker build -t memtether . && docker run -p 8420:8420 -v ./data:/app/data memtether
 docker-compose up
-```
-
-Try it without installing:
-
-```bash
-python scripts/make_demo_db.py
-MEM_DB=~/.memtether/demo.db python mem.py search "shared memory"
 ```
 
 </details>
@@ -107,73 +67,42 @@ $ memtether correct fact-xxx "Deploy to port 9090" --reason "port changed"
 # Friday: another agent searches
 $ memtether search "deploy port" --list
   1. [fact] Deploy to port 9090 (active)          ← current truth
-     The old "port 8080" is superseded, not deleted.
-     Full audit chain: memtether timeline fact-xxx
+     Old "port 8080" is superseded, not deleted.
+     Full chain: memtether timeline fact-xxx
 ```
 
-Every memory has `valid_from` and `valid_to` (business time) plus `recorded_at` and `invalidated_at` (system time). You can answer "what did the system know on Tuesday?" — no other memory system can do this.
+Every memory has `valid_from` / `valid_to` (business time) + `recorded_at` / `invalidated_at` (system time). You can query "what did the system know on Tuesday?"
 
-### How it is different
+### How it's different
 
-### The problem
-
-> Memory should be a data format, not a multi-stage pipeline. MemTether treats your agents’ shared memory as a plain SQLite file — `ls` it, `grep` it, `git` it, back it up. The symlink is the deploy step.
-
-You use Claude Code for coding, Cursor for refactoring, and Windsurf for exploration. Each has its own memory. Switch tools and your AI forgets everything.
-
-**MemTether's answer is simpler than you'd expect: make them all point to the same file.**
-
-### How it is different
-
-| Common approach | Problem | MemTether approach |
-|---|---|---|
-| Per-client memory | Switch tools, lose context | **File-level pointer**: all clients read/write same `memory.db` |
-| Cloud-hosted memory | Privacy + API fees + downtime | **Local-first**: SQLite on your machine, zero cloud |
-| Delete old memories | Cannot trace what was known | **Supersession**: old memories marked, never deleted |
-| Single time axis | Cannot distinguish when true vs when learned | **Bi-temporal**: dual T/T-prime axes with as-of queries |
-| Equal treatment of memories | Useful memories get buried | **Q-Value**: used memories rank higher |
-| Single search path | Misses keyword matches | **4-path recall**: vector + FTS5 + literal + entity graph |
-| No concurrent protection | Simultaneous writes = data loss | **Hubguard**: file lock + atomic write |
-
-### Feature comparison
-
-| Feature | MemTether | mem0 | cognee | zep |
+| | MemTether | engram | mem0 | agent-memory |
 |---|---|---|---|---|
-| **Local-first** | Yes | No (cloud) | Yes | No (cloud) |
-| **Cross-client shared** | Yes (23) | No | No | No |
-| **Source attribution** | Yes | No | No | Yes |
-| **Bi-temporal** | Yes | No | No | Yes |
-| **Q-Value ranking** | Yes | No | No | No |
-| **Supersession** | Yes | No | No | Yes |
-| **4-factor re-ranking** | Yes | No | No | No |
-| **Scaffolds** | Yes | No | No | No |
-| **MCP server** | Yes | Yes | Yes | Yes |
-| **Eval suite included** | Yes | Yes | No | No |
-| **No API key needed** | Yes | No | No | No |
-| **REST API** | Yes | Yes | Yes | Yes |
-| **Docker** | Yes | Yes | Yes | Yes |
+| Storage | SQLite via file pointers | SQLite (Go binary) | Cloud API | Markdown files |
+| Supersession | ✅ bi-temporal, never delete | ❌ | ⚠️ partial | ✅ |
+| Source attribution | ✅ every fact tagged | ❌ | ❌ | ✅ |
+| Q-Value feedback | ✅ used memories rank higher | ❌ | ❌ | ❌ |
+| Poisoning defense | ✅ OWASP LLM01/02/06 | ❌ | ⚠️ faithfulness check | ❌ |
+| Cross-client | ✅ file-level pointers (23 adapters) | ✅ MCP | ✅ API | ✅ CLI |
+| Cloud required | ❌ | optional | ✅ | ❌ |
 
 <details>
-<summary>Full feature list</summary>
+<summary>Feature comparison vs cognee / zep / letta</summary>
 
-- **Cross-client shared memory**: 23 adapters (Claude Code, Cursor, Windsurf, VS Code, Zed, JetBrains, Cline, Roo Code, Kilo Code, Continue, Cody, Amazon Q, Gemini CLI, Neovim, Claude Desktop, Codex, WorkBuddy CN/Intl, CodeBuddy, ZCode, DSH, OpenClaw, Agents-Neutral)
-- **Source attribution**: every memory knows which client wrote it
-- **Bi-temporal**: T (when true) + T-prime (when recorded), as-of queries
-- **Supersession**: old memories marked superseded, never deleted, full audit trail
-- **Q-Value**: usage-based ranking (0.3 + 0.7 x q_value multiplier)
-- **4-factor re-ranking**: semantic (0.45) + recency (0.25) + frequency (0.05) + importance (0.10), blended 70/30 with RRF
-- **Deterministic scaffolds**: counting/temporal/comparison/aggregation prepended to top result
-- **Consolidation index**: 2708 topics + 315 chains + 37 standing instructions as bonus recall
-- **FTS5 triggers**: SQLite-level full-text sync (INSERT/DELETE/UPDATE triggers)
-- **Hubguard**: cross-process concurrent write lock + atomic write + format fallback
-- **Conflict detection**: 89 quantified conflict patterns
-- **LLM auto-extraction**: extract structured memories from conversation text
-- **Projection**: auto-generates MEMORY.md (3980 char budget) for context injection
-- **Multi-path search**: vector + FTS5 BM25 + literal + entity graph PPR, RRF fused
-- **Three-layer dedup**: supersession-aware, content exact, tag-signature
-- **Low-confidence rejection**: marks results when keyword empty AND vector < 0.50
-- **TTL expiry**: expired conclusions downweighted with annotation
-- **Self-reference suppression**: meta-discussion ranked below answers
+| Feature | MemTether | cognee | zep | letta |
+|---|---|---|---|---|
+| Local-first | ✅ | ❌ | ❌ | ⚠️ self-hosted |
+| Zero config | ✅ | ❌ (Neo4j) | ❌ (Docker) | ⚠️ |
+| Single file DB | ✅ | ❌ | ❌ | ❌ |
+| REST API | ✅ (12 endpoints) | ✅ | ✅ | ✅ |
+| MCP server | ✅ | ❌ | ✅ | ✅ |
+| Web dashboard | ✅ | ❌ | ✅ | ✅ |
+| Supersession chain | ✅ | ❌ | ❌ | ⚠️ |
+| Bi-temporal | ✅ | ❌ | ❌ | ❌ |
+| Source attribution | ✅ | ❌ | ⚠️ | ❌ |
+| Q-Value ranking | ✅ | ❌ | ❌ | ❌ |
+| Poisoning defense | ✅ | ❌ | ❌ | ❌ |
+| Export as markdown | ✅ | ❌ | ❌ | ❌ |
+| 23 client adapters | ✅ | ❌ | ❌ | ❌ |
 
 </details>
 
@@ -182,39 +111,45 @@ You use Claude Code for coding, Cursor for refactoring, and Windsurf for explora
 ## Architecture
 
 ```
-+---------+   +---------+   +---------+   +---------+
-|  Claude |   | Cursor  |   |Windsurf |   | VS Code |  ... 23 adapters
-|  Code   |   |         |   |         |   |         |
-+----+----+   +----+----+   +----+----+   +----+----+
-     |              |              |              |
-     +--------------+------+-------+--------------+
-                          |
-                   +------v------+
-                   |  MemTether  |
-                   | Memory Hub  |
-                   |             |
-                   | SQLite      |  <- one physical memory.db
-                   | FTS5        |  <- full-text search (triggers)
-                   | ChromaDB    |  <- vector search (bge-m3)
-                   | Bi-temporal |  <- T + T-prime dual time axes
-                   | Q-Value     |  <- usage-based ranking
-                   | Hubguard    |  <- concurrent write lock
-                   +-------------+
+Claude Code ────┐                  ┌──── Cursor
+                │   symlink /      │
+Codex ──────────┤   junction       ├──── Windsurf
+                │                  │
+Gemini CLI ─────┤                  ├─── WorkBuddy
+                └───────┬──────────┘
+                        │
+                        ▼
+              ┌──────────────────┐
+              │   memory.db      │  ← One physical SQLite
+              │   (WAL mode)     │
+              ├──────────────────┤
+              │ FTS5 trigram     │  ← BM25 full-text
+              │ ChromaDB + bge-m3│  ← Semantic (optional)
+              │ RRF fusion       │  ← Multi-path merge
+              │ 4-factor rerank  │  ← Z-score + sigmoid
+              │ Supersession     │  ← Never delete
+              │ Bi-temporal      │  ← T-axis + T'-axis
+              │ Q-Value          │  ← Usage-based ranking
+              │ Hubguard         │  ← Concurrent write lock
+              │ Poisoning guard  │  ← OWASP LLM defense
+              └──────────────────┘
 ```
 
 <details>
-<summary>Tech stack</summary>
+<summary>Technical details</summary>
 
 | Component | Technology | Purpose |
 |---|---|---|
-| Database | SQLite (WAL mode) | Single-file, zero-config |
-| Full-text | FTS5 trigram + triggers | O(1) BM25, SQL-level sync |
-| Vector | ChromaDB + bge-m3 (1024-dim) | Semantic search, local |
+| Database | SQLite (WAL mode) | Single-file, zero-config, cross-platform |
+| Full-text | FTS5 trigram + triggers | O(1) BM25 search, SQL-level sync |
+| Vector | ChromaDB + bge-m3 (1024-dim) | Semantic search, local embedding |
 | Fusion | Reciprocal Rank Fusion (K=60) | Merge multi-path results |
 | Re-ranking | 4-factor (sem .45 + rec .25 + freq .05 + imp .10) | Z-score + sigmoid |
-| Governance | Supersession + bi-temporal + conflict | Never delete |
+| Governance | Supersession + bi-temporal + conflict detection | Never delete |
 | Concurrency | Hubguard (file lock + atomic write) | Cross-process safe |
-| API | FastAPI REST + MCP server | Any language |
+| Security | memtether_guard (OWASP LLM01/02/06) | Poisoning defense |
+| API | FastAPI REST (12 endpoints) + MCP server (4 tools) | Any language |
+| Packaging | PyPI + Docker + 23 client adapters | pip install memtether |
 
 </details>
 
@@ -223,44 +158,47 @@ You use Claude Code for coding, Cursor for refactoring, and Windsurf for explora
 ## Connect Your Clients
 
 ```bash
-python -m memtether connect --all
-python -m memtether verify
-python -m memtether detect
-python -m memtether selftest
+# All detected clients (recommended)
+memtether init
+
+# One at a time
+memtether setup claude-code
+memtether setup cursor
+memtether setup windsurf
+memtether setup codex
 ```
 
-**Supported (23):** Claude Code, Cursor, Windsurf, VS Code, Zed, JetBrains, Cline, Roo Code, Kilo Code, Continue, Cody, Amazon Q, Gemini CLI, Neovim, Claude Desktop, Codex, WorkBuddy (CN + Intl), CodeBuddy, ZCode, DSH, OpenClaw, Agents-Neutral
+**Supported (23):** Claude Code, Claude Desktop, Cursor, Windsurf, VS Code, Zed, JetBrains, Cline, Roo Code, Kilo Code, Continue, Cody, Amazon Q, Gemini CLI, Neovim, Codex CLI, WorkBuddy (CN + Intl), CodeBuddy, ZCode, DSH, OpenClaw, Agents-Neutral
 
 ---
 
 ## Memory Operations
 
 ```bash
-python -m memtether remember "User prefers dark theme" --source claude-code
-python -m memtether search "theme preference"
-python -m memtether correct <uid> "Updated text"
-python -m memtether retire <uid> "No longer relevant"
-python -m memtether stats
-python -m memtether as-of 2026-09-15 --kind known
-python -m memtether rebuild
+memtether remember "User prefers dark theme" --source claude-code
+memtether search "theme" --list        # L0: one-line + uid
+memtether search "theme"               # Full content
+memtether correct <uid> "Updated"      # Supersede, never delete
+memtether timeline <uid>               # Audit chain
+memtether stats
+memtether export-md --out ./backup     # Export as markdown
+memtether dashboard                    # Web UI
 ```
 
 ---
 
 ## Benchmarks
 
-### LongMemEval (500 questions, full run, 2026-10-02)
+<details>
+<summary>LongMemEval (500 questions, full run, 2026-10-02)</summary>
 
 | Metric | Score | Notes |
 |---|---|---|
 | **Strict match (global)** | 62.6% | 209/334 applicable |
 | **LLM judge (global)** | 55.7% | 264/474 |
-| **Multi-session strict** | 48.8% | 39/80 — above industry avg 27.9% |
+| **Multi-session strict** | 48.8% | 39/80 |
 | **Multi-session LLM judge** | 60.0% | 72/120 |
-| **EAF (Evidence Assembly)** | 75.7% | 253/334 strict — multi-session 32.5%→60.0% |
-
-<details>
-<summary>Per-type breakdown</summary>
+| **EAF** | 75.7% | 253/334 — multi-session 32.5%→60.0% |
 
 | Type | n | Strict | LLM Judge |
 |---|---|---|---|
@@ -271,90 +209,66 @@ python -m memtether rebuild
 | single-session-user | 70 | 86.4% | 85.7% |
 | temporal-reasoning | 133 | 60.7% | 40.5% |
 
+> Results use our own harness. Not directly comparable with mem0's reported numbers.
+
 </details>
 
-> Results use our own harness. Not directly comparable with mem0 reported numbers.
-
-### Test suite
+<details>
+<summary>Test suite</summary>
 
 | Test | Result |
 |---|---|
-| hard_bench | 62/62 |
-| asset_bench | 23/23 |
 | pytest | 31/31 |
+| hard_bench | 62/62 |
 | e2e_verify | 13/13 |
 | refuse_bench | 26/26 |
-| concurrent_stress | 4/4 PASS |
+| check_packaging | ✅ |
+
+</details>
 
 ---
 
 ## Security
 
-- **Memory poisoning defense**: `memtether_guard` detects prompt injection, code execution, and sensitive info (OWASP LLM01/02/06). 12 rules, flag-based (does not block by default, marks severity).
-- **Input validation**: `gateway.remember` validates content length (≤10K), type whitelist, source format, confidence range, and scope.
-- **Scope isolation**: `shared` (all clients) / `private` (source-only) / `restricted` (explicit allow-list).
-- **Concurrent write protection**: `hubguard` file lock + atomic replace (WAL mode SQLite).
-- **SQL injection**: All queries use parameterized statements. No f-string SQL.
+- **Poisoning defense**: `memtether_guard` detects prompt injection, code execution, sensitive info (OWASP LLM01/02/06), 12 rules
+- **Input validation**: content ≤10K, type whitelist, source format, confidence range, scope whitelist
+- **Scope isolation**: `shared` / `private` / `restricted`
+- **Concurrency**: Hubguard file lock + atomic write (WAL mode)
+- **SQL**: All parameterized. No f-string SQL
+
+---
 
 ## Known Limitations
 
-1. **`tether_connect detect`** may falsely report "not connected" for same-source-different-path configs. Use `verify` for accurate results.
-2. **DSH `cordis.patch.yml`** deep customizations cannot be safely rewritten. Use `plan` to preview.
-3. **MemTether shares one physical DB via file-level pointers.** On Windows this uses NTFS junctions; on macOS/Linux, symlinks. Both are native OS features — no sync daemon needed.
-4. **Semantic search requires optional deps** (chromadb, onnxruntime). Without them, degrades to keyword search.
-5. **Windows-first.** macOS/Linux should work but not fully tested.
+1. `tether_connect detect` may falsely report "not connected" for same-source-different-path configs
+2. DSH deep customizations (`cordis.patch.yml`) cannot be safely rewritten — use `plan` to preview
+3. Semantic search requires optional deps (`chromadb`, `onnxruntime`) — without them, degrades to keyword search
+4. Windows-first. macOS/Linux should work but not fully tested
+5. Exchange adapters for mem0/zep/graphiti are experimental — they require the corresponding library installed
 
 ---
-
-## Relationship to Other Projects
-
-- **mem0**: managed memory with cloud API. MemTether is for people who want everything local.
-- **cognee**: knowledge graph + pipeline. MemTether is lightweight operational memory (SQLite, no Neo4j).
-- **letta (MemGPT)**: agent framework. MemTether works with existing agents you already use.
-- **engram**: Go + SQLite + FTS5 + MCP. MemTether adds bi-temporal, source attribution, Q-Value, 23 adapters.
-
-You can use MemTether **alongside** any of these.
-
----
-
 
 ## REST API
 
-MemTether includes a built-in REST API server (FastAPI) for non-CLI access:
-
 ```bash
-# Start the API server
-memtether dashboard --port 8820
+memtether dashboard   # starts server + opens browser
+# or: uvicorn api_server:app --port 8820
 ```
 
-| Endpoint | Method | Description |
-|---|---|---|
-| `/health` | GET | Health check |
-| `/remember` | POST | Store a memory |
-| `/search` | POST | Search memories |
-| `/stats` | GET | Memory statistics |
-| `/correct` | POST | Correct/supersede a memory |
-| `/retire` | POST | Retire a memory |
-| `/list` | GET | List recent memories |
-| `/qvalue` | POST | Update Q-Value score |
-| `/dashboard` | GET | Web dashboard |
-
-A web dashboard is available at `http://localhost:8820/dashboard` when the API server is running.
+12 endpoints: `/health` `/remember` `/search` `/stats` `/correct` `/retire` `/list` `/timeline/{uid}` `/absorb` `/qvalue` `/dashboard`
 
 ---
-
-## License
-
-Apache 2.0 - see [LICENSE](LICENSE)
 
 ## Contributing
 
-Issues and PRs welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## Star History
+## License
 
-[![Star History Chart](https://api.star-history.com/svg?repos=MemTether/MemTether&type=Date)](https://star-history.com/#MemTether/MemTether&Date)
+[Apache-2.0](LICENSE)
 
 ---
 
-[中文文档](README.zh-CN.md) | [Security](SECURITY.md) | [Changelog](CHANGELOG.md)
+<div align="center">
+<img src="https://api.star-history.com/svg?repos=MemTether/MemTether&type=Date" width="500" alt="Star History"/>
+</div>
