@@ -90,37 +90,49 @@ packages = ["scripts", "clients", "integrations"]
 include-package-data = false
 package-data = {"*" = ["dashboard.html", "start_dashboard.bat"]}
 py-modules = [
-    # —— 引擎核心
-    "gateway",              # 唯一写入入口（带 source 归属）
-    "mem",                  # 多 agent 共享总线 + CLI
+    "api_server",
+    "attach_hubguard",
+    "cogx_exchange",
+    "consolidation",
+    "demo_gateway",
+    "embed_local",
+    "extract",
+    "gateway",
+    "governance",
+    "graphiti_exchange",
+    "hub_score",
+    "hub_selfcheck",
+    "hubguard",
+    "interpreter",
+    "langmem_exchange",
+    "letta_exchange",
+    "mcp_server",
+    "mem",
+    "mem0_config",
+    "mem0_exchange",
+    "memory_maintenance",
+    "memory_sink",
     "memsearch",
-    "consolidation",            # 混合检索（向量 + 关键词 + 字面，RRF + 精排）
-    "embed_local",          # 本地 bge-m3 推理
-    "rerank",               # cross-encoder 精排（需 numpy）
-    "governance",           # 退役 / 冲突治理
-    "project",              # 项目作用域
-    "refuse_live",          # 拒答判据（在线）
-    "refuse_gate",          # 拒答闸门
-    "tool_audit",           # 工具资产普查 / 可执行校验
-    "memory_sink",          # 写入投递
-    "memory_maintenance",   # 维护任务
-    "pair_superseded",      # 语义重复 / 取代配对
-    "mem0_config",          # mem0 兼容配置
-    # —— 对外接口
-    "memtether",            # ★包门面 + CLI 入口
-    "mcp_server",           # MCP Server（供各客户端接入）
-    "tether_connect",       # ★自动发现并接入本机所有 agent 客户端（detect/plan/apply/verify/rollback）
-    "post_turn",            # 每轮钩子
-    "predicates",           # 十三修：typed statement 属性覆盖校验
-    "demo_gateway",         # 演示网关
-    # —— 运维 / 自检
-    "interpreter",          # ★解释器解析 + 依赖校验（统一入口，绝不静默降级）
-    "hub_score",            # 四维评分卡
-    "hub_selfcheck",        # 定时巡检
-    "hubguard",             # 并发治理（跨进程锁 + 写函数包装 + 原子写）
-    "attach_hubguard",      # hubguard 零侵入接入器（check / patch / apply / revert）
-    "extract",              # T4-A: LLM 自动记忆抽取
-    "preflight",            # 每轮回答前的记忆预取（[MEMORY_PREFLIGHT] 区块）
+    "memtether",
+    "memtether_exchange",
+    "memtether_export",
+    "memtether_guard",
+    "memtether_harness",
+    "memtether_paths",
+    "memtether_pipeline",
+    "pair_superseded",
+    "post_turn",
+    "predicates",
+    "preflight",
+    "project",
+    "refuse_gate",
+    "refuse_live",
+    "rerank",
+    "test_pii_roundtrip",
+    "tether_connect",
+    "tool_audit",
+    "zep_exchange",
+] 区块）
     "publish_pypi",         # PyPI 发布（token 只从环境变量读，绝不落盘）
     "bootstrap",            # 初始化
     "board",                # 待办看板
