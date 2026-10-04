@@ -1,3 +1,17 @@
+## 0.1.0a18 (2026-10-04)
+
+### Added
+- `memtether search --list`: L0 summary mode (one-line + uid + score, agent reads full separately)
+- `memtether setup <client>`: one-command per-client setup (writes MCP config + verifies)
+- Hugging Face Spaces demo link in README Quick Start
+- "File, not pipeline" narrative in README header
+
+### Fixed
+- Benchmark table synced to 2026-10-02 canonical rerun (55.7% judge / 264-474, ms-judge 72/120)
+- E-Hybrid → EAF renamed, full-500Q EAF result (75.7%, 253/334) now in README
+- make_demo_db.py recipes schema mismatch (7-column gateway SCHEMA vs old 6-column)
+- Known Limitations #3 reframed: junction/symlink is a feature, not "two copies to sync"
+
 # Changelog
 
 本文件记录 MemTether 的对外变更。格式遵循

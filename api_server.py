@@ -15,7 +15,7 @@ import gateway
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-app = FastAPI(title="MemTether API", description="Cross-client AI memory hub", version="0.1.0a17")
+app = FastAPI(title="MemTether API", description="Cross-client AI memory hub", version="0.1.0a18")
 
 from fastapi.middleware.cors import CORSMiddleware
 app.add_middleware(
