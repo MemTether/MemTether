@@ -40,6 +40,8 @@ memtether dashboard
 
 This starts the API server and opens the web dashboard in your browser.
 
+**Try it in your browser (no install):** [MemTether Demo on Hugging Face Spaces](https://huggingface.co/spaces/lanbass/memtether-demo)
+
 Try it:
 
 ```bash
@@ -218,9 +220,9 @@ python -m memtether rebuild
 | Metric | Score | Notes |
 |---|---|---|
 | **Strict match (global)** | 62.6% | 209/334 applicable |
-| **LLM judge (global)** | 54.6% | 263/482 |
-| **Multi-session strict** | 48.8% | Above industry avg 27.9% |
-| **Multi-session LLM judge** | 60.0% | |
+| **LLM judge (global)** | 55.7% | 264/474 |
+| **Multi-session strict** | 48.8% | 39/80 — above industry avg 27.9% |
+| **Multi-session LLM judge** | 60.0% | 72/120 |
 | **E-Hybrid** | 73.3% | 11/15 (small sample) |
 
 <details>
@@ -228,12 +230,12 @@ python -m memtether rebuild
 
 | Type | n | Strict | LLM Judge |
 |---|---|---|---|
-| knowledge-update | 78 | 76.6% | 64.4% |
-| multi-session | 133 | 48.8% | 58.4% |
-| single-session-assistant | 56 | 40.4% | 42.9% |
-| single-session-preference | 30 | N/A | 33.3% |
-| single-session-user | 70 | 86.4% | 80.0% |
-| temporal-reasoning | 133 | 60.7% | 41.4% |
+| knowledge-update | 78 | 76.6% | 62.5% |
+| multi-session | 133 | 48.8% | 60.0% |
+| single-session-assistant | 56 | 40.4% | 41.1% |
+| single-session-preference | 30 | N/A | 43.3% |
+| single-session-user | 70 | 86.4% | 85.7% |
+| temporal-reasoning | 133 | 60.7% | 40.5% |
 
 </details>
 

@@ -51,6 +51,8 @@ memtether connect --all
 memtether search "shared memory"
 memtether remember "我的第一条共享记忆"
 memtether stats
+
+**免安装在线试用：** [MemTether Demo — Hugging Face Spaces](https://huggingface.co/spaces/lanbass/memtether-demo)
 ```
 
 Windows 用户可以双击 `install.bat` 一键完成。
@@ -223,9 +225,9 @@ python -m memtether rebuild
 | 指标 | 分数 | 备注 |
 |---|---|---|
 | **严格匹配（全局）** | 62.6% | 209/334 适用（166 题散文型不适用） |
-| **LLM judge（全局）** | 54.6% | 263/482 |
-| **Multi-session strict** | 48.8% | 高于行业平均 27.9% |
-| **Multi-session LLM judge** | 60.0% | |
+| **LLM judge（全局）** | 55.7% | 264/474 |
+| **Multi-session strict** | 48.8% | 39/80 — 高于行业平均 27.9% |
+| **Multi-session LLM judge** | 60.0% | 72/120 |
 | **E-Hybrid（session summary）** | 73.3% | 11/15（小样本） |
 
 <details>
@@ -233,12 +235,12 @@ python -m memtether rebuild
 
 | 类型 | n | Strict | LLM Judge |
 |---|---|---|---|
-| knowledge-update | 78 | 76.6% | 64.4% |
-| multi-session | 133 | 48.8% | 58.4% |
-| single-session-assistant | 56 | 40.4% | 42.9% |
-| single-session-preference | 30 | N/A | 33.3% |
-| single-session-user | 70 | 86.4% | 80.0% |
-| temporal-reasoning | 133 | 60.7% | 41.4% |
+| knowledge-update | 78 | 76.6% | 62.5% |
+| multi-session | 133 | 48.8% | 60.0% |
+| single-session-assistant | 56 | 40.4% | 41.1% |
+| single-session-preference | 30 | N/A | 43.3% |
+| single-session-user | 70 | 86.4% | 85.7% |
+| temporal-reasoning | 133 | 60.7% | 40.5% |
 
 </details>
 
