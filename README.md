@@ -95,6 +95,26 @@ MEM_DB=~/.memtether/demo.db python mem.py search "shared memory"
 
 ## Why MemTether
 
+### The one thing no other memory system does: corrections don't delete
+
+```bash
+# Monday: Claude Code writes
+$ memtether remember "Deploy to port 8080" --source claude-code
+
+# Wednesday: you correct it via Cursor
+$ memtether correct fact-xxx "Deploy to port 9090" --reason "port changed"
+
+# Friday: another agent searches
+$ memtether search "deploy port" --list
+  1. [fact] Deploy to port 9090 (active)          ← current truth
+     The old "port 8080" is superseded, not deleted.
+     Full audit chain: memtether timeline fact-xxx
+```
+
+Every memory has `valid_from` and `valid_to` (business time) plus `recorded_at` and `invalidated_at` (system time). You can answer "what did the system know on Tuesday?" — no other memory system can do this.
+
+### How it is different
+
 ### The problem
 
 > Memory should be a data format, not a multi-stage pipeline. MemTether treats your agents’ shared memory as a plain SQLite file — `ls` it, `grep` it, `git` it, back it up. The symlink is the deploy step.
@@ -267,6 +287,14 @@ python -m memtether rebuild
 | concurrent_stress | 4/4 PASS |
 
 ---
+
+## Security
+
+- **Memory poisoning defense**: `memtether_guard` detects prompt injection, code execution, and sensitive info (OWASP LLM01/02/06). 12 rules, flag-based (does not block by default, marks severity).
+- **Input validation**: `gateway.remember` validates content length (≤10K), type whitelist, source format, confidence range, and scope.
+- **Scope isolation**: `shared` (all clients) / `private` (source-only) / `restricted` (explicit allow-list).
+- **Concurrent write protection**: `hubguard` file lock + atomic replace (WAL mode SQLite).
+- **SQL injection**: All queries use parameterized statements. No f-string SQL.
 
 ## Known Limitations
 

@@ -193,3 +193,6 @@ refuse_bench_result.json
 scorecard.json
 run_doubao_migrate.json
 topic_index.json
+
+# Local dev / benchmark / experiment scripts (not part of the pip package)
+_dev/

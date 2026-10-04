@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """predicates.py — 十三修：typed statement（谓词抽取 + 属性存在性校验）
 
 设计动机：

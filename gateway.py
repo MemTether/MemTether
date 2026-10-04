@@ -455,6 +455,20 @@ def _vec_delete(uid):
 
 def remember(content, type='fact', source=DEFAULT_SOURCE, scope='shared', subject='user',
              confidence=0.8, tags='', status='active', mem0=False, valid_from=None):
+    # --- Input validation (security hardening) ---
+    if not content or not content.strip():
+        raise ValueError("content must be non-empty")
+    if len(content) > 10240:
+        raise ValueError(f"content too long: {len(content)} chars (max 10240)")
+    _VALID_TYPES = ('fact', 'experience', 'decision', 'incident', 'todo', 'procedure', 'preference', 'environment')
+    if type not in _VALID_TYPES:
+        raise ValueError(f"type must be one of {_VALID_TYPES}, got: {type}")
+    if not source or len(source) > 64:
+        raise ValueError(f"source must be 1-64 chars, got: {repr(source)}")
+    if not (0.0 <= confidence <= 1.0):
+        raise ValueError(f"confidence must be 0.0-1.0, got: {confidence}")
+    if scope not in ('shared', 'private', 'restricted'):
+        raise ValueError(f"scope must be shared/private/restricted, got: {scope}")
     """写入/更新一条事实。若内容高度相似则更新，若冲突则 supersede。
     可选 mem0=True 时同步写入 Mem0 语义索引（自动提取+冲突消解）。
 
