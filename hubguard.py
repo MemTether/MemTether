@@ -933,6 +933,52 @@ def _wrap(func, name, timeout):
     return wrapper
 
 
+def src_code(source):
+    s = (source or '').strip()
+    if s in SRC_CODE:
+        return SRC_CODE[s]
+    for k, v in SRC_CODE.items():
+        if s.startswith(k):
+            return v
+    return (s[:1].lower() or '?') if s else '?'
+
+
+
+def typ_abbr(typ):
+    return TYP_ABBR.get((typ or '').strip(), (typ or '?'))
+
+
+
+def format_fact_line(date10, typ, source, lead, abbrev=True, tag_src=True):
+    """**投影行的唯一格式真源** —— 生成器与 annotate 都调它，避免两边漂移。
+
+    默认：`- [2026-09-17|exp·a] 首句结论`
+    ★为什么把类型缩成 3 字母：投影预算只有 3980 字符（实测余量 93），
+      加来源标记要占 2 字符/行；把 dec/inc/exp 缩掉正好**省出 3~5 字符/行**，
+      于是「加来源」这个动作的净预算是 **≈0**（实测净省 75 字符）。
+      不这么做就得砍掉 1~2 条记忆来给标记腾位置 —— 那是拿信息换格式。
+    """
+    t = typ_abbr(typ) if abbrev else (typ or '?')
+    if tag_src:
+        return '- [%s|%s·%s] %s' % (date10, t, src_code(source), lead)
+    return '- [%s|%s] %s' % (date10, t, lead)
+
+
+
+def parse_fact_line(line):
+    """解析投影事实行 → dict 或 None。兼容带/不带来源标记两种格式。"""
+    global _LINE_RE
+    if _LINE_RE is None:
+        import re
+        _LINE_RE = re.compile(r'^- \[(\d{4}-\d{2}-\d{2})\|([^\]·]+)(?:·(.))?\]\s?(.*)$')
+    m = _LINE_RE.match(line)
+    if not m:
+        return None
+    return {'date': m.group(1), 'typ': m.group(2), 'src': m.group(3), 'lead': m.group(4)}
+
+
+
+
 _GUARD_NAMES = ('remember', 'correct', 'retire', 'record_tool', 'search', 'rebuild', 'incident', 'on_miss')
 
 
