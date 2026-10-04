@@ -196,3 +196,7 @@ topic_index.json
 
 # Local dev / benchmark / experiment scripts (not part of the pip package)
 _dev/
+
+*.lock
+*.journal
+*.holder
