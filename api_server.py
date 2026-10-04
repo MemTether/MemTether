@@ -144,7 +144,7 @@ def timeline_ep(uid: str):
 
 @app.post("/absorb")
 def absorb(req: AbsorbRequest):
-    """Semantic absorb: classify incoming fact against existing memories.
+    """Keyword-based absorb: classify incoming fact against existing memories.
 
     Returns classification per candidate (duplicate / contradiction / related / new)
     and optionally writes if dry_run=False. Uses gateway.remember + conflict detection.

@@ -84,6 +84,12 @@
   </div>
 </div>
 <script>
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
 const $ = id => document.getElementById(id);
 const api = () => document.getElementById('api-url').value.replace(/\/$/, '');
 async function checkHealth() {
@@ -121,7 +127,7 @@ async function doSearch() {
     for (const item of results) {
       const src = item.source || '?';
       const content = (item.content || '').substring(0, 300);
-      html += '<div class="result-item"><div class="src">来源: ' + src + '</div><div class="content">' + content + '</div></div>';
+      html += '<div class="result-item"><div class="src">来源: ' + escapeHtml(src) + '</div><div class="content">' + escapeHtml(content) + '</div></div>';
     }
     document.getElementById('search-results').innerHTML = html;
   } catch(e) { document.getElementById('search-results').innerHTML = '<span class="err">' + e.message + '</span>'; }
@@ -149,7 +155,7 @@ async function doList() {
     if (Array.isArray(results)) {
       for (const item of results) {
         if (typeof item === 'object' && item.content) {
-          html += '<div class="result-item"><div class="src">[' + (item.source || '?') + '] ' + (item.type || '') + '</div><div class="content">' + item.content.substring(0, 200) + '</div></div>';
+          html += '<div class="result-item"><div class="src">[' + escapeHtml(item.source || '?') + '] ' + (item.type || '') + '</div><div class="content">' + item.content.substring(0, 200) + '</div></div>';
         }
       }
     }
@@ -173,7 +179,7 @@ async function doRetire(uid) { if (!uid) return; try { const r = await fetch(api
       const content = (f.content || '').substring(0, 150);
       const ts = f.recorded_at || '';
       const arrow = i < chain.length - 1 ? '<div style="text-align:center;color:var(--muted);font-size:0.8em;">↓ superseded_by</div>' : '';
-      html += '<div class="result-item"><div class="src">' + status + ' &nbsp; ' + f.uid.substring(0,25) + '… &nbsp; ' + ts + '</div><div class="content">' + content + '</div></div>' + arrow;
+      html += '<div class="result-item"><div class="src">' + status + ' &nbsp; ' + f.uid.substring(0,25) + '… &nbsp; ' + ts + '</div><div class="content">' + escapeHtml(content) + '</div></div>' + arrow;
     }
     el.innerHTML = html;
   } catch(e) { el.innerHTML = '<span class="err">' + e.message + '</span>'; }

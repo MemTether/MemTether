@@ -98,7 +98,6 @@ py-modules = [
     "governance",
     "hubguard",
     "mcp_server",
-    "mem0_config",
     "mem0_exchange",
     "memsearch",
     "memtether",

@@ -78,9 +78,6 @@ def db_path(explicit=None):
         return env
     return _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), 'memory.db')
 
-def db_origin(explicit=None):
-    return db_path(explicit)
-
 def lock_path(db=None):
     return db_path(db) + '.lock'
 
@@ -95,13 +92,6 @@ def proj_paths():
 
 def proj_budget():
     return {}
-
-def workspace_memory_paths():
-    return []
-
-def slot_budget(path):
-    return {}
-
 
 class HubBusy(TimeoutError):
     """等锁超时。带上"谁在占"的信息，让调用方直接能报出来。"""
@@ -720,134 +710,6 @@ def _win_append(path, data, retries=30, sleep_base=0.002, sleep_max=0.05):
                   % (attempts, last, path))
 
 
-def _probe_append_retry():
-    """**确定性**证明 `_win_append` 的重试语义（不靠"多跑几次看运气"）。
-
-    做法：临时把 `ctypes.WinDLL` 换成假 kernel32，注入两种真实故障：
-      ① 打开失败 K 次 —— 模拟安全软件/索引器短暂持锁（这是线上真实故障形态）
-      ② 写了一半就返回失败 —— 模拟部分落盘后报错
-    期望：
-      ① 重试后**成功**，且内容**只出现一次**（不重复）
-      ② **直接抛出**，不静默续写 —— 否则就是内容重复（长度对得上，最难发现）
-      ③ 打开一直失败 → 抛错，文件保持空（不假装成功）
-    """
-    import ctypes as _ct
-    import types
-    tmpd = tempfile.mkdtemp(prefix='hg-retry-')
-    target = os.path.join(tmpd, 'retry.log')
-    data = b'ABCDEFGHIJ' * 3
-    real_WinDLL = _ct.WinDLL
-    out = {'dir': tmpd, 'data_len': len(data)}
-
-    def make_fake(open_fails=0, partial_then_fail=False):
-        """造一个假 kernel32。
-
-        ★注意：`_win_append` 会给 `CreateFileW.argtypes` / `.restype` 赋值，
-          所以这两个属性必须是**普通函数**（可挂属性），不能是绑定方法
-          —— 绑定方法没有 __dict__，赋值会直接 AttributeError。
-        """
-        st = {'opens': 0, 'writes': 0, 'fh': None,
-              'open_fails': open_fails, 'partial': partial_then_fail}
-
-        def CreateFileW(*a):
-            st['opens'] += 1
-            if st['open_fails'] > 0:
-                st['open_fails'] -= 1
-                _ct.set_last_error(32)          # ERROR_SHARING_VIOLATION
-                return None
-            st['fh'] = open(target, 'ab')
-            return 0x4242                       # 非 None、非 INVALID
-
-        def WriteFile(h, buf, n, pwritten, ov):
-            st['writes'] += 1
-            if st['partial'] and st['writes'] == 1:
-                half = max(1, n // 2)
-                st['fh'].write(_ct.string_at(buf, half))
-                st['fh'].flush()
-                _ct.set_last_error(112)         # ERROR_DISK_FULL
-                return 0                        # FALSE（且 lpNumberOfBytesWritten 无意义）
-            st['fh'].write(_ct.string_at(buf, n))
-            st['fh'].flush()
-            pwritten._obj.value = n
-            return 1
-
-        def CloseHandle(h):
-            if st['fh'] is not None:
-                st['fh'].close()
-                st['fh'] = None
-            return 1
-
-        ns = types.SimpleNamespace(CreateFileW=CreateFileW, WriteFile=WriteFile,
-                                   CloseHandle=CloseHandle)
-        return st, ns
-
-    def rd():
-        try:
-            with open(target, 'rb') as f:
-                return f.read()
-        except OSError:
-            return b''
-
-    def run(ns):
-        """用假 kernel32 跑一次 `_win_append`，返回 (状态, 明细)。
-
-        ★入参是 `make_fake()` 返回的 **namespace**（不是 (st, ns) 元组）——
-          因为 `_win_append` 内部会访问 `k32.CreateFileW` 等属性，
-          这里把 `ctypes.WinDLL` 整个替换掉，让它"以为"自己拿到了 kernel32。
-        """
-        if os.path.exists(target):
-            os.unlink(target)
-        _ct.WinDLL = lambda *a, **k: ns
-        try:
-            n = _win_append(target, data, retries=5, sleep_base=0, sleep_max=0)
-            return ('ok', n)
-        except Exception as e:                                  # noqa: BLE001
-            return ('raise', '%s: %s' % (e.__class__.__name__, e))
-        finally:
-            _ct.WinDLL = real_WinDLL
-
-    # ① 打开失败 3 次后成功
-    st1, ns1 = make_fake(open_fails=3)
-    status1, det1 = run(ns1)
-    c1 = rd()
-    out['retry_then_ok'] = {
-        'status': status1, 'detail': det1,
-        'opens': st1['opens'], 'writes': st1['writes'],
-        'content_ok': c1 == data, 'content_len': len(c1), 'dup': c1.count(data) > 1,
-        'ok': status1 == 'ok' and c1 == data and st1['opens'] == 4,
-        'expect': '打开失败 3 次后仍成功；内容 == 原文且只出现一次（opens=4）',
-    }
-
-    # ② 写一半就失败 —— 必须抛错，绝不能变成"内容重复"
-    st2, ns2 = make_fake(partial_then_fail=True)
-    status2, det2 = run(ns2)
-    c2 = rd()
-    out['partial_then_fail'] = {
-        'status': status2, 'detail': det2,
-        'opens': st2['opens'], 'writes': st2['writes'],
-        'content_len': len(c2), 'is_prefix_of_data': data.startswith(c2),
-        'ok': (status2 == 'raise' and c2 != data
-               and not data.startswith(c2 + data)
-               and not c2.endswith(data)),
-        'expect': '部分落盘后必须抛出（拒绝续写）；磁盘上只留那半截，不得重复整段',
-    }
-
-    # ③ 打开一直失败 —— 抛错且文件为空
-    st3, ns3 = make_fake(open_fails=99)
-    status3, det3 = run(ns3)
-    c3 = rd()
-    out['always_fail'] = {
-        'status': status3, 'detail': det3,
-        'opens': st3['opens'], 'writes': st3['writes'], 'content_len': len(c3),
-        'ok': status3 == 'raise' and c3 == b'' and st3['opens'] == 5,
-        'expect': '重试 5 次用尽 -> 抛出，文件保持空（不假装成功）',
-    }
-
-    out['ok'] = all(out[k]['ok'] for k in ('retry_then_ok', 'partial_then_fail',
-                                           'always_fail'))
-    return out
-
-
 def safe_append_bytes(path, data, expect=None, retries=30):
     """向共享文件原子追加一段**字节**。返回结果 dict。**不与别的进程交错、不丢行**。
 
@@ -1002,47 +864,6 @@ def install_guards(ns, names=_GUARD_NAMES, timeout=None):
 # ============================================================================
 # journal —— 中枢变更日志（问题①的"能注意到"）
 # ============================================================================
-
-def journal_record(db=None, note=''):
-    """把当前库指纹追加进日志；若与上一条不同，顺带算出**是谁写的**。"""
-    fp = db_fingerprint(db)
-    jp = journal_path(db)
-    prev = None
-    try:
-        # 只读尾部若干 KB 找最后一条 —— journal 是只追加的，全量读会随历史线性变慢
-        sz = os.path.getsize(jp)
-        with open(jp, 'rb') as f:
-            f.seek(max(0, sz - 8192))
-            chunk = f.read().decode('utf-8', 'replace')
-        for ln in chunk.splitlines():
-            ln = ln.strip()
-            if ln.startswith('{'):
-                try:
-                    prev = json.loads(ln)
-                except Exception:
-                    pass
-    except Exception:
-        pass
-    changed = (prev is None) or (prev.get('fp') != fp.get('fp'))
-    entry = {'ts': time.strftime('%Y-%m-%d %H:%M:%S'), 'fp': fp.get('fp'),
-             'size': fp.get('size'), 'facts_n': (fp.get('facts') or {}).get('n'),
-             'facts_max_id': (fp.get('facts') or {}).get('max_id'),
-             'audit_max_id': (fp.get('audit_log') or {}).get('max_id'),
-             'changed': changed, 'note': note}
-    if changed and prev is not None:
-        entry['delta_facts'] = (entry['facts_n'] or 0) - (prev.get('facts_n') or 0)
-        entry['writers'] = _writers_since(db, prev.get('facts_max_id') or 0)
-    elif changed:
-        entry['delta_facts'] = entry['facts_n']
-        entry['writers'] = _writers_since(db, 0)
-    try:
-        # 用 O_APPEND 单次写：journal 可能被两侧同时追加，普通 open('a') 的文本层
-        # 会分多次 write，行与行之间有被交错撕裂的窗口
-        safe_append(jp, json.dumps(entry, ensure_ascii=False) + '\n')
-    except Exception as e:
-        entry['write_error'] = str(e)
-    return entry
-
 
 def _writers_since(db, since_id):
     """id > since_id 的新事实，按 source 汇总 —— 直接回答"是谁写的"。"""
