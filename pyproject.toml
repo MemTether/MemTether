@@ -132,57 +132,7 @@ py-modules = [
     "tether_connect",
     "tool_audit",
     "zep_exchange",
-] 区块）
-    "publish_pypi",         # PyPI 发布（token 只从环境变量读，绝不落盘）
-    "bootstrap",            # 初始化
-    "board",                # 待办看板
-    "approve",              # 审批
-    "enrich_caps",          # 资产能力补全
-    "sync_memory",          # 同步
-    # —— 技能层（记忆中枢的第 5 层：记忆管「我记得什么」，技能管「我怎么做」）
-    "skill_forge",          # 技能沉淀（scan / draft / admit / status）
-    "skill_budget",         # 技能预算守卫（注入成本 / 空壳检测 / 重名族）
-    "skillctl",             # 技能层统一入口（沉淀 + 预算 + 分发）
-    # —— 跨客户端协作（同一份物理文件被多个客户端共写时的安全工具）
-    "wslog_append",         # 共写日志的原子追加（不读全文、不 seek，0 丢行）
-    "slot_update",          # 共享注入槽位原地更新（锚点唯一 + 预算闸门 + 原子写）
-    # —— 迁移 / 一次性工具
-    "migrate_bitemporal",   # 双时间轴回填
-    "migrate_sink",         # 投影迁移
-    "migrate_qvalue",       # Q-Value 列迁移（旧库补 q_value / use_count，幂等）
-    "import_mem0",          # mem0 兼容导入（外部依赖版）
-    "memtether_exchange",   # 记忆交换协议 Schema v1 导出 / 导入
-    "mem0_exchange",        # Mem0 适配器（导入 / 导出，零外部依赖）
-    "zep_exchange",         # Zep 适配器
-    "letta_exchange",       # Letta 适配器
-    "graphiti_exchange",    # Graphiti 适配器
-    "langmem_exchange",     # LangMem 适配器
-    "cogx_exchange",        # COGX (cognee) 适配器
-    "sync_reflector_mem0",  # reflector 同步
-    "astra_dialogue",       # ASTRA 对话导出
-    "astra_memory_closure", # ASTRA 记忆闭包
-    # —— 评测 / 回归（开源的意义之一：口径与卷子都在仓库里，可自行复跑）
-    "asset_bench", "asset_bench_holdout", "asset_selfcheck",
-    "bench_longmemeval", "e2e_verify", "hard_bench", "hard_holdout",
-    "judge_selfcheck", "refuse_bench", "regression_test",
-    "rerank_k_bench", "smoke_bitemporal", "test_autosync", "test_triggers",
-    "qvalue_ab",            # Q-Value 开/关 A/B 对照（分数不得下降）
-    "qvalue_upshift_test",  # Q-Value 排序上移实测（副本库 + 正本索引）
-    "concurrent_stress",     # 并发压力测试
-    "memtether_export",      # 导出（PII 脱敏快照）
-    "memtether_guard",       # 发布守卫
-    "memtether_harness",     # 测试 harness
-    "memtether_paths",       # 路径解析
-    "memtether_pipeline",    # 管线编排
-    "test_pii_roundtrip",    # PII 往返测试
-    "api_server",            # REST API 服务器（FastAPI；[server] extra）
-    "stress_board",          # 租约 fencing 压力测试
-    "test_multi_client",     # 多客户端读写一致性测试
-    "test_p3_4",             # 冲突自动替代测试
-    "test_p4_2_generic",     # 通用冲突模式测试
 ]
-
-
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
