@@ -36,6 +36,18 @@ memtether connect --all
 memtether dashboard
 ```
 
+Or connect one client at a time:
+
+```bash
+memtether setup claude-code   # writes MCP config + verifies
+memtether setup cursor
+memtether setup gemini-cli
+# ... or run `memtether setup list` to see all 23 supported clients
+
+# Search with L0 summaries (one line + uid, agent reads full separately)
+memtether search "deploy" --list
+```
+
 This starts the API server and opens the web dashboard in your browser.
 
 
