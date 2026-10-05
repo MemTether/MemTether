@@ -574,10 +574,10 @@ def remember(content, type='fact', source=DEFAULT_SOURCE, scope='shared', subjec
         ts = now()
         conn.execute(
             """INSERT INTO facts (uid,type,subject,content,status,source,scope,confidence,tags,
-                                  created_at,updated_at,valid_from,recorded_at,temporal_source)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                                  created_at,updated_at,valid_from,recorded_at,temporal_source,tenant_id)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (uid, type, subject, content, status, source, scope, confidence, tags,
-             ts, ts, valid_from or ts, ts, 'native'))
+             ts, ts, valid_from or ts, ts, 'native', os.environ.get('MEM_TENANT_ID', 'default')))
         # ★十三修：写入时自动抽取谓词（entity→attr 对）存入 predicate 列
         try:
             from predicates import store_predicate

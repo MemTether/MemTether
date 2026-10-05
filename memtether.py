@@ -233,6 +233,8 @@ def _cmd_demo(args):
 
 
 def _cmd_search(args):
+    if getattr(args, "tenant", None):
+        os.environ["MEM_TENANT_ID"] = args.tenant
     res = search(args.query, limit=args.limit)
     rows = res.get("results", []) if isinstance(res, dict) else (res or [])
     if not rows:
@@ -261,11 +263,11 @@ def _cmd_search(args):
 
 
 def _cmd_remember(args):
+    if getattr(args, "tenant", None):
+        os.environ["MEM_TENANT_ID"] = args.tenant
     uid = remember(args.content, type=args.type, source=args.source)
     print("✓ 已写入：%s" % (uid or "(ok)"))
     return 0
-
-
 def _cmd_stats(_args):
     s = stats()
     if isinstance(s, dict):
@@ -480,6 +482,7 @@ def main(argv=None):
     sp = sub.add_parser("search", help="混合检索")
     sp.add_argument("query")
     sp.add_argument("--limit", type=int, default=10)
+    sp.add_argument("--tenant", default=None, help="Tenant ID filter")
     sp.add_argument("--list", action="store_true",
                     help="L0 mode: return one-line summaries + UIDs instead of full content")
     sp.set_defaults(func=_cmd_search)
@@ -489,6 +492,7 @@ def main(argv=None):
     sp.add_argument("--type", default="fact",
                     help="fact/experience/decision/incident/todo")
     sp.add_argument("--source", default="memtether")
+    sp.add_argument("--tenant", default=None, help="Tenant ID (env MEM_TENANT_ID overrides)")
     sp.set_defaults(func=_cmd_remember)
 
     sp = sub.add_parser("stats", help="统计")
@@ -511,15 +515,16 @@ def main(argv=None):
     sp.add_argument("client", help="Client id: claude-code, cursor, windsurf, gemini-cli, codex, claude-desktop, ... (run 'memtether setup list' to see all)")
     sp.set_defaults(func=_cmd_setup)
 
-    sp = sub.add_parser("dashboard", help="Start the web dashboard (API server + browser UI)")
-    sp = sub.add_parser("import-docs", help="Import a directory of docs as memories (cold-start)")
-    sp.add_argument("path", help="Directory to scan")
-    sp.add_argument("--source", default="doc_import", help="Source tag")
-    sp.add_argument("--type", default="fact", help="Memory type")
-    sp.add_argument("--max-size", type=int, default=100000, help="Max file size in bytes")
-    sp.set_defaults(func=_cmd_import_docs)
-    sp.add_argument("--port", type=int, default=8820, help="Port to run on (default 8820)")
-    sp.set_defaults(func=_cmd_dashboard)
+    sp_dash = sub.add_parser("dashboard", help="Start the web dashboard (API server + browser UI)")
+    sp_dash.add_argument("--port", type=int, default=8820, help="Port to run on (default 8820)")
+    sp_dash.set_defaults(func=_cmd_dashboard)
+
+    sp_import = sub.add_parser("import-docs", help="Import a directory of docs as memories (cold-start)")
+    sp_import.add_argument("path", help="Directory to scan")
+    sp_import.add_argument("--source", default="doc_import", help="Source tag")
+    sp_import.add_argument("--type", default="fact", help="Memory type")
+    sp_import.add_argument("--max-size", type=int, default=100000, help="Max file size in bytes")
+    sp_import.set_defaults(func=_cmd_import_docs)
 
     args = p.parse_args(argv)
     if not getattr(args, "cmd", None):

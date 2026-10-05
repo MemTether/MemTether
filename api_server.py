@@ -129,6 +129,7 @@ def health():
     return {"ok": True, "version": _v}
 
 @app.post("/remember")
+@_limiter.limit("60/minute")
 async def remember(req: RememberRequest):
     import asyncio
     loop = asyncio.get_event_loop()
@@ -139,6 +140,7 @@ def _remember_sync(req):
     return gateway.remember(content=req.content, type=req.type, source=req.source, tags=req.tags, confidence=req.confidence)
 
 @app.post("/search")
+@_limiter.limit("60/minute")
 async def search(req: SearchRequest):
     """P1 (2026-10-05): async wrapper - runs gateway.search in thread pool
     so the event loop is not blocked by FTS5/vector computation. Compatible
@@ -175,10 +177,12 @@ def stats():
     return gateway.stats()
 
 @app.post("/correct")
+@_limiter.limit("60/minute")
 def correct(req: CorrectRequest):
     return gateway.correct(req.old_uid, req.new_content, req.reason, source=req.source)
 
 @app.post("/retire")
+@_limiter.limit("60/minute")
 def retire(req: RetireRequest):
     return gateway.retire(req.uid, req.reason, by_agent=req.source)
 

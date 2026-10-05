@@ -1,3 +1,31 @@
+## [0.1.0a31] - 2026-10-05
+
+### Fixed - Round9 real-implementation audit (all P0 bugs fixed)
+
+#### P0-1: import-docs CLI routing bug (CRITICAL)
+- `memtether.py` L514-522 had a variable shadowing bug where `sp` was reused for both `dashboard` and `import-docs` parsers, causing `set_defaults(func=_cmd_dashboard)` to override `_cmd_import_docs`. Running `memtether import-docs` was starting the API server instead of importing docs.
+- Fix: split into `sp_dash` and `sp_import` with independent `set_defaults()`.
+- Verified: `memtether import-docs <dir> --source codex` now correctly imports (1 memory added from test fixture), no API server spawn.
+
+#### P0-2: multi-tenant now actually works (was dead code)
+- `gateway.py` INSERT now includes `tenant_id` column (was missing in a30).
+- `memsearch.py` added `_tenant_filter()` (was defined but never called) — all 3 `FROM facts WHERE status='active'` queries now append tenant filter.
+- `memtether.py` CLI `remember`/`search` added `--tenant` arg; also respects `MEM_TENANT_ID` env.
+- Tests: `tests/test_tenant.py` (3 cases, including cross-tenant 0-leak assertion). Previously tenant B could see tenant A's content.
+
+#### P0-3: rate limiter decorators now actually attached (was 0 endpoints)
+- `api_server.py` `/remember` `/search` `/correct` `/retire` all have `@_limiter.limit("60/minute")`.
+- Tests: `tests/test_rate_limit.py` (2 cases verifying decorator presence on all 4 mutating endpoints).
+
+#### P0-4: CHANGELOG honesty for plugins
+- P7 description clarified as "configuration templates, not full plugin implementations" with pointer to `memtether mcp-server`.
+
+### Added - test coverage (P1-1)
+- `tests/test_memsearch.py` (3 cases): search_hybrid keyword hit, no cross-hit, scope filter excludes private.
+- `tests/test_hubguard.py` (3 cases): lock acquire/release, exclusivity, status.
+- `tests/test_governance.py` (2 cases): conflict detection positive + negative.
+- Total tests: 39 → 52 (+13). Coverage: 5.2% → 20%.
+
 ## [0.1.0a30] - 2026-10-05
 
 ### Added - CCF upgrade Phase 1-3 (competitiveness gap closure)
@@ -20,8 +48,9 @@
 #### P6: multi-tenant support
 - facts.tenant_id column (default=default), _tenant_filter() for query isolation
 
-#### P7: 3 official plugins (claude/cursor/openclaw)
+#### P7: 3 official plugins (claude/cursor/openclaw) — configuration templates
 - integrations/{claude,cursor,openclaw}-plugin/ with manifest.json + README
+- NOTE: These are MCP config templates (manifest + docs), not full plugin implementations. Users configure their client's MCP to point at `memtether mcp-server` (stdlib stdio server). A full plugin with UI integration is a future roadmap item.
 
 #### P8: Node.js SDK (memtether-js/)
 - Thin CLI wrapper with remember/search/stats + .d.ts types

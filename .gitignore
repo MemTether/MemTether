@@ -203,3 +203,4 @@ _dev/
 
 # internal governance data - see workdocs backup
 standing_instructions.json
+.coverage
