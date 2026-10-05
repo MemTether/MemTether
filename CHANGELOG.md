@@ -1,4 +1,12 @@
-''## [0.1.0a33] - 2026-10-05
+'''## [0.1.0a34] - 2026-10-06
+
+### Added - D2 memsearch deep tests
+
+- tests/test_memsearch_d2.py: 15 new unit tests covering scope_filter (default/all), tenant_filter (default/custom/sql-injection documented), parse_ttl, looks_like_state, is_placeholder, _terms (Chinese bigram + English ASCII), expected_dim, check_env, verify_active_consistency.
+- Discovered: tenant_id filter only strips single quotes via chr(39) replace — semicolons pass through. Documented as behavior; parametrized query hardening is roadmap.
+- Total tests: 72 → 87. Coverage: 24% → 25%. memsearch.py 46% → 47%.
+
+'## [0.1.0a33] - 2026-10-05
 
 ### Fixed - hubguard real bugs found by tests
 
