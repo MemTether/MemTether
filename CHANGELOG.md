@@ -1,4 +1,13 @@
-'''## [0.1.0a34] - 2026-10-06
+''''## [0.1.0a35] - 2026-10-06
+
+### Added - D2 governance + gateway functional tests
+
+- tests/test_governance_d2.py: 5 new tests (conflict polarity, same-polarity not flagged, unrelated entities, module exports).
+- tests/test_gateway_func.py: 8 new functional tests (remember basic/tags/missing-source/empty-content, correct supersession chain, retire, duplicate dedup, tenant_id written).
+- Discovered: gateway.remember returns dict, gateway.correct returns dict with new_uid (not uid) — tests corrected accordingly.
+- Total tests: 87 → 100. Coverage: 25% → 26%. gateway.py 18% → 24%.
+
+'## [0.1.0a34] - 2026-10-06
 
 ### Added - D2 memsearch deep tests
 
