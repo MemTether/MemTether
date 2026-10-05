@@ -200,3 +200,6 @@ _dev/
 *.lock
 *.journal
 *.holder
+
+# internal governance data - see workdocs backup
+standing_instructions.json
