@@ -4,14 +4,12 @@
   "description": "Cross-client AI memory hub via file-level pointers",
   "version": "0.1.0",
   "mcpServers": {
-    "mcpServers": {
-      "memtether": {
-        "command": "memtether",
-        "args": [
-          "dashboard"
-        ],
-        "transport": "stdio"
-      }
+    "memtether": {
+      "command": "memtether",
+      "args": [
+        "dashboard"
+      ],
+      "transport": "stdio"
     }
   }
 }

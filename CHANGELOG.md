@@ -1,4 +1,19 @@
-'''''## [0.1.0a36] - 2026-10-06
+''''''## [0.1.0a37] - 2026-10-06
+
+### Fixed - plugin manifest nested mcpServers bug
+
+- claude-plugin / cursor-plugin / openclaw-plugin manifest.json had `"mcpServers": {"mcpServers": {...}}` (double nesting) — the outer key would be ignored by Claude Code MCP parser, silently breaking plugin config.
+
+### Added - P1-I plugin real implementation (not just config templates)
+
+- claude-plugin/memtether-memory/: install.sh (Linux/macOS) + install.ps1 (Windows) + SKILL.md (Claude Code skill file) + fixed manifest.json
+  - install.sh/ps1 runs memtether init + writes MCP config to ~/.claude.json
+  - SKILL.md teaches Claude Code when to use search_memory/add_memories/list_memories
+- cursor-plugin/memtether/: install.sh + install.ps1 + manifest.json nested bug fixed
+- openclaw-plugin/memtether/: install.sh + install.ps1 + manifest.json nested bug fixed
+- All three plugins now have working install scripts (not just manifest + README)
+
+'## [0.1.0a36] - 2026-10-06
 
 ### Added - Documentation site (reproduce + Founding 10 challenge)
 
