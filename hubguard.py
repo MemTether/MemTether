@@ -54,6 +54,8 @@ import subprocess
 import sys
 import tempfile
 import threading
+
+_LINE_RE = None
 import time
 
 HUB = os.path.dirname(os.path.abspath(__file__))
@@ -426,8 +428,8 @@ def db_fingerprint(db=None):
     （DBWatch 的 data_version 是"连接内相对量"，不能跨进程比；
       这里给一个绝对量，供 journal / 巡检消费。）
     """
-    p, origin = db_path(db, explain=True)
-    out = {'path': p, 'origin': origin, 'exists': os.path.exists(p)}
+    p = db_path(db)
+    out = {'path': p, 'origin': 'explicit' if db else 'env-or-default', 'exists': os.path.exists(p)}
     if not out['exists']:
         return out
     st = os.stat(p)

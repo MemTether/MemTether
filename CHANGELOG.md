@@ -1,3 +1,13 @@
+''## [0.1.0a33] - 2026-10-05
+
+### Fixed - hubguard real bugs found by tests
+
+- db_fingerprint() called db_path(db, explain=True) — db_path has no explain kwarg → always TypeError. Fixed to db_path(db).
+- parse_fact_line() used global _LINE_RE without initializing it → NameError on first call. Added module-level _LINE_RE = None.
+- Coverage: hubguard.py 61% (was 0%), memsearch.py 46%, gateway.py 18%, governance.py 21%. Total 24% (was 20%).
+- tests/test_hubguard_ext.py: 10 new tests (atomic_write, safe_append, format/parse_fact_line roundtrip, pid_alive, db_fingerprint, snapshot, status, lock full cycle).
+- Total tests: 62 → 72.
+
 '## [0.1.0a32] - 2026-10-05
 
 ### Changed - D1 honest absorb wording
