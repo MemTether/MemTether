@@ -174,6 +174,12 @@ def _cmd_import_docs(args):
     exts = {".md", ".txt", ".py", ".rst"}
     max_size = args.max_size
     imported = skipped = 0
+    # P-TB2: skip vector sync for bulk imports (prevents model load hang)
+    os.environ['MEM_SKIP_VECTOR'] = '1'
+    try:
+        pass
+    finally:
+        pass
     for root, dirs, files in os.walk(target):
         dirs[:] = [d for d in dirs if not d.startswith(".") and d not in ("__pycache__", "node_modules", "_dev", "build")]
         for f in files:
@@ -206,6 +212,7 @@ def _cmd_import_docs(args):
                     skipped += 1
             except Exception:
                 skipped += 1
+    os.environ.pop('MEM_SKIP_VECTOR', None)
     print(f"Import complete: {imported} memories added, {skipped} skipped")
     return 0
 

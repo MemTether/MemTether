@@ -2,8 +2,8 @@
 
 ### Added - CCF upgrade Phase 1-3 (competitiveness gap closure)
 
-#### P1: async search/remember (LangGraph/Flowise compatible)
-- async endpoints via run_in_executor - event loop not blocked by FTS5/vector
+#### P1: async search/remember (thread-pool wrapper; prevents event loop blocking. Not native async — DB calls remain synchronous)
+- async endpoints via run_in_executor - prevents event loop blocking during FTS5/vector computation. DB calls remain synchronous (SQLite limitation).
 
 #### P2: rate limiting
 - slowapi 60 req/min (optional dep, graceful degradation)
@@ -14,7 +14,7 @@
 #### P4: import-docs command (cold start)
 - memtether import-docs <dir> scans .md/.txt/.py, chunks, batch remembers
 
-#### P5: L0-L3 layered stats
+#### P5: L0-L3 layered stats (count breakdown by type, not content transformation)
 - stats now shows experience(fact+incident)(decision+procedure)(preference+env) breakdown
 
 #### P6: multi-tenant support

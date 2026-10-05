@@ -593,7 +593,11 @@ def remember(content, type='fact', source=DEFAULT_SOURCE, scope='shared', subjec
             m0 = _mem0_add(content)
 
         # 自动同步向量索引（2026-09-13：消除"新记忆需手动 rebuild_index"缺口）
-        vec = _vec_upsert(uid, content, type, source)
+        # P-TB2 (2026-10-05): skip vector sync during bulk import (env-controlled)
+        if os.environ.get('MEM_SKIP_VECTOR'):
+            vec = {'skipped': 'bulk_import'}
+        else:
+            vec = _vec_upsert(uid, content, type, source)
 
         return {'ok': True, 'uid': uid, 'op': 'insert', 'mem0': m0, 'vec': vec}
     finally:

@@ -68,7 +68,9 @@ dependencies = [
 vector = ["chromadb", "onnxruntime", "tokenizers"]
 # Schema v2 P0: per-fact content hash（BLAKE3）；不装则回退 sha256
 blake3 = ["blake3"]
-server = ["fastapi", "uvicorn", "httpx"]
+server = ["fastapi", "uvicorn", "httpx",
+    "slowapi>=0.1.9",
+]
 
 [project.urls]
 Homepage = "https://github.com/MemTether/MemTether"

@@ -20,15 +20,20 @@ app = FastAPI(title="MemTether API", description="Cross-client AI memory hub", v
 from fastapi.middleware.cors import CORSMiddleware
 
 # P2 (2026-10-05): rate limiting — 60 req/min default (via slowapi if available)
+class _NoopLimiter:
+    def limit(self, *a, **k):
+        def deco(f):
+            return f
+        return deco
+
 try:
     from slowapi import Limiter, _rate_limit_exceeded_handler
     from slowapi.util import get_remote_address
     _limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
     app.state.limiter = _limiter
     app.add_exception_handler(429, _rate_limit_exceeded_handler)
-    HAS_RATE_LIMIT = True
 except ImportError:
-    HAS_RATE_LIMIT = False
+    _limiter = _NoopLimiter()
 _API_KEY_ENV = os.environ.get("MEMTETHER_API_KEY", "").strip()
 # P7 (2026-10-05): wildcard CORS is fine for localhost-only use, but a keyed
 # deployment should not accept authenticated requests from any origin.
@@ -124,6 +129,7 @@ def health():
     return {"ok": True, "version": _v}
 
 @app.post("/remember")
+@_limiter.limit("30/minute")
 async def remember(req: RememberRequest):
     import asyncio
     loop = asyncio.get_event_loop()
@@ -134,6 +140,7 @@ def _remember_sync(req):
     return gateway.remember(content=req.content, type=req.type, source=req.source, tags=req.tags, confidence=req.confidence)
 
 @app.post("/search")
+@_limiter.limit("120/minute")
 async def search(req: SearchRequest):
     """P1 (2026-10-05): async wrapper - runs gateway.search in thread pool
     so the event loop is not blocked by FTS5/vector computation. Compatible
@@ -170,10 +177,12 @@ def stats():
     return gateway.stats()
 
 @app.post("/correct")
+@_limiter.limit("30/minute")
 def correct(req: CorrectRequest):
     return gateway.correct(req.old_uid, req.new_content, req.reason, source=req.source)
 
 @app.post("/retire")
+@_limiter.limit("30/minute")
 def retire(req: RetireRequest):
     return gateway.retire(req.uid, req.reason, by_agent=req.source)
 
