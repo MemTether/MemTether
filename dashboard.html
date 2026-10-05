@@ -49,6 +49,7 @@
 </div><div class="api-bar">
   <span>API：</span>
   <input id="api-url" value="http://localhost:8820" />
+  <input id="api-key" placeholder="API key (optional, stored locally)" style="width:220px" oninput="localStorage.setItem('mt_api_key', this.value)" />
   <button onclick="checkHealth()">连接</button>
   <span id="health-status"></span>
 </div>
@@ -92,9 +93,10 @@ function escapeHtml(text) {
 
 const $ = id => document.getElementById(id);
 const api = () => document.getElementById('api-url').value.replace(/\/$/, '');
+const authHeaders = () => { const k = localStorage.getItem('mt_api_key'); return k ? {'Authorization': 'Bearer ' + k} : {}; };
 async function checkHealth() {
   try {
-    const r = await fetch(api() + '/health');
+    const r = await fetch(api() + '/health', { headers: authHeaders() });
     const d = await r.json();
     document.getElementById('health-status').innerHTML = d.ok ? '<span class="badge badge-ok">✅ 已连接</span>' : '<span class="badge badge-err">❌ 错误</span>';
     loadStats();
@@ -104,7 +106,7 @@ async function checkHealth() {
 }
 async function loadStats() {
   try {
-    const r = await fetch(api() + '/stats');
+    const r = await fetch(api() + '/stats', { headers: authHeaders() });
     const d = await r.json();
     let html = '';
     const labels = {facts:'记忆条数', tool_assets:'工具资产', recipes:'任务配方', supersessions:'替代链', audit_log:'审计日志', candidates:'候选'};
@@ -120,7 +122,7 @@ async function doSearch() {
   const q = document.getElementById('search-query').value;
   if (!q) return;
   try {
-    const r = await fetch(api() + '/search', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({query: q}) });
+    const r = await fetch(api() + '/search', { method: 'POST', headers: Object.assign({'Content-Type': 'application/json'}, authHeaders()), body: JSON.stringify({query: q}) });
     const d = await r.json();
     const results = d.results || [];
     let html = results.length ? '' : '<span class="status">没有找到相关记忆</span>';
@@ -137,7 +139,7 @@ async function doRemember() {
   const source = document.getElementById('remember-source').value;
   if (!content) return;
   try {
-    const r = await fetch(api() + '/remember', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({content, source}) });
+    const r = await fetch(api() + '/remember', { method: 'POST', headers: Object.assign({'Content-Type': 'application/json'}, authHeaders()), body: JSON.stringify({content, source}) });
     const d = await r.json();
     document.getElementById('remember-status').innerHTML = d.ok ? '<span class="ok">✅ 已写入</span>' : '<span class="err">❌ 失败</span>';
     document.getElementById('remember-content').value = '';
@@ -148,7 +150,7 @@ async function doList() {
   const el = document.getElementById('list-results');
   el.innerHTML = '<div style="text-align:center;padding:20px;"><span style="display:inline-block;width:24px;height:24px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite;"></span><br><br><span class="status">' + (lang === 'zh' ? '加载中...' : 'Loading...') + '</span></div>';
   try {
-    const r = await fetch(api() + '/list?limit=20');
+    const r = await fetch(api() + '/list?limit=20', { headers: authHeaders() });
     const d = await r.json();
     const results = d.items || d.results || [];
     let html = '';
@@ -162,13 +164,13 @@ async function doList() {
     el.innerHTML = html || '<span class="status">' + (lang === 'zh' ? '空' : 'Empty') + '</span>';
   } catch(e) { el.innerHTML = '<span class="err">' + e.message + '</span>'; }
 }
-async function doRetire(uid) { if (!uid) return; try { const r = await fetch(api() + '/retire', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({uid: uid, source: 'dashboard'}) }); const d = await r.json(); if (d.ok) doList(); } catch(e) { alert(e.message); } } async function doAudit() {
+async function doRetire(uid) { if (!uid) return; try { const r = await fetch(api() + '/retire', { method: 'POST', headers: Object.assign({'Content-Type': 'application/json'}, authHeaders()), body: JSON.stringify({uid: uid, source: 'dashboard'}) }); const d = await r.json(); if (d.ok) doList(); } catch(e) { alert(e.message); } } async function doAudit() {
   const uid = document.getElementById('audit-uid').value.trim();
   if (!uid) return;
   const el = document.getElementById('audit-results');
   el.innerHTML = '<span class="status">加载中...</span>';
   try {
-    const r = await fetch(api() + '/timeline/' + encodeURIComponent(uid));
+    const r = await fetch(api() + '/timeline/' + encodeURIComponent(uid), { headers: authHeaders() });
     const d = await r.json();
     const chain = d.chain || [];
     if (!chain.length) { el.innerHTML = '<span class="status">未找到该 UID</span>'; return; }

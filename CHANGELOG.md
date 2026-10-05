@@ -1,3 +1,15 @@
+## [0.1.0a24] - 2026-10-05
+
+### Fixed (audit round 5 — auth/dashboard coherence + doc rot)
+- API key + dashboard coherence: / and /dashboard HTML routes are auth-exempt (static UI); all dashboard fetch() calls attach Authorization from a new optional API-key field (localStorage). Previously setting MEMTETHER_API_KEY bricked the dashboard (every request 401, no way to authenticate).
+- MCP add_memories hardcodes scope=shared — now documented in the tool description so agents know private scope is not available over MCP.
+- examples/rest_api_client.py port unified to 8820 (was 8080; server/README/dashboard all use 8820).
+- hidden_run.pyw docstring referenced memory_maintenance.py which is not in this repo — note corrected to gateway process_events only.
+
+### Verified
+- /dashboard 200 without key; /stats 401 without/wrong key; 200 with key
+- pytest 30/30
+
 ## [0.1.0a23] - 2026-10-05
 
 ### Fixed (audit round 4 — split-brain DB defaults)

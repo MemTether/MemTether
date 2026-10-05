@@ -8,7 +8,7 @@
 
 用法（任务动作里写）：
     <venv>\\Scripts\\pythonw.exe <HUB>\\hidden_run.pyw gateway.py process_events --limit 10
-    <venv>\\Scripts\\pythonw.exe <HUB>\\hidden_run.pyw memory_maintenance.py
+    # (memory_maintenance.py belongs to the memory_hub production repo, not this one)
 
 输出：追加到 <HUB>\\logs\\<脚本名>.log（含时间戳、参数、退出码），
       这样切了无窗口也**不丢诊断信息**。

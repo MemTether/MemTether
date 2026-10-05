@@ -35,7 +35,7 @@ if _API_KEY:
     from starlette.middleware.base import BaseHTTPMiddleware
     class _ApiKeyMiddleware(BaseHTTPMiddleware):
         async def dispatch(self, request, call_next):
-            if request.url.path == '/health':
+            if request.url.path in ('/health', '/', '/dashboard'):
                 return await call_next(request)
             if request.headers.get('authorization', '') != 'Bearer ' + _API_KEY:
                 from fastapi.responses import JSONResponse

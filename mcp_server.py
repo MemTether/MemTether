@@ -302,7 +302,7 @@ TOOLS = [
     {
         "name": "add_memories",
         "description": (
-            "写入一条记忆到共享记忆中枢（真源 memory.db，两个 WorkBuddy 版本与所有 MCP 客户端共用）。"
+            "写入一条记忆到共享记忆中枢（真源 memory.db，两个 WorkBuddy 版本与所有 MCP 客户端共用）。注：经 MCP 写入的记忆固定为 scope=shared；private/restricted 仅 CLI/API 可用。"
             "改记忆只走这里，禁止直接改 MEMORY.md / sink.json。"
             "重要：第一句必须把结论说完，后续 rebuild 生成导航投影时只取首句。"
         ),

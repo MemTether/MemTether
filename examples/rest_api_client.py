@@ -8,7 +8,7 @@ Then use any HTTP client:
 """
 import json
 
-API_BASE = "http://127.0.0.1:8080"
+API_BASE = "http://127.0.0.1:8820"
 
 # Search
 print("Search:")
