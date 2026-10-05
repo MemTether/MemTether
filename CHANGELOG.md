@@ -1,3 +1,17 @@
+## [0.1.0a29] - 2026-10-05
+
+### Fixed — T-C clean-venv end-to-end findings (stranger path)
+
+- **health endpoint version stale**: /health reported 0.1.0a9 while package was
+  a28; now reads __version__ from the package metadata at import time.
+
+### Verified (clean venv stranger walkthrough)
+- pip install from tuna mirror: 0.1.0a19 (PyPI lag confirmed - real finding)
+- clean venv paths: default_db correctly resolves to LOCALAPPDATA after a28
+- CLI: stats/remember/search --list/export-md/init all rc=0
+- degraded vector search warns and falls back (expected without [vector] extra)
+- REST API: /health /stats /list all 200 after pip install "memtether[server]"
+
 ## [0.1.0a28] - 2026-10-05
 
 ### Added - E-AFAG answer-formulation hints (CCF T-B: multi-session strict support)

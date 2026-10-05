@@ -105,7 +105,12 @@ def dashboard():
 
 @app.get("/health")
 def health():
-    return {"ok": True, "version": "0.1.0a9"}
+    from importlib.metadata import version as _pkgver
+    try:
+        _v = _pkgver("memtether")
+    except Exception:
+        _v = "unknown"
+    return {"ok": True, "version": _v}
 
 @app.post("/remember")
 def remember(req: RememberRequest):
