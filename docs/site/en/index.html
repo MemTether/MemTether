@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MemTether - Cross-client AI memory hub</title>
+<style>
+:root{--fg:#e6edf3;--bg:#0d1117;--card:#161b22;--border:#30363d;--accent:#58a6ff;--green:#3fb950}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;background:var(--bg);color:var(--fg);line-height:1.6}
+.wrap{max-width:860px;margin:0 auto;padding:40px 24px}
+h1{color:var(--accent);font-size:2.5em;margin-bottom:8px}
+h2{color:var(--accent);margin-top:36px}
+.tagline{font-size:1.2em;color:#8b949e;margin-bottom:32px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:20px;margin:20px 0}
+pre{background:#0d1117;border:1px solid var(--border);border-radius:6px;padding:14px;overflow-x:auto;font-family:ui-monospace,monospace;font-size:14px;color:var(--green)}
+.badge{display:inline-block;padding:4px 10px;border-radius:12px;font-size:12px;font-weight:600;margin-right:6px;margin-bottom:8px}
+.b-green{background:#1a4d2e;color:var(--green)}
+.b-blue{background:#1c3d5a;color:var(--accent)}
+.b-gold{background:#4d3d1a;color:#d29922}
+table{width:100%;border-collapse:collapse;margin:16px 0}
+th,td{border:1px solid var(--border);padding:10px;text-align:left}
+th{background:var(--card)}
+a{color:var(--accent)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin:24px 0}
+.grid .card{margin:0}
+.footer{margin-top:48px;padding-top:24px;border-top:1px solid var(--border);font-size:14px;color:#8b949e}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>MemTether</h1>
+<p class="tagline">Cross-client AI memory hub. One physical SQLite. Many agents. File-level pointers. Zero cloud.</p>
+
+<div>
+<span class="badge b-green">Apache-2.0</span>
+<span class="badge b-blue">23 adapters</span>
+<span class="badge b-blue">100 tests</span>
+<span class="badge b-gold">Local-first</span>
+<span class="badge b-gold">Bi-temporal</span>
+</div>
+
+<h2>Quick start</h2>
+<div class="card">
+<pre>pip install memtether
+memtether init</pre>
+<p>That's it. MemTether detects 23 AI clients on your machine, writes MCP config, and verifies.</p>
+</div>
+
+<h2>Why MemTether</h2>
+<div class="card">
+<p>Your AI coding agents forget everything between sessions. mem0/Hindsight give you a cloud API. TencentDB needs Node.js + WSL2 + 8GB RAM. MemTether gives you <strong>one SQLite file shared via OS-level symlinks</strong> - no daemon, no cloud, no sync logic.</p>
+<table>
+<tr><th>Feature</th><th>MemTether</th><th>mem0</th><th>Hindsight</th><th>TencentDB</th><th>Wax</th></tr>
+<tr><td>Local-first</td><td>Yes</td><td>Cloud/SaaS</td><td>API server</td><td>Node.js</td><td>macOS</td></tr>
+<tr><td>Bi-temporal</td><td>Yes</td><td>No</td><td>No</td><td>Yes</td><td>No</td></tr>
+<tr><td>Supersession</td><td>Yes</td><td>No</td><td>No</td><td>Partial</td><td>No</td></tr>
+<tr><td>23 adapters</td><td>Yes</td><td>&lt;5</td><td>&lt;5</td><td>&lt;5</td><td>&lt;5</td></tr>
+<tr><td>Apache-2.0</td><td>Yes</td><td>Apache-2.0</td><td>MIT</td><td>MIT</td><td>Apache-2.0</td></tr>
+</table>
+</div>
+
+<h2>Explore</h2>
+<div class="grid">
+<div class="card"><h3><a href="reproduce.html">Reproduce</a></h3><p>Every claim has a command. Run them yourself.</p></div>
+<div class="card"><h3><a href="challenge.html">Founding 10 Challenge</a></h3><p>10 spots. 14 days. Honest outcomes only.</p></div>
+<div class="card"><h3><a href="https://github.com/MemTether/MemTether">GitHub</a></h3><p>Source, issues, releases.</p></div>
+<div class="card"><h3><a href="https://pypi.org/project/memtether/">PyPI</a></h3><p><code>pip install memtether</code></p></div>
+</div>
+
+<div class="footer">
+MemTether · <a href="https://github.com/MemTether/MemTether">GitHub</a> · <a href="https://pypi.org/project/memtether/">PyPI</a> · Apache-2.0
+</div>
+</div>
+</body>
+</html>

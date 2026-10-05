@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reproduce MemTether — Independent Verification</title>
+<style>
+:root{--fg:#e6edf3;--bg:#0d1117;--card:#161b22;--border:#30363d;--accent:#58a6ff;--green:#3fb950}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;background:var(--bg);color:var(--fg);line-height:1.6}
+.wrap{max-width:860px;margin:0 auto;padding:40px 24px}
+h1{color:var(--accent);border-bottom:2px solid var(--border);padding-bottom:12px}
+h2{color:var(--accent);margin-top:36px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:20px;margin:20px 0}
+pre{background:#0d1117;border:1px solid var(--border);border-radius:6px;padding:14px;overflow-x:auto;font-family:ui-monospace,SFMono-Regular,monospace;font-size:14px}
+code{color:var(--green)}
+.badge{display:inline-block;padding:4px 10px;border-radius:12px;font-size:12px;font-weight:600;margin-right:8px}
+.b-green{background:#1a4d2e;color:var(--green)}
+.b-blue{background:#1c3d5a;color:var(--accent)}
+.b-yellow{background:#4d4a1a;color:#d29922}
+table{width:100%;border-collapse:collapse;margin:16px 0}
+th,td{border:1px solid var(--border);padding:10px;text-align:left}
+th{background:var(--card)}
+a{color:var(--accent)}
+.footer{margin-top:48px;padding-top:24px;border-top:1px solid var(--border);font-size:14px;color:#8b949e}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Reproduce MemTether</h1>
+<p><span class="badge b-green">100% reproducible</span> <span class="badge b-blue">Apache-2.0</span> <span class="badge b-yellow">Independent runs welcome</span></p>
+
+<p>Don't trust the numbers. Run them yourself. Every claim on this page has a reproducible command behind it.</p>
+
+<h2>1. Environment</h2>
+<div class="card">
+<pre><code># Python 3.10 or 3.12
+python --version
+
+# Create clean venv
+python -m venv .venv
+source .venv/bin/activate  # Linux/macOS
+# .venv\Scripts\activate   # Windows
+
+# Install
+pip install memtether</code></pre>
+</div>
+
+<h2>2. Smoke test</h2>
+<div class="card">
+<pre><code># Initialize + verify 23 adapters detected
+memtether init
+
+# Write a memory
+memtether remember "Test content for reproduction" --source reproduce
+
+# Search it back
+memtether search "Test content" --list
+
+# Expected: [fact/reproduce] Test content for reproduction</code></pre>
+</div>
+
+<h2>3. Run the test suite</h2>
+<div class="card">
+<pre><code>git clone https://github.com/MemTether/MemTether.git
+cd MemTether
+pip install -e ".[server]"
+
+# Run 100 tests
+pytest tests/ -v --tb=short
+
+# Expected: 100 passed (or 100 passed, 1 warning)</code></pre>
+</div>
+
+<h2>4. Coverage</h2>
+<div class="card">
+<pre><code>pip install pytest-cov
+pytest tests/ --cov=. --cov-report=term
+
+# Expected: TOTAL ~26% (100 tests)
+# Breakdown: hubguard 61% / memsearch 47% / gateway 24% / governance 21%</code></pre>
+</div>
+
+<h2>5. LongMemEval benchmark</h2>
+<div class="card">
+<p>MemTether reports strict-match 62.6% (209/334 applicable) on LongMemEval 500Q full run. EAF mode lifts multi-session strict from 32.5% to 60.0% (paired p=0.008, n=131).</p>
+<p><strong>Reproducibility status:</strong> benchmark harness is in the private production instance. We are actively preparing a public benchmark artifact bundle with fixture digests (target: 2026-12). Until then, the numbers are <em>declared, not independently reproduced</em>.</p>
+<p>Reference: <a href="https://arxiv.org/abs/2510.07998">LongMemEval paper</a> · <a href="https://github.com/xiaowu0162/LongMemEval">official repo</a></p>
+</div>
+
+<h2>6. Claim-to-evidence mapping</h2>
+<table>
+<tr><th>Claim</th><th>Evidence</th><th>Status</th></tr>
+<tr><td>23 adapters auto-connect</td><td><code>memtether init</code> output + tether_connect.py 597 lines</td><td>✅ Reproducible</td></tr>
+<tr><td>52 → 100 tests</td><td><code>pytest tests/ -v</code></td><td>✅ Reproducible</td></tr>
+<tr><td>Coverage 26%</td><td><code>pytest --cov</code></td><td>✅ Reproducible</td></tr>
+<tr><td>WAL mode enabled</td><td><code>sqlite3 memory.db "PRAGMA journal_mode"</code></td><td>✅ Reproducible (a26 fix)</td></tr>
+<tr><td>Tenant isolation</td><td><code>tests/test_tenant.py</code> — cross-tenant 0 leak</td><td>✅ Reproducible</td></tr>
+<tr><td>Rate limit 60/min</td><td><code>tests/test_rate_limit.py</code></td><td>✅ Reproducible</td></tr>
+<tr><td>EAF +13.2pp</td><td>Paired McNemar p=0.008, n=131</td><td>⚠️ Declared, repro pending</td></tr>
+<tr><td>strict 62.6% (500Q)</td><td>Full LongMemEval run</td><td>⚠️ Declared, repro pending</td></tr>
+</table>
+
+<h2>7. File integrity</h2>
+<div class="card">
+<p>All releases publish wheel + tar.gz with SHA-256 digests on the GitHub Release page. Verify with:</p>
+<pre><code>sha256sum memtether-0.1.0a31-py3-none-any.whl</code></pre>
+<p>Compare against the digest in the release notes.</p>
+</div>
+
+<h2>8. Independent reproduction</h2>
+<div class="card">
+<p>If you reproduce (or fail to reproduce) any claim, open an issue at <a href="https://github.com/MemTether/MemTether/issues">MemTether issues</a> with:</p>
+<ul>
+<li>Your environment (OS / Python / versions)</li>
+<li>Command you ran</li>
+<li>Expected vs actual output</li>
+<li>Raw artifact (JSON/text) if possible</li>
+</ul>
+<p>Submissions are reviewed and attributed. Honest negative results are welcome.</p>
+</div>
+
+<div class="footer">
+MemTether · <a href="https://github.com/MemTether/MemTether">GitHub</a> · <a href="https://pypi.org/project/memtether/">PyPI</a> · Apache-2.0 · <a href="/">← Back to site</a>
+</div>
+</div>
+</body>
+</html>

@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Founding 10 Challenge - MemTether</title>
+<style>
+:root{--fg:#e6edf3;--bg:#0d1117;--card:#161b22;--border:#30363d;--accent:#58a6ff;--green:#3fb950;--gold:#d29922}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;background:var(--bg);color:var(--fg);line-height:1.6}
+.wrap{max-width:860px;margin:0 auto;padding:40px 24px}
+h1{color:var(--accent);border-bottom:2px solid var(--border);padding-bottom:12px}
+h2{color:var(--accent);margin-top:36px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:20px;margin:20px 0}
+pre{background:#0d1117;border:1px solid var(--border);border-radius:6px;padding:14px;overflow-x:auto;font-family:ui-monospace,monospace;font-size:14px;color:var(--green)}
+.badge{display:inline-block;padding:4px 10px;border-radius:12px;font-size:12px;font-weight:600;margin-right:8px}
+.b-gold{background:#4d3d1a;color:var(--gold)}
+.b-green{background:#1a4d2e;color:var(--green)}
+ol li{margin:12px 0}
+table{width:100%;border-collapse:collapse;margin:16px 0}
+th,td{border:1px solid var(--border);padding:10px;text-align:left}
+th{background:var(--card)}
+a{color:var(--accent)}
+.footer{margin-top:48px;padding-top:24px;border-top:1px solid var(--border);font-size:14px;color:#8b949e}
+.spot{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:var(--accent);color:var(--bg);font-weight:700;margin-right:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Founding 10 Challenge</h1>
+<p><span class="badge b-gold">10 spots</span> <span class="badge b-green">14-day honest outcome</span></p>
+<p><strong>Don't endorse us. Break us - or prove us right.</strong></p>
+<p>The first 10 people who run MemTether on their real AI-coding setup and submit an honest 14-day report get <strong>Founding Contributor</strong> status: your handle in the README, priority on feature requests, and a direct line to the maintainer.</p>
+
+<h2>What you do</h2>
+<div class="card">
+<ol>
+<li><strong>Run it unchanged</strong> - <code>pip install memtether &amp;&amp; memtether init</code>. No custom config.</li>
+<li><strong>Use it for 14 days</strong> - real work, real agents, real sessions.</li>
+<li><strong>Find what cannot be trusted</strong> - crashes, wrong memories, adapter failures, anything.</li>
+<li><strong>Submit any honest outcome</strong> - positive, negative, or mixed. All three count.</li>
+</ol>
+</div>
+
+<h2>What we publish</h2>
+<div class="card">
+<p>Every submission (positive or negative) gets published in the README with attribution. If you find a real bug, you get credited as the finder. If everything works, you get credited as a verifier.</p>
+<p>We do not cherry-pick positive reviews. Honest failures are more valuable than praise - they tell us what to fix.</p>
+</div>
+
+<h2>Tracks</h2>
+<table>
+<tr><th>Track</th><th>What you test</th><th>Status</th></tr>
+<tr><td>1. Claude Code</td><td>MCP config + cross-session recall</td><td>Open</td></tr>
+<tr><td>2. Cursor</td><td>MCP config + multi-project memory</td><td>Open</td></tr>
+<tr><td>3. Codex CLI</td><td>MCP + CLI remember/search</td><td>Open</td></tr>
+<tr><td>4. Windsurf</td><td>MCP config</td><td>Open</td></tr>
+<tr><td>5. Gemini CLI</td><td>MCP config</td><td>Open</td></tr>
+<tr><td>6. Multi-client</td><td>Cross-client memory sharing</td><td>Open</td></tr>
+<tr><td>7. Bi-temporal audit</td><td>Timeline / supersession chain</td><td>Open</td></tr>
+<tr><td>8. Tenant isolation</td><td>Multi-tenant 0-leak</td><td>Open</td></tr>
+<tr><td>9. Docker deploy</td><td>docker-compose + api_server</td><td>Open</td></tr>
+<tr><td>10. Fresh machine E2E</td><td>Clean venv full workflow</td><td>Open</td></tr>
+</table>
+
+<h2>How to register</h2>
+<div class="card">
+<p>Open an issue at <a href="https://github.com/MemTether/MemTether/issues">MemTether issues</a> with title <code>[Founding 10] &lt;track&gt;</code> and your OS / Python / AI clients / start date. We confirm within 24h.</p>
+</div>
+
+<h2>Rules</h2>
+<div class="card">
+<ul>
+<li>14 days from your start date. No extensions.</li>
+<li>Submit via GitHub issue (public) - honesty is the point.</li>
+<li>All 10 spots must complete within 60 days of this page going live, or the challenge resets.</li>
+<li>Founding Contributors get README credit + issue priority. No payment, no equity.</li>
+<li>Maintainer reserves the right to reject non-genuine attempts.</li>
+</ul>
+</div>
+
+<div class="footer">
+MemTether · <a href="https://github.com/MemTether/MemTether">GitHub</a> · <a href="https://pypi.org/project/memtether/">PyPI</a> · Apache-2.0 · <a href="reproduce.html">Reproduce</a>
+</div>
+</div>
+</body>
+</html>
