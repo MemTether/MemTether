@@ -38,6 +38,10 @@ def main():
     db_a = _mkdb(tmp, "a.db")
     gateway.remember("OPENAI_API_KEY is valid and funded", type="fact",
                      source="laptop", scope="shared")
+    conn_a0 = sqlite3.connect(db_a)
+    conn_a0.execute("UPDATE facts SET updated_at=datetime('now','-2 seconds')")
+    conn_a0.commit()
+    conn_a0.close()
     # Instance B (the "desktop" agent): has a NEWER contradicting fact
     db_b = _mkdb(tmp, "b.db")
     import datetime
