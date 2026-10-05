@@ -42,9 +42,15 @@ def main():
     db_b = _mkdb(tmp, "b.db")
     import datetime
     future = (datetime.datetime.now() + datetime.timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")
-    gateway.remember("OPENAI_API_KEY failed with 401 quota exceeded",
+    r_desktop = gateway.remember("OPENAI_API_KEY failed with 401 quota exceeded",
                      type="incident", source="desktop", scope="shared",
                      valid_from=future)
+    # make latest_wins deterministic across fast CI: bump updated_at by 1s
+    conn_b = sqlite3.connect(db_b)
+    conn_b.execute("UPDATE facts SET updated_at=datetime('now','+1 second') WHERE uid=?",
+                   (r_desktop['uid'],))
+    conn_b.commit()
+    conn_b.close()
 
     srv_a = _serve(db_a, 18421)
 
