@@ -51,6 +51,13 @@ HUB = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HUB)
 
 _T_IMPORT = time.time()
+# P4: resolve default via shared helper BEFORE gateway import
+try:
+    import memtether_paths as _mp
+    os.environ.setdefault('MEM_DB', _mp.default_db())
+except Exception:
+    pass
+
 import gateway  # noqa: E402
 _IMPORT_SECS = time.time() - _T_IMPORT
 

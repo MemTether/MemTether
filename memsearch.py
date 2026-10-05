@@ -25,7 +25,12 @@ HUB = os.path.dirname(os.path.abspath(__file__))
 #   一旦用 MEM_DB 切库（例如指向合成演示库 demo/memory_demo.db），
 #   gateway 走新库、本文件仍读旧库 → **一次查询混两个库的数据**，
 #   属"跑起来不报错、但结果错"的一类。凡新增读真源的模块，一律用这段解析。
-DB = os.environ.get('MEM_DB') or os.path.join(HUB, 'memory.db')
+# P4: same single-source resolution as gateway (see note there).
+try:
+    import memtether_paths as _mp
+    DB = os.environ.get('MEM_DB') or _mp.default_db()
+except Exception:
+    DB = os.environ.get('MEM_DB') or os.path.join(HUB, 'memory.db')
 if not os.path.isabs(DB):
     DB = os.path.join(HUB, DB)
 

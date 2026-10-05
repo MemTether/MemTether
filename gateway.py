@@ -135,7 +135,14 @@ HUB = os.path.dirname(os.path.abspath(__file__))
 #   但开源版需要「clone 下来就能跑」——指向合成演示库即可：
 #       MEM_DB=demo/memory_demo.db python mem.py search "演示查询"
 #   演示库由 scripts/make_demo_db.py 生成（固定随机种子，逐字节可复现，零真实串）。
-DB = os.environ.get('MEM_DB') or os.path.join(HUB, 'memory.db')
+# P4 (2026-10-05): single source of truth for default DB path.
+# Prior state had THREE divergent defaults (CLI ~/.memtether, engine package-dir,
+# memtether_paths LOCALAPPDATA). Every entry point must resolve identically.
+try:
+    import memtether_paths as _mp
+    DB = os.environ.get('MEM_DB') or _mp.default_db()
+except Exception:
+    DB = os.environ.get('MEM_DB') or os.path.join(HUB, 'memory.db')
 if not os.path.isabs(DB):
     DB = os.path.join(HUB, DB)
 # ★sink.json 同样可被 MEM_SINK_PATH 覆盖（2026-09-17 加，理由与 MEM_DB 完全一样）：

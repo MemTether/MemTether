@@ -39,11 +39,15 @@ if _HERE not in sys.path:
     #   `import memsearch`），只有包目录在 sys.path 上才解析得到。
     sys.path.insert(0, _HERE)
 
-__version__ = "0.1.0a22"
+__version__ = "0.1.0a23"
 
 DATA_DIR = os.environ.get("MEMTETHER_HOME") or os.path.join(
     os.path.expanduser("~"), ".memtether")
-DEFAULT_DB = os.path.join(DATA_DIR, "memory.db")
+try:
+    import memtether_paths as _mp
+    DEFAULT_DB = _mp.default_db()  # P4: unified default
+except Exception:
+    DEFAULT_DB = os.path.join(DATA_DIR, "memory.db")
 
 # ★引擎的库路径是**模块级常量**（import 时求值，见 gateway.py:50 / memsearch.py:28），
 #   所以必须在导入前把环境变量摆好。用 setdefault：用户显式给了 MEM_DB 就不覆盖。

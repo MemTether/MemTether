@@ -1,3 +1,13 @@
+## [0.1.0a23] - 2026-10-05
+
+### Fixed (audit round 4 — split-brain DB defaults)
+- **Unified default DB resolution**: gateway / memsearch / CLI / api_server / mcp_server now all route through memtether_paths.default_db(). Prior state had THREE divergent defaults (~/.memtether for CLI, package-dir for engine imports, LOCALAPPDATA for the helper) — a pip user could get three different databases depending on which entry point they used. My a22 default-dir change added the third; a23 makes one truth.
+- Resolution order everywhere: MEM_DB env > MEM_HUB_DIR/local_paths.json > LOCALAPPDATA (~/.local/share) per-user dir > package dir only for dev checkouts (or MEMTETHER_IN_PKG=1).
+
+### Verified
+- helper / gateway / memsearch resolve identically with no env set
+- pytest 30/30; check_packaging rc=0
+
 ## [0.1.0a22] - 2026-10-05
 
 ### Fixed (audit round 3 — residual leaks from a20/a21 fixes)
