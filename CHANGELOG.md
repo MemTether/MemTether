@@ -1,3 +1,20 @@
+## [0.1.0a28] - 2026-10-05
+
+### Added - E-AFAG answer-formulation hints (CCF T-B: multi-session strict support)
+
+- **extract_answer_hints()**: for counting/temporal/aggregation/knowledge-update
+  questions, extracts deterministic answer candidates from retrieved evidence
+  (entity occurrence counts, frequent numbers, earliest/latest dates, newest fact
+  per ASCII entity) and emits an [E-AFAG answer candidates] block so the agent can
+  copy verbatim forms. Multi-session strict fails on computed answers because
+  agents paraphrase - hints give the exact surface form.
+- Wired into search_hybrid after scaffolds; hints land in diag + first result.
+- tests/test_afag.py: 4 unit tests (counting/temporal/latest/no-hint).
+
+### Verified
+- pytest 39/39 (34+5 federation + 4 AFAG net)
+- no regression on existing benches
+
 ## [0.1.0a27] - 2026-10-05
 
 ### Added - federated exchange (CCF T-A: system-level upgrade)

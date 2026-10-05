@@ -763,6 +763,46 @@ def build_scaffold(question_type, query, results):
     return None
 
 
+def extract_answer_hints(question_type, query, results):
+    '''E-AFAG (Answer Formulation-Aware Generation) - T-B 2026-10-05.
+    Multi-session strict fails when the true answer is COMPUTED (counts, latest
+    date, union of names) and the agent paraphrases. This extracts deterministic
+    candidates from retrieved evidence so the agent can copy verbatim forms.'''
+    import re as _re2
+    hints = []
+    if question_type == 'counting':
+        ents = extract_ascii_entities(query)
+        for e in ents:
+            n = sum(1 for r in results if e.lower() in (r.get('content') or '').lower())
+            if n:
+                hints.append('COUNT %s: %d occurrence(s) in retrieved evidence' % (e, n))
+        nums = {}
+        for r in results:
+            for m2 in _re2.finditer(r'\b\d{1,4}\b', r.get('content') or ''):
+                nums[m2.group(0)] = nums.get(m2.group(0), 0) + 1
+        if nums:
+            top = sorted(nums.items(), key=lambda kv: -kv[1])[:5]
+            hints.append('FREQUENT NUMBERS: ' + ', '.join('%s (x%d)' % (k, v) for k, v in top))
+    elif question_type == 'temporal':
+        dated = sorted(((r.get('updated_at') or '')[:10], (r.get('content') or '')[:80])
+                       for r in results if r.get('updated_at'))
+        if dated:
+            hints.append('EARLIEST: %s | %s' % (dated[0][0], dated[0][1]))
+            hints.append('LATEST: %s | %s' % (dated[-1][0], dated[-1][1]))
+    elif question_type in ('aggregation', 'knowledge-update'):
+        newest = {}
+        for r in results:
+            for e in extract_ascii_entities(r.get('content') or ''):
+                ts = r.get('updated_at') or ''
+                if e not in newest or ts > newest[e][0]:
+                    newest[e] = (ts, (r.get('content') or ''))
+        for e, (ts, c) in list(newest.items())[:5]:
+            hints.append('LATEST %s (%s): %s' % (e, ts[:10], c[:100]))
+    if not hints:
+        return None
+    return '[E-AFAG answer candidates - cite verbatim]\n\n' + '\n'.join(hints)
+
+
 def compile_packet(results, max_items=16, max_chars=12000):
     """Coverage-first packet compilation.
     Based on Auditable Memory (arXiv 2609.38021) Stage 3.
@@ -1669,6 +1709,15 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
             _kept[0] = dict(_kept[0])
             _kept[0]['content'] = _scaffold + '\n\n' + _kept[0].get('content', '')
             _kept[0]['reason'] = list(_kept[0].get('reason') or []) + ['scaffold_prepended']
+
+    # T-B (2026-10-05): E-AFAG answer-formulation hints for strict-match support
+    _afag = extract_answer_hints(_q_type, q, _kept[:limit])
+    if _afag:
+        _diag['afag_hints'] = _afag
+        if _kept:
+            _kept[0] = dict(_kept[0])
+            _kept[0]['content'] = _afag + '\n\n' + _kept[0].get('content', '')
+            _kept[0]['reason'] = list(_kept[0].get('reason') or []) + ['afag_hints']
     
     # Apply packet compilation for aggregation-type questions
     if _q_type in ('counting', 'aggregation', 'comparison', 'knowledge-update'):
