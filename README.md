@@ -12,6 +12,8 @@ No cloud. No API fees. No sync daemon. Greppable, git-able, yours.
 [![PyPI](https://img.shields.io/pypi/v/memtether)](https://pypi.org/project/memtether/)
 [![CI](https://github.com/MemTether/MemTether/actions/workflows/ci.yml/badge.svg)](https://github.com/MemTether/MemTether/actions)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+
+mcp-name: io.github.lanbass869-cell/memtether
 [![MCP Registry](https://img.shields.io/badge/MCP_Registry-io.github.lanbass869--cell%2Fmemtether-blue)](https://registry.modelcontextprotocol.io)
 
 [**Try in browser**](https://huggingface.co/spaces/lanbass/memtether-demo) · [Install](#quick-start) · [中文文档](README.zh-CN.md)
