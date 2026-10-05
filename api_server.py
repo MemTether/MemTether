@@ -159,6 +159,16 @@ def timeline_ep(uid: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)[:300])
 
+
+
+# P2-5 (2026-10-05): reuse governance polarity lexicons for absorb.
+def _polarity(text):
+    import governance
+    t = (text or '').lower()
+    n = sum(1 for w in governance._NEG if w.lower() in t)
+    p = sum(1 for w in governance._POS if w.lower() in t)
+    return p - n  # <0 means negative-dominated
+
 @app.post("/absorb")
 def absorb(req: AbsorbRequest):
     """Keyword-based absorb: classify incoming fact against existing memories.
@@ -194,9 +204,9 @@ def absorb(req: AbsorbRequest):
                 classification = 'duplicate'
             elif top > 0.4:
                 # check polarity for contradiction
-                neg_in = any(w in req.content.lower() for w in ('not ', 'no ', 'never ', '不能', '不要', '禁止'))
-                neg_ex = any(w in candidates[0]['content'].lower() for w in ('not ', 'no ', 'never ', '不能', '不要', '禁止'))
-                classification = 'contradiction' if (neg_in != neg_ex) else 'update'
+                neg_in = _polarity(req.content)
+                neg_ex = _polarity(candidates[0]['content'])
+                classification = 'contradiction' if ((neg_in < 0) != (neg_ex < 0)) else 'update'
             elif top > 0.15:
                 classification = 'related'
 

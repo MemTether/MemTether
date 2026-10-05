@@ -99,6 +99,8 @@ def _query_attrs(query):
 
 
 def check_attr_coverage(query, results):
+    # P2-2 (2026-10-05): NOT wired into memsearch/gateway yet (audit finding).
+    # Stored predicates exist at write time; retrieval-side validation is future work.
     """检索后校验：查询含「X的Y」时，检查候选是否真正记录了 Y。
 
     逻辑：

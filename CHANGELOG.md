@@ -1,3 +1,11 @@
+## [0.1.0a21] - 2026-10-05
+
+### Cleanup (audit plan P2 remainder)
+- absorb: contradiction detection now uses governance POS/NEG lexicons (was a 6-word English/Chinese stopword list that missed real polarity words)
+- export-md: filename uses full uid (30-char prefix collision risk)
+- _search_like_legacy: marked DEPRECATED (kept as last-resort fallback only)
+- predicates.check_attr_coverage: explicitly marked NOT-WIRED (honesty note; write-side predicates exist, retrieval-side validation is future work)
+
 ## [0.1.0a20] - 2026-10-05
 
 ### Fixed (security audit round 2 — all items verified by test)

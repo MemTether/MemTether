@@ -808,6 +808,7 @@ def search(query, limit=10, mem0=False):
 
 
 def _search_like_legacy(query, limit=10, mem0=False):
+    # P2-1 (2026-10-05): DEPRECATED last-resort fallback. Primary = memsearch.search_hybrid.
     """[旧版，保留作兜底] 关键词 LIKE 精确子串匹配（中文失效，仅 ASCII 有效）。"""
     init_db()
     conn = get_conn()

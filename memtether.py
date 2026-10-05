@@ -39,7 +39,7 @@ if _HERE not in sys.path:
     #   `import memsearch`），只有包目录在 sys.path 上才解析得到。
     sys.path.insert(0, _HERE)
 
-__version__ = "0.1.0a20"
+__version__ = "0.1.0a21"
 
 DATA_DIR = os.environ.get("MEMTETHER_HOME") or os.path.join(
     os.path.expanduser("~"), ".memtether")
@@ -334,7 +334,7 @@ def _cmd_export_md(args):
         uid = r['uid'] or 'unknown'
         typ = r['type'] or 'fact'
         ts = r['created_at'] or ''
-        fn = f"{typ}_{uid[:30]}.md"
+        fn = f"{typ}_{uid}.md"  # P2-6: full uid (30-char prefix collides)
         fp = os.path.join(out_dir, fn)
         content = r['content'] or ''
         frontmatter = f"""---
