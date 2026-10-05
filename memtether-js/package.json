@@ -1,0 +1,17 @@
+{
+  "name": "memtether-js",
+  "version": "0.1.0",
+  "description": "JavaScript/TypeScript SDK for MemTether - cross-client AI memory hub",
+  "main": "src/index.js",
+  "types": "src/index.d.ts",
+  "scripts": {
+    "test": "node tests/test.js"
+  },
+  "keywords": [
+    "memory",
+    "agent",
+    "ai",
+    "mcp"
+  ],
+  "license": "Apache-2.0"
+}

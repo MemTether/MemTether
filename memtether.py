@@ -39,7 +39,7 @@ if _HERE not in sys.path:
     #   `import memsearch`），只有包目录在 sys.path 上才解析得到。
     sys.path.insert(0, _HERE)
 
-__version__ = "0.1.0a29"
+__version__ = "0.1.0a30"
 
 DATA_DIR = os.environ.get("MEMTETHER_HOME") or os.path.join(
     os.path.expanduser("~"), ".memtether")
@@ -160,6 +160,54 @@ def demo(out=None, force=False, seed=None):
         raise RuntimeError(
             "演示库生成 / 自检失败，退出码 %s（详见上方报告）" % proc.returncode)
     return out
+
+
+
+# ---------------------------------------------------------------- P4: import
+def _cmd_import_docs(args):
+    """Import a directory of docs (.md/.txt/.py) as memories — cold-start path."""
+    import pathlib as _pl
+    target = args.path
+    if not os.path.isdir(target):
+        print(f"Directory not found: {target}")
+        return 1
+    exts = {".md", ".txt", ".py", ".rst"}
+    max_size = args.max_size
+    imported = skipped = 0
+    for root, dirs, files in os.walk(target):
+        dirs[:] = [d for d in dirs if not d.startswith(".") and d not in ("__pycache__", "node_modules", "_dev", "build")]
+        for f in files:
+            fpath = os.path.join(root, f)
+            ext = os.path.splitext(f)[1].lower()
+            if ext not in exts:
+                continue
+            try:
+                stat = os.stat(fpath)
+                if stat.st_size > max_size or stat.st_size < 10:
+                    skipped += 1
+                    continue
+                text = open(fpath, encoding="utf-8", errors="replace").read()
+                # take first meaningful paragraph as memory content
+                lines = [l for l in text.splitlines() if l.strip() and not l.startswith("#")][:15]
+                if len(lines) < 2:
+                    skipped += 1
+                    continue
+                summary = " ".join(lines).strip()[:500]
+                if len(summary) < 20:
+                    skipped += 1
+                    continue
+                rel = os.path.relpath(fpath, target)
+                content = f"Imported from {rel}: {summary}"
+                source = args.source or "doc_import"
+                r = remember(content, type=args.type, source=source)
+                if r and r.get("ok"):
+                    imported += 1
+                else:
+                    skipped += 1
+            except Exception:
+                skipped += 1
+    print(f"Import complete: {imported} memories added, {skipped} skipped")
+    return 0
 
 
 # ---------------------------------------------------------------- CLI
@@ -457,6 +505,12 @@ def main(argv=None):
     sp.set_defaults(func=_cmd_setup)
 
     sp = sub.add_parser("dashboard", help="Start the web dashboard (API server + browser UI)")
+    sp = sub.add_parser("import-docs", help="Import a directory of docs as memories (cold-start)")
+    sp.add_argument("path", help="Directory to scan")
+    sp.add_argument("--source", default="doc_import", help="Source tag")
+    sp.add_argument("--type", default="fact", help="Memory type")
+    sp.add_argument("--max-size", type=int, default=100000, help="Max file size in bytes")
+    sp.set_defaults(func=_cmd_import_docs)
     sp.add_argument("--port", type=int, default=8820, help="Port to run on (default 8820)")
     sp.set_defaults(func=_cmd_dashboard)
 

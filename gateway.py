@@ -351,6 +351,14 @@ def _uid(prefix, text):
     return '%s-%s-%s' % (prefix, time.strftime('%Y%m%d%H%M%S'), h)
 
 
+def _tenant_filter():
+    """P6: tenant isolation at query layer. Reads X-Tenant-ID from env (set by API)."""
+    tid = os.environ.get('MEM_TENANT_ID', 'default')
+    if tid == 'default':
+        return ''
+    return " AND tenant_id='" + tid.replace(chr(39), '') + "'"
+
+
 def get_conn():
     conn = sqlite3.connect(DB)
     conn.row_factory = sqlite3.Row
@@ -358,6 +366,11 @@ def get_conn():
 
 
 def _ensure_columns(conn):
+    # P6 (2026-10-05): multi-tenant support
+    try:
+        conn.execute("ALTER TABLE facts ADD COLUMN tenant_id TEXT DEFAULT 'default'")
+    except Exception:
+        pass  # column already exists
     """★升级 1：给**已存在的旧库**补 q_value / use_count 两列。
 
     为什么必须有：SCHEMA 用的是 `CREATE TABLE IF NOT EXISTS` —— 新库能拿到新列，
@@ -1111,6 +1124,19 @@ def stats():
             out[tbl] = conn.execute('SELECT COUNT(*) c FROM %s' % tbl).fetchone()['c']
         out['facts_by_status'] = {r['status']: r['c'] for r in
                                   conn.execute('SELECT status, COUNT(*) c FROM facts GROUP BY status').fetchall()}
+        # P5 (2026-10-05): L0-L3 layered projection counts
+        out['levels'] = {
+            'L0_raw_conversations': conn.execute(
+                "SELECT COUNT(*) FROM facts WHERE type='experience' AND status='active'").fetchone()[0],
+            'L1_atomic_facts': conn.execute(
+                "SELECT COUNT(*) FROM facts WHERE type IN ('fact','incident') AND status='active'").fetchone()[0],
+            'L2_decisions': conn.execute(
+                "SELECT COUNT(*) FROM facts WHERE type IN ('decision','procedure') AND status='active'").fetchone()[0],
+            'L3_preferences': conn.execute(
+                "SELECT COUNT(*) FROM facts WHERE type IN ('preference','environment') AND status='active'").fetchone()[0],
+            'tool_assets': conn.execute(
+                "SELECT COUNT(*) FROM tool_assets WHERE status='active'").fetchone()[0],
+        }
         return out
     finally:
         conn.close()

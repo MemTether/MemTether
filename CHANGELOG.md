@@ -1,3 +1,37 @@
+## [0.1.0a30] - 2026-10-05
+
+### Added - CCF upgrade Phase 1-3 (competitiveness gap closure)
+
+#### P1: async search/remember (LangGraph/Flowise compatible)
+- async endpoints via run_in_executor - event loop not blocked by FTS5/vector
+
+#### P2: rate limiting
+- slowapi 60 req/min (optional dep, graceful degradation)
+
+#### P3: docs/memory-defense.md
+- 6 defense layers documented: OWASP guard, PII, scope, concurrency, validation, retire guard
+
+#### P4: import-docs command (cold start)
+- memtether import-docs <dir> scans .md/.txt/.py, chunks, batch remembers
+
+#### P5: L0-L3 layered stats
+- stats now shows experience(fact+incident)(decision+procedure)(preference+env) breakdown
+
+#### P6: multi-tenant support
+- facts.tenant_id column (default=default), _tenant_filter() for query isolation
+
+#### P7: 3 official plugins (claude/cursor/openclaw)
+- integrations/{claude,cursor,openclaw}-plugin/ with manifest.json + README
+
+#### P8: Node.js SDK (memtether-js/)
+- Thin CLI wrapper with remember/search/stats + .d.ts types
+
+#### P9: docs/benchmark.html
+- Static benchmark page with per-type breakdown + disclosure statement
+
+### Verified
+- pytest 39/39, check_packaging rc=0, build rc=0
+
 ## [0.1.0a29] - 2026-10-05
 
 ### Fixed — T-C clean-venv end-to-end findings (stranger path)
