@@ -18,6 +18,17 @@ from pydantic import BaseModel, Field
 app = FastAPI(title="MemTether API", description="Cross-client AI memory hub", version="0.1.0a19")
 
 from fastapi.middleware.cors import CORSMiddleware
+
+# P2 (2026-10-05): rate limiting — 60 req/min default (via slowapi if available)
+try:
+    from slowapi import Limiter, _rate_limit_exceeded_handler
+    from slowapi.util import get_remote_address
+    _limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
+    app.state.limiter = _limiter
+    app.add_exception_handler(429, _rate_limit_exceeded_handler)
+    HAS_RATE_LIMIT = True
+except ImportError:
+    HAS_RATE_LIMIT = False
 _API_KEY_ENV = os.environ.get("MEMTETHER_API_KEY", "").strip()
 # P7 (2026-10-05): wildcard CORS is fine for localhost-only use, but a keyed
 # deployment should not accept authenticated requests from any origin.
@@ -113,13 +124,29 @@ def health():
     return {"ok": True, "version": _v}
 
 @app.post("/remember")
-def remember(req: RememberRequest):
+async def remember(req: RememberRequest):
+    import asyncio
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, _remember_sync, req)
+
+
+def _remember_sync(req):
     return gateway.remember(content=req.content, type=req.type, source=req.source, tags=req.tags, confidence=req.confidence)
 
 @app.post("/search")
-def search(req: SearchRequest):
+async def search(req: SearchRequest):
+    """P1 (2026-10-05): async wrapper - runs gateway.search in thread pool
+    so the event loop is not blocked by FTS5/vector computation. Compatible
+    with async agent frameworks (LangGraph, Flowise, n8n)."""
+    import asyncio
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(None, _search_sync, req.query, req.limit)
+    return result
+
+
+def _search_sync(query, limit):
     try:
-        result = gateway.search(req.query, req.limit)
+        result = gateway.search(query, limit)
         # A1: Auto-increment use_count for returned facts (passive tracking)
         if isinstance(result, dict) and "results" in result:
             import sqlite3
