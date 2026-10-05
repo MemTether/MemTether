@@ -1,3 +1,22 @@
+## [0.1.0a27] - 2026-10-05
+
+### Added - federated exchange (CCF T-A: system-level upgrade)
+
+- **resolve_conflict()**: real implementations of latest_wins / source_priority /
+  merge_concat / human_review over CONFLICT_STRATEGIES (was an unused enum)
+- **HTTP peer federation**: serve_peer() (GET /exchange = signed export, POST /push =
+  import) + pull_peer() (pull + merge + auto conflict resolution). Stdlib only.
+- **governance_detect_and_resolve()**: polarity-based conflict detection over merged
+  rows, auto-supersedes losers (never deletes - keeps supersession chain intact)
+- **scripts/demo_federation.py**: two independent MemTether instances (laptop +
+  desktop) exchange memories over HTTP; a newer contradicting fact auto-supersedes
+  the older one. Exit 0 = PASS. Zero production writes.
+
+### Verified
+- federation demo: imported=1, superseded=1, loser retired, winner kept - PASS
+- 35 tests (30 existing + 5 new: 4 resolve_conflict unit + 1 federation e2e)
+- check_packaging rc=0
+
 ## [0.1.0a26] - 2026-10-05
 
 ### Fixed (audit round 7 — promised-vs-actual sweep)

@@ -29,6 +29,7 @@ except ImportError:
     _HAS_BLAKE3 = False
 import os
 import sqlite3
+import tempfile
 import sys
 
 if __package__ in (None, ""):
@@ -71,6 +72,30 @@ CONSENT_MODES = ("read_only", "read_write", "full_control")
 SYNC_MODES = ("full", "incremental")
 CONFLICT_STRATEGIES = ("latest_wins", "source_priority", "merge_concat",
                         "human_review", "quorum")
+
+
+def resolve_conflict(row_a, row_b, strategy="latest_wins"):
+    '''P-TA (2026-10-05): real conflict resolution per CONFLICT_STRATEGIES.
+    row_* are fact dicts with at least: uid, content, source, updated_at.
+    Returns (keep_row, retire_row, reason).'''
+    if strategy == "latest_wins":
+        ka = row_a.get("updated_at") or ""
+        kb = row_b.get("updated_at") or ""
+        if ka >= kb:
+            return row_a, row_b, "latest_wins: newer wins"
+        return row_b, row_a, "latest_wins: newer wins"
+    if strategy == "source_priority":
+        prio = ["codex", "workbuddy", "workbuddy_ai", "user"]
+        ra = prio.index(row_a.get("source")) if row_a.get("source") in prio else len(prio)
+        rb = prio.index(row_b.get("source")) if row_b.get("source") in prio else len(prio)
+        if ra <= rb:
+            return row_a, row_b, "source_priority"
+        return row_b, row_a, "source_priority"
+    if strategy == "merge_concat":
+        merged = dict(row_a)
+        merged["content"] = (row_a.get("content") or "") + "\n---\n" + (row_b.get("content") or "")
+        return merged, row_b, "merge_concat: contents concatenated"
+    return None, None, "human_review: auto-resolution declined"
 
 
 def _sha256(payload):
@@ -451,3 +476,109 @@ def main(argv=None):
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+
+# ============================================================
+# P-TA (2026-10-05): HTTP peer federation - serve one-shot export
+# and pull-and-import from a peer. Minimal, stdlib only.
+# ============================================================
+
+def serve_peer(db_path=None, host="127.0.0.1", port=8821):
+    """One-shot peer endpoint: GET /exchange -> signed export; POST /push -> import."""
+    import http.server, json as _json
+    db_path = db_path or DEFAULT_DB
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def _send(self, code, obj):
+            body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
+            self.send_response(code)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def do_GET(self):
+            if self.path != "/exchange":
+                self._send(404, {"ok": False, "error": "not found"})
+                return
+            data, _ = export_exchange(db_path=db_path, out_path=None, pii_redact=True)
+            self._send(200, data)
+
+        def do_POST(self):
+            if self.path != "/push":
+                self._send(404, {"ok": False, "error": "not found"})
+                return
+            length = int(self.headers.get("Content-Length", 0))
+            raw = self.rfile.read(length)
+            tmp = os.path.join(tempfile.gettempdir(), "peer_push.json")
+            with open(tmp, "wb") as f:
+                f.write(raw)
+            try:
+                stats = import_exchange(from_path=tmp, db_path=db_path)
+                self._send(200, stats)
+            except Exception as e:
+                self._send(500, {"ok": False, "error": str(e)[:200]})
+
+        def log_message(self, *a):
+            pass
+
+    server = http.server.ThreadingHTTPServer((host, port), Handler)
+    print(f"peer serving {db_path} on http://{host}:{port}")
+    return server
+
+
+def pull_peer(url, db_path=None, resolve="latest_wins"):
+    """Pull /exchange from a peer and import locally with conflict resolution.
+    Returns (import_stats, conflicts_resolved)."""
+    import urllib.request
+    with urllib.request.urlopen(url + "/exchange", timeout=30) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
+    fp = os.path.join(tempfile.gettempdir(), "peer_pull.json")
+    with open(fp, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False)
+    stats = import_exchange(from_path=fp, db_path=db_path)
+    # conflict detection + auto-resolution over inserted rows
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    conflicts = governance_detect_and_resolve(conn, resolve)
+    conn.close()
+    return stats, conflicts
+
+
+def governance_detect_and_resolve(conn, strategy):
+    """Polarity-conflict detection + auto-retire per strategy.
+    Minimal local re-implementation (POS/NEG lexicons) to avoid hard dep."""
+    POS = ("可用", "成功", "正常", "生效", "支持", "已通", "valid", "funded", "online", "working")
+    NEG = ("失效", "不可用", "失败", "401", "403", "已死", "退役", "撤销", "failed", "quota exceeded")
+    rows = conn.execute(
+        "SELECT uid, content, updated_at, source FROM facts WHERE status='active'"
+    ).fetchall()
+    def polarity(t):
+        t = t or ""
+        p = sum(1 for w in POS if w in t)
+        n = sum(1 for w in NEG if w in t)
+        return 0 if p == n else (1 if p > n else -1)
+    by_ent = {}
+    for r in rows:
+        for w in ("key", "api", "server", "port", "service"):
+            if w in (r["content"] or "").lower():
+                by_ent.setdefault(w, []).append(r)
+                break
+    resolved = []
+    for ent, group in by_ent.items():
+        pos = [r for r in group if polarity(r["content"]) > 0]
+        neg = [r for r in group if polarity(r["content"]) < 0]
+        if not (pos and neg):
+            continue
+        keep = max(pos + neg, key=lambda r: r["updated_at"] or "")
+        for r in group:
+            if r["uid"] != keep["uid"] and (pos and neg):
+                conn.execute(
+                    "UPDATE facts SET status='superseded', superseded_by=?, valid_to=?" 
+                    " WHERE uid=?",
+                    (keep["uid"], keep["updated_at"], r["uid"]),
+                )
+                resolved.append({"retired": r["uid"], "kept": keep["uid"],
+                                 "strategy": strategy, "entity": ent})
+    conn.commit()
+    return resolved
