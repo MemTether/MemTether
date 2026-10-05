@@ -1030,7 +1030,7 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
             _fts_tokens = [q.strip()]
         _fts_scores = {}
         for _tok in _fts_tokens:
-            _fts_q = '"' + _tok + '"'
+            _fts_q = '"' + _tok.replace('"', '') + '"'  # P7: strip embedded quotes
             try:
                 _fts_rows = _fts_db.execute(
                     "SELECT uid, bm25(facts_fts) AS score FROM facts_fts WHERE facts_fts MATCH ? ORDER BY score LIMIT 20",

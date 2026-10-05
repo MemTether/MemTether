@@ -36,3 +36,7 @@ MemTether 会在本机保存**长期记忆**，其中可能包含：
 
 - 72 小时内确认收到
 - 确认后尽快给出修复或缓解方案（原型阶段以说明风险为主）
+
+## CORS
+
+CORS `allow_origins=["*"]` by default (localhost dashboards). When `MEMTETHER_API_KEY` is set, allowed origins are restricted to none (same-origin only) - cross-origin authenticated requests are rejected by the browser before the API key is evaluated.

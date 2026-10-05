@@ -18,10 +18,14 @@ from pydantic import BaseModel, Field
 app = FastAPI(title="MemTether API", description="Cross-client AI memory hub", version="0.1.0a19")
 
 from fastapi.middleware.cors import CORSMiddleware
+_API_KEY_ENV = os.environ.get("MEMTETHER_API_KEY", "").strip()
+# P7 (2026-10-05): wildcard CORS is fine for localhost-only use, but a keyed
+# deployment should not accept authenticated requests from any origin.
+_ALLOW_ORIGINS = ["*"] if not _API_KEY_ENV else []
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, restrict this
-    allow_credentials=True,
+    allow_origins=_ALLOW_ORIGINS,
+    allow_credentials=bool(_ALLOW_ORIGINS),
     allow_methods=["*"],
     allow_headers=["*"],
 )

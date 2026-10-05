@@ -1,3 +1,19 @@
+## [0.1.0a26] - 2026-10-05
+
+### Fixed (audit round 7 — promised-vs-actual sweep)
+- **WAL actually enabled**: README/SECURITY claimed "SQLite WAL mode" since a1; journal_mode was `delete` (SQLite default) — concurrent readers hit "database is locked" during writes, in the very multi-client scenario the project exists for. init_db now sets `PRAGMA journal_mode=WAL` (persistent) + `busy_timeout=8000`. Verified: reader succeeds during an open write transaction.
+- FTS5 MATCH hardening: embedded double-quotes in user queries no longer produce syntax errors that silently kill the BM25 path per query (quotes stripped per token).
+- CORS: wildcard origins retained for keyless localhost use; when MEMTETHER_API_KEY is set, allowed origins are restricted (same-origin only). SECURITY.md gained a CORS section.
+- install.ps1 `-Home` now persists MEMTETHER_HOME (setx) — was process-only, so later CLI runs silently disagreed about the data directory; misleading ~/.memtether default message corrected.
+- Docker: compose default command referenced mem.py (removed in a20) — now runs the API server; .dockerignore keeps dev junk out of the build context.
+- Shipped user-facing instructions referenced removed module: `python mem.py search` replaced with `memtether search` in gateway.py hints, mcp_server tool description, INSTALL.md.
+
+### Verified
+- journal_mode=wal; read-during-write succeeds
+- FTS queries with embedded quotes no longer raise (covered by except + quote strip)
+- keyed CORS: cross-origin requests rejected pre-key
+- pytest 30/30; check_packaging rc=0
+
 ## [0.1.0a25] - 2026-10-05
 
 ### Fixed (audit round 6 — installer/Docker coherence + shipped broken instructions)

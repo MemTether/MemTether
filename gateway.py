@@ -392,6 +392,15 @@ def _ensure_columns(conn):
 
 def init_db():
     conn = get_conn()
+    # P7 (2026-10-05): multi-client pitch requires WAL + sane busy_timeout.
+    # README/SECURITY claimed WAL; reality was journal_mode=delete with a 5s
+    # busy timeout — concurrent readers hit "database is locked" under any
+    # sustained write. WAL is persistent; busy_timeout is per-connection.
+    try:
+        conn.execute('PRAGMA journal_mode=WAL')
+        conn.execute('PRAGMA busy_timeout=8000')
+    except Exception:
+        pass
     conn.executescript(SCHEMA)
     _ensure_columns(conn)
     conn.commit()
