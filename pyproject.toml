@@ -30,7 +30,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "memtether"
-version = "0.1.0a19"
+version = "0.1.0a20"
 description = "Cross-client memory hub for AI agents — one physical memory, many clients"
 readme = "README.md"
 license = {text = "Apache-2.0"}
@@ -107,6 +107,7 @@ py-modules = [
     "rerank",
     "tether_connect",
     "tool_audit",
+    "memtether_pipeline",
     "zep_exchange",
 ]
 

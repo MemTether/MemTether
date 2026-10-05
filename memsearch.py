@@ -28,6 +28,14 @@ HUB = os.path.dirname(os.path.abspath(__file__))
 DB = os.environ.get('MEM_DB') or os.path.join(HUB, 'memory.db')
 if not os.path.isabs(DB):
     DB = os.path.join(HUB, DB)
+
+# P0-3 (2026-10-05): scope isolation at query layer.
+# Default: private/restricted facts are excluded from retrieval.
+# MEM_SCOPE=all bypasses (for owner tooling). Query-layer isolation, NOT encryption.
+def _scope_filter():
+    if (os.environ.get('MEM_SCOPE') or '').strip().lower() == 'all':
+        return ''
+    return " AND scope NOT IN ('private','restricted')"
 # 向量库必须与真源库**同步切换**：切库后默认落到"新库同目录/mem0_store"。
 #   该目录不存在时语义路优雅降级（见 load_index 的 isdir 判断），
 #   关键词/字面匹配路照常工作 —— 演示库因此无需下载 543MB 本地模型即可跑。
@@ -351,7 +359,7 @@ def verify_active_consistency():
         conn = sqlite3.connect(DB)
         conn.row_factory = sqlite3.Row
         frows = conn.execute(
-            "SELECT uid, content, type, source, scope FROM facts WHERE status='active'").fetchall()
+            "SELECT uid, content, type, source, scope FROM facts WHERE status='active'" + _scope_filter()).fetchall()
         try:
             arows = conn.execute("SELECT * FROM tool_assets WHERE status='active'").fetchall()
         except Exception:
@@ -528,7 +536,7 @@ def rebuild_vector_index(verbose=True, reclaim=True, reuse=False):
     conn = sqlite3.connect(DB)
     conn.row_factory = sqlite3.Row
     rows = conn.execute(
-        "SELECT uid, content, type, source, scope FROM facts WHERE status='active'").fetchall()
+        "SELECT uid, content, type, source, scope FROM facts WHERE status='active'" + _scope_filter()).fetchall()
     try:
         arows = conn.execute(
             "SELECT * FROM tool_assets WHERE status='active'").fetchall()
@@ -893,7 +901,7 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
     #   不加这一列，加权就只能全用默认 0.5，升级等于空转。
     active = {r['uid']: dict(r) for r in conn.execute(
         "SELECT uid, content, type, source, scope, updated_at, q_value, tags, valid_to, superseded_by"
-        " FROM facts WHERE status='active'").fetchall()}
+        " FROM facts WHERE status='active'" + _scope_filter()).fetchall()}
     # ★2026-09-15：资产一并入候选池（kind='tool'），否则「XX装在哪」永远查不到
     assets = {}
     try:
@@ -991,9 +999,13 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
     #     trigram 分词器对中英文都能命中；facts_fts 由 gateway.py remember/correct/retire 增量维护。
     #     FTS5 bm25() 分数越负越相关（是负对数似然），取 abs 后排序。
     bm25_rank = {}
-    try:
+    # P0-1 (2026-10-05): skip FTS for in-memory DBs (no persistent facts_fts there)
+    if DB == ':memory:' or str(DB).endswith('::memory::'):
+        bm25_rank = {}
+    else:
+      try:
         import sqlite3 as _sq3
-        _fts_db = _sq3.connect(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'memory.db'))
+        _fts_db = _sq3.connect(DB)  # P0-1: use module-level DB (MEM_DB-aware), not __file__ dir
         _fts_db.row_factory = _sq3.Row
         # FTS5 trigram: 把查询按空格拆成 token，逐个匹配再合并分数
         # trigram 要求每个 token >= 3 字符；过短的 token 退回整句查询
@@ -1016,7 +1028,7 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
             _fts_sorted = sorted(_fts_scores.items(), key=lambda x: x[1])
             bm25_rank = {uid: i for i, (uid, _) in enumerate(_fts_sorted)}
         _fts_db.close()
-    except Exception as _fts_e:
+      except Exception as _fts_e:
         if not getattr(search_hybrid, '_warned_fts', False):
             search_hybrid._warned_fts = True
             print('[warn] FTS5 路失败（不影响其他路）:', str(_fts_e)[:80], file=sys.stderr)

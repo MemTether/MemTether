@@ -26,6 +26,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# P0-5 (2026-10-05): optional API key auth - enforced only when MEMTETHER_API_KEY is set.
+# Docs previously claimed this existed; it did not. Now it does.
+from fastapi import Request as _Req
+_API_KEY = os.environ.get("MEMTETHER_API_KEY", "").strip()
+
+if _API_KEY:
+    from starlette.middleware.base import BaseHTTPMiddleware
+    class _ApiKeyMiddleware(BaseHTTPMiddleware):
+        async def dispatch(self, request, call_next):
+            if request.url.path == '/health':
+                return await call_next(request)
+            if request.headers.get('authorization', '') != 'Bearer ' + _API_KEY:
+                from fastapi.responses import JSONResponse
+                return JSONResponse({'ok': False, 'error': 'unauthorized'}, status_code=401)
+            return await call_next(request)
+    app.add_middleware(_ApiKeyMiddleware)
+
 
 class RememberRequest(BaseModel):
     content: str = Field(..., min_length=1)

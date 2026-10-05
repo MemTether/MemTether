@@ -520,6 +520,18 @@ def remember(content, type='fact', source=DEFAULT_SOURCE, scope='shared', subjec
                 got = col.get(ids=[did])
                 if not got['documents']:
                     continue
+                # P1-2 (2026-10-05): ghost-vector guard.
+                # Vector store can outlive its facts DB (test isolation,
+                # supersede race). If uid is not an active row in THIS facts
+                # DB, the hit is a ghost - purge it and write the new fact.
+                row_ok = conn.execute(
+                "SELECT 1 FROM facts WHERE uid=? AND status='active'", (did,)).fetchone()
+                if not row_ok:
+                    try:
+                        col.delete(ids=[did])
+                    except Exception:
+                        pass
+                    continue
                 doc = got['documents'][0]
                 if _dl.SequenceMatcher(None, content, doc).ratio() >= 0.85:
                     conn.execute("UPDATE facts SET updated_at=? WHERE uid=?", (now(), did))

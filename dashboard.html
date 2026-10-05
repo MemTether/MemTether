@@ -155,7 +155,7 @@ async function doList() {
     if (Array.isArray(results)) {
       for (const item of results) {
         if (typeof item === 'object' && item.content) {
-          html += '<div class="result-item"><div class="src">[' + escapeHtml(item.source || '?') + '] ' + (item.type || '') + '</div><div class="content">' + item.content.substring(0, 200) + '</div></div>';
+          html += '<div class="result-item"><div class="src">[' + escapeHtml(item.source || '?') + '] ' + escapeHtml(item.type || '') + '</div><div class="content">' + escapeHtml((item.content || '').substring(0, 200)) + '</div></div>';
         }
       }
     }
@@ -179,7 +179,7 @@ async function doRetire(uid) { if (!uid) return; try { const r = await fetch(api
       const content = (f.content || '').substring(0, 150);
       const ts = f.recorded_at || '';
       const arrow = i < chain.length - 1 ? '<div style="text-align:center;color:var(--muted);font-size:0.8em;">↓ superseded_by</div>' : '';
-      html += '<div class="result-item"><div class="src">' + status + ' &nbsp; ' + f.uid.substring(0,25) + '… &nbsp; ' + ts + '</div><div class="content">' + escapeHtml(content) + '</div></div>' + arrow;
+      html += '<div class="result-item"><div class="src">' + status + ' &nbsp; ' + escapeHtml(f.uid.substring(0,25)) + '… &nbsp; ' + escapeHtml(ts) + '</div><div class="content">' + escapeHtml(content) + '</div></div>' + arrow;
     }
     el.innerHTML = html;
   } catch(e) { el.innerHTML = '<span class="err">' + e.message + '</span>'; }

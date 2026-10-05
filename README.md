@@ -218,7 +218,7 @@ memtether dashboard                    # Web UI
 
 | Test | Result |
 |---|---|
-| pytest | 31/31 |
+| pytest | 30/30 (CI runs full tests/ directory) |
 | hard_bench | 62/62 |
 | e2e_verify | 13/13 |
 | refuse_bench | 26/26 |
@@ -244,7 +244,7 @@ memtether dashboard                    # Web UI
 2. DSH deep customizations (`cordis.patch.yml`) cannot be safely rewritten — use `plan` to preview
 3. Semantic search requires optional deps (`chromadb`, `onnxruntime`) — without them, degrades to keyword search
 4. Windows-first. macOS/Linux should work but not fully tested
-5. Exchange adapters for mem0/zep/graphiti are experimental — they require the corresponding library installed
+5. Exchange adapters for mem0/zep are experimental — they require the corresponding library installed
 
 ---
 

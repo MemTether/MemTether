@@ -4,7 +4,7 @@ import os, sys, pytest
 from unittest.mock import patch, MagicMock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-os.environ["MEM_DB"] = ":memory:"
+os.environ["MEM_DB"] = os.path.join(__import__('tempfile').mkdtemp(prefix='mt_api_test_'), 'test.db')  # P1-2: file DB (was :memory:, leaked env broke other tests)
 
 try:
     from fastapi.testclient import TestClient

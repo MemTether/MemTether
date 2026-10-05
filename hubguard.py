@@ -69,17 +69,29 @@ _DB_CACHE = {}
 # For pip users: MEM_DB env var or default memory.db in package dir
 
 def db_path(explicit=None):
-    """Resolve DB path: explicit > MEM_DB env > package-dir/memory.db"""
+    """Resolve DB path: explicit > MEM_DB env > package-dir/memory.db.
+    P1-2 (2026-10-05): follow a re-pointed gateway.DB (test harnesses patch it
+    after import; without this the wrapper locked a different file than the write
+    went to).
+    """
     import os as _os
     if explicit:
         return explicit
+    gw = _os.sys.modules.get('gateway')
+    gw_db = getattr(gw, 'DB', None) if gw is not None else None
+    if gw_db and gw_db != ':memory:' and _os.path.isabs(str(gw_db)) and _os.path.isfile(str(gw_db)):
+        return str(gw_db)
     env = _os.environ.get('MEM_DB')
     if env:
         return env
     return _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), 'memory.db')
 
 def lock_path(db=None):
-    return db_path(db) + '.lock'
+    p = db_path(db)
+    # P1-2 (2026-10-05): in-memory DBs cannot take a file lock - skip.
+    if p == ':memory:':
+        return None
+    return p + '.lock'
 
 def holder_path(lp):
     return lp + '.holder'
@@ -216,6 +228,8 @@ def _rlock_for(lp):
 def lock_acquire(timeout=None, agent=None, purpose='', db=None):
     """拿锁。同进程同线程可重入（depth 计数），同进程不同线程串行，跨进程靠 OS 锁。"""
     lp = lock_path(db)
+    if lp is None:  # P1-2: :memory: has no file lock
+        return None
     if timeout is None:
         timeout = float(os.environ.get('MEM_LOCK_TIMEOUT', '120'))
     agent = agent or os.environ.get('MEM_AGENT') or 'unknown'
@@ -312,6 +326,8 @@ def lock_status(db=None):
       `git status` 从 `M gateway.py` 变成 `M gateway.py` + `?? memory.db.hub.lock`）。
     """
     lp = lock_path(db)
+    if lp is None:  # P1-2: :memory: has no lock file
+        return {'path': None, 'exists': False, 'held': False, 'holder': None, 'stale_holder': False}
     out = {'path': lp, 'exists': os.path.exists(lp), 'held': False,
            'holder': read_holder(lp), 'stale_holder': False}
     if not out['exists']:

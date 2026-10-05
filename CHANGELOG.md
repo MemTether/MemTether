@@ -1,3 +1,22 @@
+## [0.1.0a20] - 2026-10-05
+
+### Fixed (security audit round 2 — all items verified by test)
+- FTS5 path resolved DB correctly in pip installs (was hardcoded to package dir; silently broke BM25 in site-packages) — now MEM_DB-aware; :memory: DBs skip FTS
+- Ghost-vector guard in near-dup dedup: remember() no longer returns a stale uid when the vector store outlives its facts DB; ghosts purged (root cause of 2 flaky tests)
+- Dashboard XSS (last instance): memory list escapes content/type; audit view escapes uid/timestamp
+- API key auth actually implemented (MEMTETHER_API_KEY; docs previously claimed it existed): Bearer middleware, /health open, else 401
+- scope isolation real: private/restricted excluded from retrieval by default; MEM_SCOPE=all bypass; documented as query-layer (not encryption)
+- memtether_pipeline shipped: OWASP guard rules import in clean pip install
+- CI runs full tests/ dir (was 2 of 7 files); 30 passed incl. new exchange roundtrip test (replaces allow_module_level skip)
+- selfcheck C07 regex matches bracketless CHANGELOG headings
+- hubguard: file-lock skipped for :memory:; db_path follows re-pointed gateway.DB
+- README: pytest number corrected (30/30), graphiti ref removed; SECURITY.md scope matches implementation
+
+### Verified
+- pytest 30/30 single-process (was 2 failed)
+- check_packaging rc=0 (19 root modules)
+- selfcheck 11/11 PASS rc=0
+
 ## 0.1.0a19 (2026-10-04)
 
 ### Added
