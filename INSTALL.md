@@ -65,7 +65,7 @@ pip install memtether
 生产环境按脚本路径直接调用），所以在仓库根就能跑：
 
 ```bash
-python mem.py search "关键词"
+memtether search "关键词"
 python gateway.py remember "结论：……" --type experience --source my_agent
 ```
 

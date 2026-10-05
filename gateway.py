@@ -133,7 +133,7 @@ HUB = os.path.dirname(os.path.abspath(__file__))
 # ★真源库路径可被 MEM_DB 覆盖（默认仍是 HUB/memory.db，不设环境变量时行为完全不变）。
 #   用途：仓库不发布真实 memory.db（含真名/学号/本机路径/密钥，见 .gitignore），
 #   但开源版需要「clone 下来就能跑」——指向合成演示库即可：
-#       MEM_DB=demo/memory_demo.db python mem.py search "演示查询"
+#       MEM_DB=demo/memory_demo.db memtether search "演示查询"
 #   演示库由 scripts/make_demo_db.py 生成（固定随机种子，逐字节可复现，零真实串）。
 # P4 (2026-10-05): single source of truth for default DB path.
 # Prior state had THREE divergent defaults (CLI ~/.memtether, engine package-dir,
@@ -1292,7 +1292,7 @@ def rebuild():
             '<!-- 真源：%s；由 gateway.py rebuild 生成，勿手改 -->' % os.path.join(HUB, 'memory.db'),
             '',
             '## 怎么用',
-            '- 取全文：cd %s && python mem.py search "<关键词>"' % HUB.replace('\\', '/'),
+            '- 取全文：cd %s && memtether search "<关键词>"' % HUB.replace('\\', '/'),
             '- 写记忆：python gateway.py remember "<内容>" --type fact|decision|incident|experience',
             '- 禁止直接改本文件与 sink.json，一律走 gateway.py。',
             '- 下全称否定结论前先全盘搜索；动手前可用 resolve_task 取工具配方。',
@@ -1342,11 +1342,11 @@ def rebuild():
 
         #    🔴 2026-09-14 再修：注入侧按体积截断，一条动辄 1500 字的"巨型事实"会把预算吃光
         #       （实测前 8 条就把额度用完，其余全被砍）。故对单条做软截断到 700 字，
-        #       让同样预算能覆盖 3~4 倍的**不同**记忆。全文仍在 memory.db，用 mem.py search 可取回。
+        #       让同样预算能覆盖 3~4 倍的**不同**记忆。全文仍在 memory.db，用 memtether search 可取回。
         #    🔴 2026-09-15 三修：官方 MEMORY.md 槽位是**会话级注入口**，设计容量约 4000 字符。
         #       旧版把 73KB 投影塞进去 → 实测注入时被整体砍到只剩 4 条，且每条都是 700 字残片。
         #       **记得越多反而注入越少**。故改为「导航版」：每条只留首句结论（自含），
-        #       总预算硬守官方限额；全文一律走 mem.py search 按需取回。
+        #       总预算硬守官方限额；全文一律走 memtether search 按需取回。
         import re as _re
         _BUDGET = int(os.environ.get('MEM_PROJ_BUDGET', '3980'))
         #    🔴 2026-09-15 四修：CAP=60 实测 43/43 全部「不以句号结尾」——首句普遍超过 60 字，
@@ -1393,7 +1393,7 @@ def rebuild():
 
         # ★2026-09-16 七修（★资产也要封顶）：实测 66 条资产里有 20 条带 ★，
         #   它们走 _prio 通道**不受任何上限约束**，一口气吃掉约 1000 字符 ——
-        #   比事实区 15 条的全部篇幅还多。而资产的取用成本极低（一条 mem.py search 就取到），
+        #   比事实区 15 条的全部篇幅还多。而资产的取用成本极低（一条 memtether search 就取到），
         #   把 4000 字符槽位的四分之一交给"软件安装路径"是本末倒置。
         #   故：★资产只保前 N 条（默认 6），其余按 name 序落回 _rest 一起竞争剩余名额。
         _asset_prio_max = int(os.environ.get('MEM_PROJ_ASSET_PRIO_MAX', '6'))
@@ -1413,7 +1413,7 @@ def rebuild():
         _room = max(0, _room - _FOOTER_RESERVE)
 
         # ★2026-09-16 七修（资产区封顶）：实测资产区 19 条吃掉约 855 字符 ≈ 10 条事实的额度，
-        #   而资产的取用成本极低（要用时一条 mem.py search 就取到），信息密度远低于经验类事实。
+        #   而资产的取用成本极低（要用时一条 memtether search 就取到），信息密度远低于经验类事实。
         #   故给非优先资产**预留固定额度**，把省下的预算让给事实区。
         #   （此处必须"预留"而非"事后限制"：填充顺序是 事实 → 非优先资产，
         #     若不预留，事实填完时 _room 已耗尽，省下的空间只会变成投影尾部空白。）
@@ -1549,7 +1549,7 @@ def rebuild():
                 #   计数必须用 _rest_in，不能用 len(_extra)（差一，2026-09-16 实测踩到：
                 #   告警报"已进 13 条"而实际只有 12 条）。
                 _dropped_assets = len(_rest) - _rest_in
-                _extra.append('- …另 %d 条资产见网关库（mem.py search 或 tool_audit.py audit）'
+                _extra.append('- …另 %d 条资产见网关库（memtether search 或 tool_audit.py audit）'
                               % _dropped_assets)
                 break
             _extra.append(_line)
@@ -1560,7 +1560,7 @@ def rebuild():
         mem_lines.extend(_tail)
         mem_lines.append('')
         mem_lines.append('> 导航版：已列 %d 条 / active 共 %d 条（受官方 4000 字符槽位硬限，'
-                        '写多会被整体截断）；其余全文用 mem.py search 取。'
+                        '写多会被整体截断）；其余全文用 memtether search 取。'
                         % (_kept, sum(len(v) for v in sink.values())))
         mem_text = '\n'.join(mem_lines)
 

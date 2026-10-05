@@ -1,0 +1,16 @@
+# P6 (2026-10-05): keep dev junk out of the image build context
+_*.py
+_dev/
+dev/
+build/
+dist/
+tests/
+*.db
+*.db-wal
+*.lock
+models/
+hf_space/
+.git/
+.claude-plugin/
+.pytest_cache/
+bench_data/

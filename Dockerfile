@@ -13,7 +13,6 @@ COPY *.py .
 COPY clients/ clients/
 COPY scripts/ scripts/
 COPY integrations/ integrations/
-COPY tests/ tests/
 
 # Install the package
 RUN pip install --no-cache-dir .

@@ -1,3 +1,14 @@
+## [0.1.0a25] - 2026-10-05
+
+### Fixed (audit round 6 — installer/Docker coherence + shipped broken instructions)
+- docker-compose default command ran python mem.py stats — mem.py was removed in a20 cleanup; the compose file referenced a module that no longer exists. Now runs the API server (uvicorn), which is what Docker users actually want.
+- .dockerignore added: dev _*.py junk, _dev/, build/, *.db etc. no longer leak into the image build context on dev machines (COPY *.py is a wildcard).
+- install.ps1: -Home flag now persists MEMTETHER_HOME via setx (was process-only env — later CLI runs silently disagreed); misleading ~/.memtether default messaging corrected.
+- Shipped broken instructions: gateway.py / mcp_server.py tool descriptions / INSTALL.md told users to run python mem.py search — mem.py does not exist in the package. All replaced with memtether search. (CHANGELOG historical entries left as-is.)
+
+### Verified
+- pytest 30/30; no remaining mem.py references in shipped code/usage docs (CHANGELOG history kept)
+
 ## [0.1.0a24] - 2026-10-05
 
 ### Fixed (audit round 5 — auth/dashboard coherence + doc rot)

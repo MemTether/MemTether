@@ -71,8 +71,12 @@ if ($Python) {
     }
 }
 
-if ($Home) { $env:MEMTETHER_HOME = $Home; Write-Ok "数据目录 MEMTETHER_HOME = $Home" }
-else { Write-Ok "数据目录默认 ~/.memtether（MEMTETHER_HOME 未设置）" }
+if ($Home) {
+    $env:MEMTETHER_HOME = $Home
+    setx MEMTETHER_HOME "$Home" | Out-Null   # persist so future CLI/API runs agree
+    Write-Ok "数据目录 MEMTETHER_HOME = $Home（已持久化）"
+}
+else { Write-Ok "数据目录默认由 memtether 统一解析（用户数据目录）" }
 
 # ---------- 1. 装包 ----------
 if ($SkipInstall) {

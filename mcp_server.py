@@ -329,7 +329,7 @@ TOOLS = [
         "name": "search_memory",
         "description": (
             "检索记忆中枢。返回结果是摘要片段，取全文请记下 uid 后再用本工具按关键词细查，"
-            "或直接在 memory_hub 目录执行：python mem.py search \"<关键词>\"。"
+            "或直接在 memory_hub 目录执行：memtether search \"<关键词>\"。"
             "下全称否定结论前必须先搜一次。"
         ),
         "inputSchema": {
