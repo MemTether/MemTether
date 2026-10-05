@@ -1,4 +1,13 @@
-''''## [0.1.0a35] - 2026-10-06
+'''''## [0.1.0a36] - 2026-10-06
+
+### Added - Documentation site (reproduce + Founding 10 challenge)
+
+- docs/site/en/index.html - MemTether landing page with feature comparison table
+- docs/site/en/reproduce.html - Every claim mapped to a reproducible command, with claim-to-evidence status table (Reproducible / Declared-pending-repro)
+- docs/site/en/challenge.html - Founding 10 Challenge: 10 tracks, 14-day honest outcome, Founding Contributor credit
+- README.md: Documentation section linking to reproduce + challenge pages
+
+'## [0.1.0a35] - 2026-10-06
 
 ### Added - D2 governance + gateway functional tests
 

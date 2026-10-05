@@ -22,6 +22,12 @@ mcp-name: io.github.lanbass869-cell/memtether
 
 ---
 
+## Documentation
+
+- [Reproduce MemTether](docs/site/en/reproduce.html) - Every claim has a command
+- [Founding 10 Challenge](docs/site/en/challenge.html) - 10 spots, 14 days, honest outcomes
+- [Live site](https://lanbass869-cell.github.io/MemTether/en/) (when GitHub Pages is enabled)
+
 ## Quick Start
 
 ```bash
