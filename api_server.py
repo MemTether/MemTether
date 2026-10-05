@@ -12,7 +12,7 @@ except Exception:
 os.environ.setdefault("MEM_DB", _DB)
 
 import gateway
-from fastapi import FastAPI, HTTPException
+from fastapi import Request, FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 app = FastAPI(title="MemTether API", description="Cross-client AI memory hub", version="0.1.0a19")
@@ -48,7 +48,7 @@ app.add_middleware(
 
 # P0-5 (2026-10-05): optional API key auth - enforced only when MEMTETHER_API_KEY is set.
 # Docs previously claimed this existed; it did not. Now it does.
-from fastapi import Request as _Req
+from fastapi import Request, Request as _Req
 _API_KEY = os.environ.get("MEMTETHER_API_KEY", "").strip()
 
 if _API_KEY:
@@ -130,7 +130,7 @@ def health():
 
 @app.post("/remember")
 @_limiter.limit("60/minute")
-async def remember(req: RememberRequest):
+async def remember(request: Request, req: RememberRequest):
     import asyncio
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(None, _remember_sync, req)
@@ -141,7 +141,7 @@ def _remember_sync(req):
 
 @app.post("/search")
 @_limiter.limit("60/minute")
-async def search(req: SearchRequest):
+async def search(request: Request, req: SearchRequest):
     """P1 (2026-10-05): async wrapper - runs gateway.search in thread pool
     so the event loop is not blocked by FTS5/vector computation. Compatible
     with async agent frameworks (LangGraph, Flowise, n8n)."""
@@ -178,12 +178,12 @@ def stats():
 
 @app.post("/correct")
 @_limiter.limit("60/minute")
-def correct(req: CorrectRequest):
+def correct(request: Request, req: CorrectRequest):
     return gateway.correct(req.old_uid, req.new_content, req.reason, source=req.source)
 
 @app.post("/retire")
 @_limiter.limit("60/minute")
-def retire(req: RetireRequest):
+def retire(request: Request, req: RetireRequest):
     return gateway.retire(req.uid, req.reason, by_agent=req.source)
 
 @app.get("/list")
