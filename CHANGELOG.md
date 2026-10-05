@@ -1,4 +1,16 @@
-## [0.1.0a31] - 2026-10-05
+'## [0.1.0a32] - 2026-10-05
+
+### Changed - D1 honest absorb wording
+
+- api_server.py /absorb docstring: "Keyword-based absorb (not semantic — LLM embedding absorb is roadmap)"
+- CHANGELOG a19 wording: "semantic absorb endpoint" → "keyword-overlap absorb endpoint"
+
+### Added - D1 memsearch extended tests
+
+- tests/test_memsearch_ext.py: 10 new unit tests covering detect_question_type (counting/temporal), is_generic_garbage (positive + negative), extract_ascii_entities, extract_answer_hints, search_hybrid smoke + empty, compile_packet + build_scaffold smoke
+- Total tests: 52 → 62. Coverage: 20% → 22%.
+
+'## [0.1.0a31] - 2026-10-05
 
 ### Fixed - Round9 real-implementation audit (all P0 bugs fixed)
 
@@ -209,7 +221,7 @@
 ### Added
 - `GET /timeline/{uid}` — supersession chain API (forward evolution: who replaced this fact)
 - Dashboard **记忆审计** card — paste a UID, see the full supersession chain with diff-like status
-- `POST /absorb` — semantic absorb endpoint (keyword-overlap classify: duplicate/update/contradiction/related/new, dry_run default)
+- `POST /absorb` — keyword-overlap absorb endpoint (classify: duplicate/update/contradiction/related/new, dry_run default)
 - `memtether export-md` — export active memories as .md files with YAML frontmatter + manifest.json (portable, greppable, git-able)
 
 ## 0.1.0a18 (2026-10-04)

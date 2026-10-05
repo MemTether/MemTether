@@ -223,7 +223,7 @@ def _polarity(text):
 
 @app.post("/absorb")
 def absorb(req: AbsorbRequest):
-    """Keyword-based absorb: classify incoming fact against existing memories.
+    """Keyword-based absorb (not semantic — LLM embedding absorb is roadmap): classify incoming fact against existing memories.
 
     Returns classification per candidate (duplicate / contradiction / related / new)
     and optionally writes if dry_run=False. Uses gateway.remember + conflict detection.
