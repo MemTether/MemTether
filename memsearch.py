@@ -386,7 +386,18 @@ def verify_active_consistency():
     return out
 
 
+def _chroma_path():
+    """P3-3 (2026-10-05): re-resolve per call so DB re-pointing
+    (memtether init --force, test harnesses) moves the store with it,
+    instead of leaving vectors in the import-time directory."""
+    cp = os.environ.get('MEM_STORE')
+    if cp:
+        return cp if os.path.isabs(cp) else os.path.join(HUB, cp)
+    return os.path.join(os.path.dirname(DB), 'mem0_store')
+
 def _client():
+    global CHROMA_PATH
+    CHROMA_PATH = _chroma_path()
     _guard_paths()
     import chromadb
     return chromadb.PersistentClient(path=CHROMA_PATH)

@@ -221,7 +221,7 @@ memtether dashboard                    # Web UI
 | pytest | 30/30 (CI runs full tests/ directory) |
 | hard_bench | 62/62 |
 | e2e_verify | 13/13 |
-| refuse_bench | 26/26 |
+| refuse_bench | 26/26 (wordform gate; 09-25 calibration; known blind spot: same-form-different-attribute) |
 | check_packaging | ✅ |
 
 </details>

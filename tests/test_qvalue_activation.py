@@ -31,11 +31,15 @@ class TestQValue:
         os.unlink(db_path)
         self._old_db = gateway.DB
         gateway.DB = db_path
+        import hubguard as _hg
+        _hg.set_test_db(db_path)
         gateway.init_db()
         return db_path
 
     def _teardown_db(self, db_path):
         gateway.DB = self._old_db
+        import hubguard as _hg
+        _hg.clear_test_db()
         try:
             os.unlink(db_path)
         except:

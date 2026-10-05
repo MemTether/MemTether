@@ -68,6 +68,21 @@ _DB_CACHE = {}
 # --- DB path discovery (moved to hubguard_local.py for local development) ---
 # For pip users: MEM_DB env var or default memory.db in package dir
 
+def set_test_db(path):
+    """P3-2 (2026-10-05): explicit test override (replaces implicit
+    follow-gateway sniffing, which silently overrode MEM_DB env).
+    Call from test _setup_db; cleared automatically by clear_test_db."""
+    global _TEST_DB
+    _TEST_DB = str(path)
+    return _TEST_DB
+
+def clear_test_db():
+    global _TEST_DB
+    _TEST_DB = None
+
+
+_TEST_DB = None
+
 def db_path(explicit=None):
     """Resolve DB path: explicit > MEM_DB env > package-dir/memory.db.
     P1-2 (2026-10-05): follow a re-pointed gateway.DB (test harnesses patch it
@@ -77,10 +92,9 @@ def db_path(explicit=None):
     import os as _os
     if explicit:
         return explicit
-    gw = _os.sys.modules.get('gateway')
-    gw_db = getattr(gw, 'DB', None) if gw is not None else None
-    if gw_db and gw_db != ':memory:' and _os.path.isabs(str(gw_db)) and _os.path.isfile(str(gw_db)):
-        return str(gw_db)
+    if _TEST_DB:
+        return _TEST_DB
+
     env = _os.environ.get('MEM_DB')
     if env:
         return env

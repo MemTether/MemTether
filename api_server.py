@@ -146,7 +146,7 @@ def list_memories(limit: int = 20):
     gateway.init_db()
     conn = gateway.get_conn()
     try:
-        rows = conn.execute("SELECT uid, type, content, source, updated_at FROM facts WHERE status='active' ORDER BY updated_at DESC LIMIT ?", (limit,)).fetchall()
+        rows = conn.execute("SELECT uid, type, content, source, updated_at FROM facts WHERE status='active' AND scope NOT IN ('private','restricted') ORDER BY updated_at DESC LIMIT ?", (limit,)).fetchall()
         return {"ok": True, "count": len(rows), "items": [dict(r) for r in rows]}
     finally:
         conn.close()
@@ -162,11 +162,18 @@ def timeline_ep(uid: str):
 
 
 # P2-5 (2026-10-05): reuse governance polarity lexicons for absorb.
+try:
+    import governance as _gov
+    _NEG_LEX = _gov._NEG
+    _POS_LEX = _gov._POS
+except Exception:  # governance optional at API layer
+    _NEG_LEX, _POS_LEX = (), ()
+
+
 def _polarity(text):
-    import governance
     t = (text or '').lower()
-    n = sum(1 for w in governance._NEG if w.lower() in t)
-    p = sum(1 for w in governance._POS if w.lower() in t)
+    n = sum(1 for w in _NEG_LEX if w.lower() in t)
+    p = sum(1 for w in _POS_LEX if w.lower() in t)
     return p - n  # <0 means negative-dominated
 
 @app.post("/absorb")
@@ -184,7 +191,7 @@ def absorb(req: AbsorbRequest):
         # find top candidates by simple keyword overlap (L0 absorb, no LLM)
         words = set(req.content.lower().split())
         rows = conn.execute(
-            "SELECT uid, content, type FROM facts WHERE status='active' ORDER BY updated_at DESC LIMIT 200"
+            "SELECT uid, content, type FROM facts WHERE status='active' AND scope NOT IN ('private','restricted') ORDER BY updated_at DESC LIMIT 200"
         ).fetchall()
         candidates = []
         for r in rows:

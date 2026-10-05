@@ -48,7 +48,19 @@ def default_db():
         cand = os.path.join(hub, 'memory.db')
         if os.path.exists(cand):
             return cand
-    return os.path.join(HERE, 'memory.db')
+    # P3-4 (2026-10-05): pip users must NOT write into site-packages
+    # (upgrades would wipe memory). Use a per-user data dir.
+    if os.environ.get('MEMTETHER_IN_PKG'):
+        return os.path.join(HERE, 'memory.db')
+    base = os.environ.get('LOCALAPPDATA') or os.path.expanduser('~/.local/share')
+    user_dir = os.path.join(base, 'memtether')
+    cand = os.path.join(user_dir, 'memory.db')
+    if os.path.exists(cand):
+        return cand
+    # dev checkout (repo root has .git) keeps old behavior
+    if os.path.isdir(os.path.join(HERE, '.git')):
+        return os.path.join(HERE, 'memory.db')
+    return cand
 
 
 def default_store(db_path=None):

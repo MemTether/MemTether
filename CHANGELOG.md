@@ -1,3 +1,20 @@
+## [0.1.0a22] - 2026-10-05
+
+### Fixed (audit round 3 — residual leaks from a20/a21 fixes)
+- /list and /absorb now exclude private/restricted scope (search was fixed in a20, these two endpoints were not — cross-client private read via dashboard or absorb)
+- hubguard db_path: implicit follow-gateway sniffing removed (it silently overrode MEM_DB env); explicit set_test_db()/clear_test_db() marker instead — env precedence restored
+- vector store path re-resolves per client call: DB re-pointing (init --force, tests) moves mem0_store with it instead of leaving vectors in the import-time directory
+- default data dir for pip users is now %LOCALAPPDATA%/memtether (site-packages installs would lose memory on upgrade); dev checkouts keep repo-root behavior; MEMTETHER_IN_PKG=1 forces old behavior
+- stale 86KB test-residue memory.db removed from repo root (was silently picked up as fallback DB on this machine)
+- absorb _polarity: governance lexicons imported once at module level (was per-call import)
+- README refuse_bench entry carries calibration + known-blind-spot framing
+
+### Verified
+- /list and /absorb leak tests: False/False
+- pip-like default lands in LOCALAPPDATA; dev fallback unchanged
+- chroma follows re-pointed DB; env/test-marker precedence correct in all 3 states
+- pytest 30/30; check_packaging rc=0
+
 ## [0.1.0a21] - 2026-10-05
 
 ### Cleanup (audit plan P2 remainder)
