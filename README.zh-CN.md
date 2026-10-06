@@ -25,6 +25,18 @@ pip install memtether
 memtether init    # 创建数据库 + 自动连接所有检测到的 AI 客户端
 ```
 
+<details>
+<summary>可选：本地语义检索（不联网、不付费）</summary>
+
+```bash
+pip install "memtether[vector]"          # 1. 依赖（chromadb、onnxruntime）
+memtether download-models                # 2. 权重（bge-m3-int8 约560MB；--profile bge-small-zh 约46MB）
+python -m memsearch --rebuild            # 3. 建向量索引
+```
+
+不装模型时检索自动降级为关键词 + BM25，功能不受影响。
+</details>
+
 就这样。MemTether 自动检测你机器上的 Claude Code、Cursor、Windsurf、Codex、Gemini CLI 等 23 个客户端，写入 MCP 配置并验证。
 
 ---

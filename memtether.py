@@ -43,15 +43,18 @@ if _HERE not in sys.path:
 # importlib.metadata reflects what pip actually installed (they can diverge
 # in a repo checkout, which is why __version__ drifted a30 vs a40 for 9 releases).
 try:
-    from importlib.metadata import version as _meta_version
-    __version__ = _meta_version("memtether")
-except Exception:
-    try:
+    # repo checkout: pyproject.toml sits next to this file and is the freshest
+    # truth; installed wheel: no pyproject next to it → importlib.metadata.
+    _pp = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pyproject.toml")
+    if os.path.exists(_pp):
         import tomllib
-        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "pyproject.toml"), "rb") as _pf:
+        with open(_pp, "rb") as _pf:
             __version__ = tomllib.load(_pf)["project"]["version"]
-    except Exception:
-        __version__ = "0.0.0.dev0"
+    else:
+        from importlib.metadata import version as _meta_version
+        __version__ = _meta_version("memtether")
+except Exception:
+    __version__ = "0.0.0.dev0"
 
 DATA_DIR = os.environ.get("MEMTETHER_HOME") or os.path.join(
     os.path.expanduser("~"), ".memtether")
@@ -176,6 +179,22 @@ def demo(out=None, force=False, seed=None):
 
 
 # ---------------------------------------------------------------- P4: import
+def _cmd_download_models(args):
+    """Download local embedding models for semantic search (stdlib-only)."""
+    import subprocess
+    here = os.path.dirname(os.path.abspath(__file__))
+    script = os.path.join(here, "scripts", "download_models.py")
+    if not os.path.exists(script):
+        print("❌ scripts/download_models.py not found")
+        return 1
+    cmd = [sys.executable, script, "--profile", args.profile]
+    if args.out:
+        cmd.extend(["--out", args.out])
+    if args.list:
+        cmd.append("--list")
+    return subprocess.run(cmd).returncode
+
+
 def _cmd_import_docs(args):
     """Import a directory of docs (.md/.txt/.py) as memories — cold-start path."""
     import pathlib as _pl
@@ -481,6 +500,12 @@ def main(argv=None):
     sp_dash = sub.add_parser("dashboard", help="Start the web dashboard (API server + browser UI)")
     sp_dash.add_argument("--port", type=int, default=8820, help="Port to run on (default 8820)")
     sp_dash.set_defaults(func=_cmd_dashboard)
+
+    sp_dl = sub.add_parser("download-models", help="Download local embedding models for semantic search (bge-small-zh ~46MB / bge-m3-int8 ~560MB)")
+    sp_dl.add_argument("--profile", default="bge-m3-int8", help="Model profile (bge-small-zh or bge-m3-int8)")
+    sp_dl.add_argument("--out", default=None, help="Target models dir (default: <repo>/models or MEM_MODELS_DIR)")
+    sp_dl.add_argument("--list", action="store_true", help="List available profiles")
+    sp_dl.set_defaults(func=_cmd_download_models)
 
     sp_import = sub.add_parser("import-docs", help="Import a directory of docs as memories (cold-start)")
     sp_import.add_argument("path", help="Directory to scan")

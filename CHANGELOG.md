@@ -1,3 +1,18 @@
+## [0.1.0a43] - 2026-10-06
+
+### Added - `memtether download-models` (closes the semantic-search gap)
+
+- New stdlib-only downloader (`scripts/download_models.py`, wired as
+  `memtether download-models`): fetches ONNX weights for `bge-m3-int8`
+  (~560 MB, default) or `bge-small-zh` (~46 MB) from huggingface.co with
+  automatic hf-mirror.com fallback, resume support, and layout that matches
+  `embed_local.MODELS` target dirs (end-to-end verified: download → load →
+  encode 512-dim vectors).
+- README/README.zh-CN: honest 3-step semantic install (deps + weights +
+  rebuild) with graceful-degradation note — before this, `[vector]` extra
+  installed deps but there was no documented way to get the weights, so
+  pip users' semantic search silently never worked.
+
 ## [0.1.0a42] - 2026-10-06
 
 ### Fixed - portable paths + dockerignore __init__ regression

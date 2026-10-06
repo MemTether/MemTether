@@ -48,8 +48,11 @@ memtether setup claude-code
 memtether setup cursor
 memtether setup gemini-cli    # run `memtether setup list` for all 23
 
-# With semantic search (local embedding, no cloud)
-pip install "memtether[vector]"
+# With semantic search (local embedding, no cloud):
+pip install "memtether[vector]"          # 1. deps (chromadb, onnxruntime)
+memtether download-models                # 2. weights (bge-m3-int8 ~560MB, or --profile bge-small-zh ~46MB)
+python -m memsearch --rebuild            # 3. build the vector index
+# Skip any of these and search gracefully degrades to keyword + BM25.
 
 # With REST API server + web dashboard
 pip install "memtether[server]"
