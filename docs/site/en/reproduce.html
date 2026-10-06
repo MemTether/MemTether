@@ -97,8 +97,8 @@ pytest tests/ --cov=. --cov-report=term
 <tr><td>WAL mode enabled</td><td><code>sqlite3 memory.db "PRAGMA journal_mode"</code></td><td>✅ Reproducible (a26 fix)</td></tr>
 <tr><td>Tenant isolation</td><td><code>tests/test_tenant.py</code> — cross-tenant 0 leak</td><td>✅ Reproducible</td></tr>
 <tr><td>Rate limit 60/min</td><td><code>tests/test_rate_limit.py</code></td><td>✅ Reproducible</td></tr>
-<tr><td>EAF +13.2pp</td><td>Paired McNemar p=0.008, n=131</td><td>⚠️ Declared, repro pending</td></tr>
-<tr><td>strict 62.6% (500Q)</td><td>Full LongMemEval run</td><td>⚠️ Declared, repro pending</td></tr>
+<tr><td>EAF +19.4pp (500Q)</td><td><code>releases/eaf_artifact_bundle/</code> — 500 per-question records, McNemar p=7.84e-07</td><td>✅ <a href="https://github.com/MemTether/MemTether/releases/download/v0.1.0a43/eaf_artifact_bundle.zip">Artifact bundle</a></td></tr>
+<tr><td>strict 62.6% (500Q baseline)</td><td><code>releases/eaf_artifact_bundle/eaf_500q_pq_final.json</code> — baseline strict per-question</td><td>✅ Same artifact bundle</td></tr>
 </table>
 
 <h2>7. File integrity</h2>

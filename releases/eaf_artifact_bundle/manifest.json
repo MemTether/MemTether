@@ -1,0 +1,24 @@
+{
+  "artifact": "MemTether EAF 500Q Full Run",
+  "date": "2026-10-03 (run) / 2026-10-07 (packaged)",
+  "dataset": "LongMemEval oracle variant, 500 questions",
+  "pipeline": "EAF (Evidence Assembly Framework) = ECO + SSI + AFN",
+  "model": "deepseek-v4-flash via local wb2api pool",
+  "files": {
+    "eaf_500q_checkpoint.json": {
+      "description": "EAF strict results (500/500, 253/334 = 75.7%)",
+      "sha256_prefix": "08dc14433da71b22",
+      "size_bytes": 40050
+    },
+    "eaf_500q_pq_final.json": {
+      "description": "EAF vs baseline paired results (500/500, McNemar p=7.84e-7)",
+      "sha256_prefix": "2e45d6ef1b47df71",
+      "size_bytes": 115794
+    },
+    "eaf_500q_f1_checkpoint.json": {
+      "description": "EAF F1 variant (500/500, 185/334 = 55.4%)",
+      "sha256_prefix": "22bd50a5d1edddaf",
+      "size_bytes": 40050
+    }
+  }
+}
