@@ -4,12 +4,22 @@
 
 # MemTether
 
-\* Engram (arXiv 2606.09900) achieves 83.6% on LongMemEval retrieval but has no governance layer, multi-agent coordination, or source attribution. MemTether combines retrieval quality (EAF +13.2pp paired) with governance. 
+**The only memory hub where corrections don't delete.**
 
-**Your AI agents forget everything. MemTether gives them one shared brain.**
+When an agent corrects a fact, the old value isn't destroyed — it's linked in a
+**supersession chain** you can trace, audit, and roll back. Combined with
+**bi-temporal timestamps** (when facts were true vs when the system learned them)
+and a **portable exchange format** (import/export with integrity hashes),
+MemTether treats agent memory as governed data, not a cache.
 
 One physical SQLite database, shared by every AI client via file-level pointers.
 No cloud. No API fees. No sync daemon. Greppable, git-able, yours.
+
+> *Compared to mem0 (66.6K★), Zep/Graphiti (31.5K★), and agentmemory (29.2K★):
+> those systems either overwrite or delete old values. MemTether's supersession
+> chain preserves the full history with source attribution and Q-Value ranking.*
+> EAF retrieval: 75.7% strict on LongMemEval 500Q (paired delta +19.4pp, McNemar p=7.8e-7).
+> [Artifact bundle](releases/eaf_artifact_bundle/) with per-question records.
 
 [![PyPI](https://img.shields.io/pypi/v/memtether)](https://pypi.org/project/memtether/)
 [![CI](https://github.com/MemTether/MemTether/actions/workflows/ci.yml/badge.svg)](https://github.com/MemTether/MemTether/actions)
@@ -18,7 +28,7 @@ No cloud. No API fees. No sync daemon. Greppable, git-able, yours.
 mcp-name: io.github.lanbass869-cell/memtether
 [![MCP Registry](https://img.shields.io/badge/MCP_Registry-io.github.lanbass869--cell%2Fmemtether-blue)](https://registry.modelcontextprotocol.io)
 
-[**Try in browser**](https://huggingface.co/spaces/lanbass/memtether-demo) · [Install](#quick-start) · [Docs](https://memtether.github.io/MemTether/site/en/) · [Reproduce](https://memtether.github.io/MemTether/site/en/reproduce.html) · [中文文档](README.zh-CN.md)
+[**Project page**](https://huggingface.co/spaces/lanbass/memtether-demo) · [Install](#quick-start) · [Docs](https://memtether.github.io/MemTether/site/en/) · [Reproduce](https://memtether.github.io/MemTether/site/en/reproduce.html) · [中文文档](README.zh-CN.md)
 
 </div>
 

@@ -1,3 +1,21 @@
+## [0.1.0a45] - 2026-10-07
+
+### Changed - Narrative repositioning + community tooling
+
+- **README first-screen**: new positioning "The only memory hub where corrections don't delete" — leads with supersession chain, bi-temporal timestamps, and exchange format instead of "no governance" competitor comparison. Competitor table now includes agentmemory (29.2K stars) with honest positioning.
+- **memtether-js removed**: 0 tests / 0 lockfile Node wrapper was a liability, not an asset. MCP protocol already provides cross-language support.
+- **HF Space claim**: "Try in browser" -> "Project page" (the Space is static HTML, not a live demo).
+- **New**: `scripts/make_jury_report.py` — one-command verification report for reviewers.
+- **New**: `docs/NEW_ADAPTER.md` — 30-minute guide for adding new AI client adapters.
+- **New**: `docs/DEMO_SCRIPT.md` — 3-minute demo walkthrough.
+- **Fixed**: reproduce.html EAF "repro pending" -> done with artifact bundle links. EAF delta corrected to +19.4pp (500Q paired).
+- **Fixed**: memsearch 3 sqlite conn leaks (multi-hop, active-dict, qvalue bump) that locked bench scratch db.
+- **New**: `memtether conflicts --stats/--list/--accept/--discard` governance review CLI.
+- **New**: `tests/test_adapters.py` (9 tests) + `tests/test_no_conn_leak.py` regression.
+- **CI**: removed both continue-on-error; lint + PII roundtrip now gate.
+- **docker-compose**: MEMTETHER_API_KEY passthrough.
+
+Tests: 135 passed, 2 skipped.
 ## [0.1.0a43] - 2026-10-06
 
 ### Added - `memtether download-models` (closes the semantic-search gap)

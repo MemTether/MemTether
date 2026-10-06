@@ -6,12 +6,12 @@
     "url": "https://github.com/MemTether/MemTether",
     "source": "github"
   },
-  "version": "0.1.0a43",
+  "version": "0.1.0a45",
   "packages": [
     {
       "registryType": "pypi",
       "identifier": "memtether",
-      "version": "0.1.0a43",
+      "version": "0.1.0a45",
       "transport": {
         "type": "stdio"
       },
