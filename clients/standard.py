@@ -370,6 +370,11 @@ class ContinueAdapter(JsonAdapter):
 # --------------------------------------------------------------------------
 # OpenAI Codex：TOML，`[mcp_servers.<name>]` 表
 # --------------------------------------------------------------------------
+def _unquote_toml(s):
+    """Unescape a TOML basic string body."""
+    return s.replace('\\"', '"').replace('\\\\', '\\')
+
+
 class CodexAdapter(JsonAdapter):
     """`~/.codex/config.toml` 里的 `[mcp_servers.memory-hub]` 表。
 
@@ -473,7 +478,11 @@ class CodexAdapter(JsonAdapter):
             return None
         except Exception:
             pass
-        # 退化路径：纯文本扫描（够用，因为我们只关心 command / args）
+        # 退化路径：纯文本扫描（Python 3.10 无 tomllib 时的兜底）。
+        # ★2026-10-06 CI 实测：裸扫描把 TOML 基本字符串的 `\\` 保留成字面量，
+        #   `"E:\\hub\\py.exe"` 解析成 'E:\\\\hub\\\\py.exe'，与期望
+        #   'E:\\hub\\py.exe' 判不一致 → 3.10 上原生写法被判 error。必须按
+        #   TOML 规则解 basic string（\\ → \，\" → "）。
         header = "[mcp_servers.%s]" % name
         if header not in text:
             return None
@@ -491,7 +500,13 @@ class CodexAdapter(JsonAdapter):
                 continue
             if "=" in ln:
                 k, _, v = ln.partition("=")
-                out[k.strip()] = v.strip()
+                v = v.strip()
+                if len(v) >= 2 and v[0] == '"' and v[-1] == '"':
+                    v = _unquote_toml(v[1:-1])
+                elif len(v) >= 2 and v[0] == '[' and v[-1] == ']':
+                    import re as _re
+                    v = [_unquote_toml(s) for s in _re.findall(r'"((?:[^"\\]|\\.)*)"', v)]
+                out[k.strip()] = v
         return out or None
 
     def _table_matches(self, existing, spec):
