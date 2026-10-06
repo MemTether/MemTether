@@ -12,7 +12,7 @@
 [![PyPI](https://img.shields.io/pypi/v/memtether)](https://pypi.org/project/memtether/)
 [![CI](https://github.com/MemTether/MemTether/actions/workflows/ci.yml/badge.svg)](https://github.com/MemTether/MemTether/actions)
 
-[**在线试用**](https://huggingface.co/spaces/lanbass/memtether-demo) · [English](README.md)
+[**在线试用**](https://huggingface.co/spaces/lanbass/memtether-demo) · [文档站](https://memtether.github.io/MemTether/site/en/) · [复现指南](https://memtether.github.io/MemTether/site/en/reproduce.html) · [English](README.md)
 
 </div>
 
