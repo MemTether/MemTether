@@ -6,7 +6,7 @@
     "url": "https://github.com/MemTether/MemTether",
     "source": "github"
   },
-  "version": "0.1.0a31",
+  "version": "0.1.0a39",
   "packages": [
     {
       "registryType": "pypi",
