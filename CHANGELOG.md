@@ -1,4 +1,4 @@
-''''''## [0.1.0a40] - 2026-10-06
+## [0.1.0a40] - 2026-10-06
 
 ### Added - D5 memsearch RRF/multi-path tests + PyPI README star hint
 
@@ -852,3 +852,14 @@ Apache-2.0（含专利授权）。第三方归属见 `NOTICE`。
 ### Improved
 - Question type detection priority reordered (counting before aggregation)
 - Scaffold integrated into search_hybrid() return pipeline
+## [0.1.0a41] - 2026-10-06
+
+### Fixed - P0 packaging + plugin MCP command (end-to-end verified)
+
+- **dashboard.html ships in wheel** (a17-a40 all silently lacked it: package-data on "*" never applies to py-modules). New `memtether_assets` package carries it; `api_server.py /dashboard` falls back to `importlib.resources`. Verified in clean venv: pip install → `/dashboard` returns the real UI (was `<h1>Dashboard not found</h1>`).
+- **3 plugin manifests + install.sh/ps1 write `python -m mcp_server`** as the MCP command (was `memtether dashboard` = REST server, not stdio JSON-RPC; install overwrote the correct config that `init` had just written).
+- **Stale dev files purged from wheel** (108 → 52 files): `build/` was never cleaned, so 55 dead dev .py (Sep leftovers) shipped on PyPI since a12. Root cause fixed by removing `build/` before this build.
+- **`__version__` single-sourced**: reads `importlib.metadata` (falls back to pyproject.toml). Fixes 9-release drift (CLI said a30, pip said a40).
+- **Duplicate `_cmd_init`/`_cmd_connect` merged**: a39's init star hint was dead code (last def wins). Now init = demo DB + auto-connect + star hint. Verified end-to-end.
+- `check_packaging.py`: version-drift check replaced with data-file guard (dashboard.html must be in memtether_assets package-data), since __version__ is now dynamic.
+

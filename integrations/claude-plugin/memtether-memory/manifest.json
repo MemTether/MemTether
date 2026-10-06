@@ -5,8 +5,11 @@
   "version": "0.1.1",
   "mcpServers": {
     "memtether": {
-      "command": "memtether",
-      "args": ["dashboard"],
+      "command": "python",
+      "args": [
+        "-m",
+        "mcp_server"
+      ],
       "transport": "stdio"
     }
   }

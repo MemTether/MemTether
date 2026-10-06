@@ -117,6 +117,14 @@ def dashboard():
     if os.path.exists(dashboard_path):
         with open(dashboard_path, encoding="utf-8") as f:
             return f.read()
+    # P0-fix (a41): pip install ships dashboard.html in the memtether_assets
+    # package (package-data) — the old inline package-data on "*" never applied
+    # to py-modules, so pip users always saw "Dashboard not found".
+    try:
+        from importlib.resources import files as _resfiles
+        return _resfiles("memtether_assets").joinpath("dashboard.html").read_text(encoding="utf-8")
+    except Exception:
+        pass
     return "<h1>Dashboard not found</h1><p>Make sure dashboard.html is in the same directory as api_server.py</p>"
 
 @app.get("/health")

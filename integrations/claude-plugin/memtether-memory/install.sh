@@ -27,15 +27,15 @@ p = os.path.expanduser('~/.claude.json')
 with open(p) as f: d = json.load(f)
 if 'mcpServers' not in d: d['mcpServers'] = {}
 d['mcpServers']['memtether'] = {
-    'command': 'memtether',
-    'args': ['dashboard'],
+    'command': 'python3',
+    'args': ['-m', 'mcp_server'],
     'transport': 'stdio'
 }
 with open(p, 'w') as f: json.dump(d, f, indent=2)
 print('MCP config written to', p)
 "
 else
-    echo '{"mcpServers":{"memtether":{"command":"memtether","args":["dashboard"],"transport":"stdio"}}}' > "$CLAUDE_JSON"
+    echo '{"mcpServers":{"memtether":{"command":"python3","args":["-m","mcp_server"],"transport":"stdio"}}}' > "$CLAUDE_JSON"
     echo "Created $CLAUDE_JSON with MemTether MCP config"
 fi
 

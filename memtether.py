@@ -39,7 +39,19 @@ if _HERE not in sys.path:
     #   `import memsearch`），只有包目录在 sys.path 上才解析得到。
     sys.path.insert(0, _HERE)
 
-__version__ = "0.1.0a30"
+# P1-fix (a41): single-source version. pyproject.toml is the build truth;
+# importlib.metadata reflects what pip actually installed (they can diverge
+# in a repo checkout, which is why __version__ drifted a30 vs a40 for 9 releases).
+try:
+    from importlib.metadata import version as _meta_version
+    __version__ = _meta_version("memtether")
+except Exception:
+    try:
+        import tomllib
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "pyproject.toml"), "rb") as _pf:
+            __version__ = tomllib.load(_pf)["project"]["version"]
+    except Exception:
+        __version__ = "0.0.0.dev0"
 
 DATA_DIR = os.environ.get("MEMTETHER_HOME") or os.path.join(
     os.path.expanduser("~"), ".memtether")
@@ -279,19 +291,17 @@ def _cmd_stats(_args):
 
 
 
+
 def _cmd_init(args):
-    """Initialize a new memory DB."""
+    """Initialize a new memory DB (demo data) + auto-connect detected clients."""
     db_path = os.environ.get("MEM_DB") or DEFAULT_DB
     if os.path.exists(db_path) and not getattr(args, "force", False):
         print(f"DB already exists: {db_path}")
         print("Use --force to overwrite")
         return
-    
-    # Call the existing demo generator
     here = os.path.dirname(os.path.abspath(__file__))
     demo_script = os.path.join(here, "scripts", "make_demo_db.py")
     if os.path.exists(demo_script):
-        import subprocess
         r = subprocess.run([sys.executable, demo_script, "--out", db_path],
                           capture_output=True, text=True)
         if r.returncode == 0:
@@ -299,68 +309,21 @@ def _cmd_init(args):
         else:
             print(f"❌ Failed to create DB: {r.stderr[:200]}")
     else:
-        # Fallback: create empty DB
-        os.makedirs(os.path.dirname(db_path), exist_ok=True)
-        import sqlite3
-        conn = sqlite3.connect(db_path)
-        conn.close()
-        print(f"✅ Created empty memory DB: {db_path}")
-    print()
-    print("💡 If MemTether helps you, please star: https://github.com/MemTether/MemTether")
-
-
-def _cmd_connect(args):
-    """Connect AI clients to the memory hub."""
-    # Delegate to tether_connect.py
-    here = os.path.dirname(os.path.abspath(__file__))
-    connect_script = os.path.join(here, "tether_connect.py")
-    if not os.path.exists(connect_script):
-        print("❌ tether_connect.py not found")
-        return
-    
-    import subprocess
-    cmd_args = [sys.executable, connect_script]
-    if getattr(args, "all", False):
-        cmd_args.append("apply")
-    elif getattr(args, "client", None):
-        cmd_args.extend(["apply", "--client", args.client])
-    else:
-        cmd_args.append("detect")
-    
-    os.execv(sys.executable, cmd_args)
-
-
-
-def _cmd_init(args):
-    """Initialize a new memory DB with demo data."""
-    db_path = os.environ.get("MEM_DB") or DEFAULT_DB
-    if os.path.exists(db_path) and not getattr(args, "force", False):
-        print(f"DB already exists: {db_path}")
-        print("Use --force to overwrite")
-        return
-    here = os.path.dirname(os.path.abspath(__file__))
-    demo_script = os.path.join(here, "scripts", "make_demo_db.py")
-    if os.path.exists(demo_script):
-        import subprocess
-        r = subprocess.run([sys.executable, demo_script, "--out", db_path],
-                          capture_output=True, text=True)
-        if r.returncode == 0:
-            print(f"Created memory DB: {db_path}")
-        else:
-            print(f"Failed: {r.stderr[:200]}")
-    else:
         os.makedirs(os.path.dirname(db_path) or ".", exist_ok=True)
         import sqlite3
         sqlite3.connect(db_path).close()
-        print(f"Created empty memory DB: {db_path}")
-    
-    # Auto-connect all detected clients
-    print("\n[init] Connecting all detected AI clients...")
+        print(f"✅ Created empty memory DB: {db_path}")
+
+    # Auto-connect all detected clients (delegates to tether_connect).
     connect_script = os.path.join(here, "tether_connect.py")
     if os.path.exists(connect_script):
-        r2 = subprocess.run([sys.executable, connect_script, "apply", "--yes"],
-                           capture_output=False)
-        print("[init] Done. Run 'memtether dashboard' to open the web UI.")
+        print("\n[init] Connecting all detected AI clients...")
+        subprocess.run([sys.executable, connect_script, "apply", "--yes"],
+                       capture_output=False)
+
+    print("[init] Done. Run 'memtether dashboard' to open the web UI.")
+    print()
+    print("💡 If MemTether helps you, please star: https://github.com/MemTether/MemTether")
 
 
 def _cmd_connect(args):
@@ -368,18 +331,16 @@ def _cmd_connect(args):
     here = os.path.dirname(os.path.abspath(__file__))
     connect_script = os.path.join(here, "tether_connect.py")
     if not os.path.exists(connect_script):
-        print("tether_connect.py not found")
+        print("❌ tether_connect.py not found")
         return
-    import subprocess
     cmd = [sys.executable, connect_script]
-    if getattr(args, "all", False):
+    if getattr(args, "client", None):
+        cmd.extend(["apply", "--client", args.client])
+    elif getattr(args, "all", False):
         cmd.append("apply")
     else:
         cmd.append("detect")
     os.execv(sys.executable, cmd)
-
-
-
 
 def _cmd_export_md(args):
     """Export active memories as markdown files — portable, greppable, git-able."""

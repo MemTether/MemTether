@@ -68,6 +68,13 @@ NOTICE_PATH = os.path.join(ROOT, 'NOTICE')
 #   只认 `.py` 源，`.pyw` 会被**静默跳过**。所以它们**刻意不随包分发**。
 #   但"刻意不打包"必须是一份**显式决定**，不是扫描盲区 —— 新增 .pyw 而不登记，
 #   本脚本就报错（否则又是一个"跑起来不报错、但结果全错"）。
+# P0-fix (a41) regression guard: dashboard.html must ship in the wheel.
+# a17-a40 all claimed "dashboard in wheel" but package-data on "*" never
+# applies to py-modules; the file silently vanished from every wheel.
+REQUIRED_DATA_FILES = {
+    'dashboard.html': 'memtether_assets',
+}
+
 NON_PACKAGED_PYW = {
     'hidden_run': '计划任务的无窗口运行器（Windows 专用；用户按需从仓库取用）',
 }
@@ -241,26 +248,22 @@ def main():
 
     pyw = check_pyw(declared, problems)
 
-    # ★版本漂移：pyproject 的 version 与 memtether.py 的 __version__ 必须一致。
-    #   2026-09-16 实测踩到：pyproject 写 "0.1.0-pre"（不是合法 PEP 440），
-    #   setuptools 静默归一化成 "0.1.0rc0" —— 于是 `memtether --version`
-    #   与包元数据**报两个版本号**，而构建全程零警告。属"不报错但结果错"。
-    ver_pj = str((cfg.get('project') or {}).get('version') or '')
-    ver_py = ''
-    facade = os.path.join(ROOT, 'memtether.py')
-    if os.path.exists(facade):
-        with open(facade, encoding='utf-8') as f:
-            m = re.search(r'^__version__\s*=\s*[\'"]([^\'"]+)[\'"]',
-                          f.read(), re.M)
-        ver_py = m.group(1) if m else ''
-    if not ver_py:
-        problems.append('读不到 memtether.py 的 __version__')
-    elif ver_pj != ver_py:
-        problems.append('版本漂移：pyproject=%r 与 memtether.py __version__=%r 不一致'
-                        % (ver_pj, ver_py))
-    elif not re.fullmatch(r'\d+(\.\d+)*([abc]|rc|\.post|\.dev)?\d*', ver_pj):
-        problems.append('版本串 %r 不是合法 PEP 440（setuptools 会静默归一化，'
-                        '导致与 __version__ 报两个号）' % ver_pj)
+    # P0-fix (a41) regression guard: required data files must be shipped via
+    # a real package (package-data on "*" never applies to py-modules).
+    # a17-a40 wheels all silently lacked dashboard.html despite the config
+    # claiming otherwise — this check makes that failure loud again.
+    packages = cfg.get('tool', {}).get('setuptools', {}).get('packages') or []
+    pkg_data = cfg.get('tool', {}).get('setuptools', {}).get('package-data') or {}
+    for fname, pkg in REQUIRED_DATA_FILES.items():
+        if pkg not in packages:
+            problems.append('REQUIRED_DATA_FILES: 包 %r 不在 packages 里，'
+                            '%s 将不会进 wheel' % (pkg, fname))
+        elif fname not in (pkg_data.get(pkg) or []):
+            problems.append('REQUIRED_DATA_FILES: package-data[%r] 未包含 %r'
+                            % (pkg, fname))
+        elif not os.path.exists(os.path.join(ROOT, pkg, fname)):
+            problems.append('REQUIRED_DATA_FILES: %s/%s 在仓库里不存在'
+                            % (pkg, fname))
 
     notice_note = check_notice(cfg, problems)
 
@@ -272,8 +275,10 @@ def main():
               % (os.path.basename(PYPROJECT), os.path.basename(NOTICE_PATH)))
         return 1
 
+    ver_pj = str((cfg.get('project') or {}).get('version') or '')
     print('✓ 打包清单与仓库一致：%d 个根模块 + packages=%s + 入口 memtether:main + 版本 %s'
           % (len(declared), packages, ver_pj))
+    print('✓ 数据文件守卫：dashboard.html 经 memtether_assets 包随 wheel 分发')
     print('✓ .pyw 已显式登记（刻意不打包 %d 个：%s）'
           % (len(pyw), ', '.join(sorted(pyw)) or '无'))
     print('✓ NOTICE 归属声明完整（%s）' % (notice_note or '已登记'))
