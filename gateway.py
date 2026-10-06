@@ -352,11 +352,15 @@ def _uid(prefix, text):
 
 
 def _tenant_filter():
-    """P6: tenant isolation at query layer. Reads X-Tenant-ID from env (set by API)."""
+    """P6: tenant isolation at query layer. Reads MEM_TENANT_ID from env.
+    P0-1 (2026-10-06): returns (sql_fragment, param_value) for parameterized
+    query — was string-concatenation (SQL injection via semicolons).
+    Callers: .execute(sql, params) where params includes the tid.
+    """
     tid = os.environ.get('MEM_TENANT_ID', 'default')
     if tid == 'default':
-        return ''
-    return " AND tenant_id='" + tid.replace(chr(39), '') + "'"
+        return '', None
+    return ' AND tenant_id = ?', tid
 
 
 def get_conn():

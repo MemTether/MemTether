@@ -45,8 +45,13 @@ def _scope_filter():
 # MEM_TENANT_ID env filters by tenant_id column (default = 'default').
 # Only applies to facts (tool_assets are global).
 def _tenant_filter():
-    tid = os.environ.get('MEM_TENANT_ID', 'default').replace("'", '')
-    return " AND tenant_id='" + tid + "'"
+    """Return a parameterized tenant filter fragment + bound value.
+    P0-1 (2026-10-06): was string-concatenation (SQL injection via
+    semicolons/quotes). Now returns (sql_fragment, param_value) so callers
+    bind the tenant id safely via sqlite3 parameterized query.
+    """
+    tid = os.environ.get('MEM_TENANT_ID', 'default')
+    return " AND tenant_id = ?", tid
 # 向量库必须与真源库**同步切换**：切库后默认落到"新库同目录/mem0_store"。
 #   该目录不存在时语义路优雅降级（见 load_index 的 isdir 判断），
 #   关键词/字面匹配路照常工作 —— 演示库因此无需下载 543MB 本地模型即可跑。
@@ -370,7 +375,7 @@ def verify_active_consistency():
         conn = sqlite3.connect(DB)
         conn.row_factory = sqlite3.Row
         frows = conn.execute(
-"SELECT uid, content, type, source, scope FROM facts WHERE status='active'" + _scope_filter() + _tenant_filter()).fetchall()
+"SELECT uid, content, type, source, scope FROM facts WHERE status='active'" + _scope_filter() + _tenant_filter()[0], (_tenant_filter()[1],)).fetchall()
         try:
             arows = conn.execute("SELECT * FROM tool_assets WHERE status='active'").fetchall()
         except Exception:
@@ -558,7 +563,7 @@ def rebuild_vector_index(verbose=True, reclaim=True, reuse=False):
     conn = sqlite3.connect(DB)
     conn.row_factory = sqlite3.Row
     rows = conn.execute(
-"SELECT uid, content, type, source, scope FROM facts WHERE status='active'" + _scope_filter() + _tenant_filter()).fetchall()
+"SELECT uid, content, type, source, scope FROM facts WHERE status='active'" + _scope_filter() + _tenant_filter()[0], (_tenant_filter()[1],)).fetchall()
     try:
         arows = conn.execute(
             "SELECT * FROM tool_assets WHERE status='active'").fetchall()
@@ -963,7 +968,7 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
     #   不加这一列，加权就只能全用默认 0.5，升级等于空转。
     active = {r['uid']: dict(r) for r in conn.execute(
         "SELECT uid, content, type, source, scope, updated_at, q_value, tags, valid_to, superseded_by"
-" FROM facts WHERE status='active'" + _scope_filter() + _tenant_filter())}
+" FROM facts WHERE status='active'" + _scope_filter() + _tenant_filter()[0], (_tenant_filter()[1],))}
     # ★2026-09-15：资产一并入候选池（kind='tool'），否则「XX装在哪」永远查不到
     assets = {}
     try:

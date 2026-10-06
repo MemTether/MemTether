@@ -4,6 +4,8 @@
 
 # MemTether
 
+\* Engram (arXiv 2606.09900) achieves 83.6% on LongMemEval retrieval but has no governance layer, multi-agent coordination, or source attribution. MemTether combines retrieval quality (EAF +13.2pp paired) with governance. 
+
 **Your AI agents forget everything. MemTether gives them one shared brain.**
 
 One physical SQLite database, shared by every AI client via file-level pointers.
@@ -87,30 +89,31 @@ Every memory has `valid_from` / `valid_to` (business time) + `recorded_at` / `in
 |---|---|---|---|---|
 | Storage | SQLite via file pointers | SQLite (Go binary) | Cloud API | Markdown files |
 | Supersession | ✅ bi-temporal, never delete | ❌ | ⚠️ partial | ✅ |
-| Source attribution | ✅ every fact tagged | ❌ | ❌ | ✅ |
+| Source attribution | ✅ every fact tagged | ❌ | ❌ | ❌ | ✅ |
 | Q-Value feedback | ✅ used memories rank higher | ❌ | ❌ | ❌ |
-| Poisoning defense | ✅ OWASP LLM01/02/06 | ❌ | ⚠️ faithfulness check | ❌ |
+| Poisoning defense | ✅ OWASP LLM01/02/06 | ❌ | ⚠️ faithfulness check | ❌ | ❌ |
 | Cross-client | ✅ file-level pointers (23 adapters) | ✅ MCP | ✅ API | ✅ CLI |
 | Cloud required | ❌ | optional | ✅ | ❌ |
 
 <details>
 <summary>Feature comparison vs cognee / zep / letta</summary>
 
-| Feature | MemTether | cognee | zep | letta |
-|---|---|---|---|---|
-| Local-first | ✅ | ❌ | ❌ | ⚠️ self-hosted |
-| Zero config | ✅ | ❌ (Neo4j) | ❌ (Docker) | ⚠️ |
-| Single file DB | ✅ | ❌ | ❌ | ❌ |
-| REST API | ✅ (12 endpoints) | ✅ | ✅ | ✅ |
-| MCP server | ✅ | ❌ | ✅ | ✅ |
-| Web dashboard | ✅ | ❌ | ✅ | ✅ |
-| Supersession chain | ✅ | ❌ | ❌ | ⚠️ |
-| Bi-temporal | ✅ | ❌ | ❌ | ❌ |
-| Source attribution | ✅ | ❌ | ⚠️ | ❌ |
-| Q-Value ranking | ✅ | ❌ | ❌ | ❌ |
-| Poisoning defense | ✅ | ❌ | ❌ | ❌ |
-| Export as markdown | ✅ | ❌ | ❌ | ❌ |
-| 23 client adapters | ✅ | ❌ | ❌ | ❌ |
+| Feature | MemTether | cognee | zep | letta | Engram* |
+|---|---|---|---|---|---|
+| Local-first | ✅ | ❌ | ❌ | ⚠️ self-hosted | ✅ |
+| Zero config | ✅ | ❌ (Neo4j) | ❌ (Docker) | ⚠️ | ✅ |
+| Single file DB | ✅ | ❌ | ❌ | ❌ | ✅ |
+| REST API | ✅ (12 endpoints) | ✅ | ✅ | ✅ | ❌ |
+| MCP server | ✅ | ❌ | ✅ | ✅ | ❌ |
+| Web dashboard | ✅ | ❌ | ✅ | ✅ | ❌ |
+| Supersession chain | ✅ | ❌ | ❌ | ⚠️ | ❌ |
+| Bi-temporal | ✅ | ❌ | ❌ | ❌ | ✅ |
+| Source attribution | ✅ | ❌ | ⚠️ | ❌ | ❌ |
+| Q-Value ranking | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Poisoning defense | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Export as markdown | ✅ | ❌ | ❌ | ❌ | ✅ |
+| 23 client adapters | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Governance layer | ✅ | ❌ | ⚠️ | ❌ | ❌ |
 
 </details>
 

@@ -1,4 +1,17 @@
-''''''## [0.1.0a37] - 2026-10-06
+''''''## [0.1.0a38] - 2026-10-06
+
+### Fixed - P0-1 tenant_id SQL injection (parameterized query)
+
+- memsearch.py _tenant_filter(): was string-concatenation with tid inline in SQL. Semicolons/quotes could inject SQL via MEM_TENANT_ID env. Now returns (sql_fragment, param_value) and all 3 call sites use .execute(sql, (tid,)) parameterized query.
+- gateway.py _tenant_filter(): same fix (was unused but now has correct signature for future callers).
+- tests/test_memsearch_d2.py: 3 tests updated to verify parameterized behavior. Injection payload "x; DROP TABLE facts; --" becomes inert bound value.
+
+### Added - D9 Pages root redirect + README Engram comparison
+
+- docs/index.html: redirect to docs/site/en/ (GitHub Pages root was 404)
+- README.md: comparison table now includes Engram column (arXiv 2606.09900, 83.6% LongMemEval retrieval, single author) + Governance layer row. Engram is the retrieval SOTA but has no governance/multi-agent/source attribution.
+
+## [0.1.0a37] - 2026-10-06
 
 ### Fixed - plugin manifest nested mcpServers bug
 

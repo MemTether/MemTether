@@ -19,23 +19,27 @@ def test_scope_filter_all():
 def test_tenant_filter_default():
     import memsearch
     os.environ.pop('MEM_TENANT_ID', None)
-    f = memsearch._tenant_filter()
-    assert "tenant_id='default'" in f
+    f, tid = memsearch._tenant_filter()
+    assert "tenant_id = ?" in f
+    assert tid == 'default'
 
 def test_tenant_filter_custom():
     import memsearch
     os.environ['MEM_TENANT_ID'] = 'tenantX'
-    f = memsearch._tenant_filter()
-    assert "tenant_id='tenantX'" in f
+    f, tid = memsearch._tenant_filter()
+    assert "tenant_id = ?" in f
+    assert tid == 'tenantX'
     os.environ.pop('MEM_TENANT_ID', None)
 
-def test_tenant_filter_sql_injection_documented():
+def test_tenant_filter_sql_injection_p0_1_fixed():
     import memsearch
     os.environ["MEM_TENANT_ID"] = "x; DROP TABLE facts; --"
-    f = memsearch._tenant_filter()
-    # NOTE: current impl strips single quotes only via replace(chr(39),''); semicolons pass through.
-    # Documented behavior — hardening is roadmap (parametrized query).
-    assert "tenant_id=" in f
+    f, tid = memsearch._tenant_filter()
+    # P0-1 (2026-10-06): tenant id is now bound via parameterized query, not
+    # string-concatenated. Malicious semicolons/quotes are inert - they become
+    # the bound value, not SQL syntax.
+    assert f == " AND tenant_id = ?"
+    assert tid == "x; DROP TABLE facts; --"
 
 def test_parse_ttl_valid():
     import memsearch
