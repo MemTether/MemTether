@@ -283,3 +283,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 <div align="center">
 <img src="https://api.star-history.com/svg?repos=MemTether/MemTether&type=Date" width="500" alt="Star History"/>
 </div>
+
+---
+
+**If MemTether helps you, please give it a ⭐ on [GitHub](https://github.com/MemTether/MemTether)** — it helps other agents find it.

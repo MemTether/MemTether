@@ -1,4 +1,13 @@
-''''''## [0.1.0a39] - 2026-10-06
+''''''## [0.1.0a40] - 2026-10-06
+
+### Added - D5 memsearch RRF/multi-path tests + PyPI README star hint
+
+- tests/test_memsearch_d5.py: 7 new tests (multi-keyword search, all_unanswered diagnostics, semantic field, scope asset, q_value ranking)
+- README.md: star hint at bottom
+- Coverage: memsearch 49% -> 51%, TOTAL 27% -> 28%
+- Total tests: 121 -> 125 (2 skipped: state pollution + vector model)
+
+## [0.1.0a39] - 2026-10-06
 
 ### Added - D3+D4 memsearch + hubguard deep tests + P1-M init star hint
 
