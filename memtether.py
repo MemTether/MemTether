@@ -305,6 +305,8 @@ def _cmd_init(args):
         conn = sqlite3.connect(db_path)
         conn.close()
         print(f"✅ Created empty memory DB: {db_path}")
+    print()
+    print("💡 If MemTether helps you, please star: https://github.com/MemTether/MemTether")
 
 
 def _cmd_connect(args):

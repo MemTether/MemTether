@@ -1,4 +1,14 @@
-''''''## [0.1.0a38] - 2026-10-06
+''''''## [0.1.0a39] - 2026-10-06
+
+### Added - D3+D4 memsearch + hubguard deep tests + P1-M init star hint
+
+- tests/test_memsearch_d3.py: 10 new tests (scoring order, score/uid/type/source fields, superseded/retired excluded, engine metadata, limit, asset_text)
+- tests/test_hubguard_d4.py: 12 new tests (db_path env/explicit, typ_abbr, src_code, snapshot consistent/changed, safe_append_bytes, format/parse no-source, detect_newline LF/CRLF)
+- memtether.py _cmd_init: star hint after successful init
+- Coverage: memsearch 47% -> 49%, hubguard 61% -> 62%, TOTAL 26% -> 27%
+- Total tests: 100 -> 121 (1 skipped: state pollution in full suite)
+
+## [0.1.0a38] - 2026-10-06
 
 ### Fixed - P0-1 tenant_id SQL injection (parameterized query)
 
