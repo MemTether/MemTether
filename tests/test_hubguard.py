@@ -1,6 +1,6 @@
 """hubguard concurrency tests."""
 import os, sys, tempfile, sqlite3, threading, time
-sys.path.insert(0, r'E:\RUANJIAN\memtether')
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.environ['MEM_SKIP_VECTOR'] = '1'
 
 def _fresh_db(tmpdir):

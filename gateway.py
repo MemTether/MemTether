@@ -936,9 +936,17 @@ def _llm_json(prompt, system='', model='deepseek', temperature=0.1, max_tokens=2
     """用指定通道做一次 JSON 结构化提炼。返回 dict 或 None。"""
     import urllib.request
     try:
-        sys.path.insert(0, r'<AUDIT>')
-        import cred_env
-        cred_env.env()
+        # P1-fix (a42): keys are env-first (portable). Optionally point
+        # MEM_CRED_ENV_PATH at a local module exposing env() to populate them.
+        cred_path = os.environ.get('MEM_CRED_ENV_PATH', '')
+        if cred_path and os.path.isfile(cred_path) and cred_path not in sys.path:
+            sys.path.insert(0, os.path.dirname(cred_path))
+            try:
+                mod = __import__(os.path.splitext(os.path.basename(cred_path))[0])
+                if hasattr(mod, 'env'):
+                    mod.env()
+            except Exception:
+                pass
         if model == 'deepseek':
             key = os.environ.get('DEEPSEEK_OFFICIAL_KEY', '')
             base = 'https://api.deepseek.com/v1/chat/completions'

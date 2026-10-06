@@ -1,6 +1,6 @@
 """hubguard.py D4 deep tests: DBWatch, journal, proj_paths, format/parse edge cases."""
 import os, sys, io, tempfile, sqlite3, threading
-sys.path.insert(0, r'E:\RUANJIAN\memtether')
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.environ['MEM_SKIP_VECTOR'] = '1'
 
 def test_db_path_env(tmp_path):

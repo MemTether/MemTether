@@ -1,6 +1,6 @@
 """Core search_hybrid tests (P1-1 coverage)."""
 import os, sys, io, tempfile, sqlite3
-sys.path.insert(0, r'E:\RUANJIAN\memtether')
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.environ['MEM_SKIP_VECTOR'] = '1'
 os.environ['PYTHONIOENCODING'] = 'utf-8'
 

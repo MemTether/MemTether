@@ -1,5 +1,8 @@
 # P6 (2026-10-05): keep dev junk out of the image build context
-_*.py
+# P1-fix (a42): `_*` also matched `__init__.py`, so Docker builds dropped
+# every package __init__ and `pip install .` inside the image produced a
+# broken memtether. Git uses `_[!_]*` for the same reason — mirror it here.
+_[!_]*.py
 _dev/
 dev/
 build/

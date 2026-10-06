@@ -1,6 +1,6 @@
 # Test extract.py with mocked LLM response
 import os, sys, json
-sys.path.insert(0, r'E:\RUANJIAN\memtether')
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.stdout.reconfigure(encoding='utf-8')
 
 # Mock the LLM call

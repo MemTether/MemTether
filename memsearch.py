@@ -264,10 +264,28 @@ def _is_self_referential(query, content):
 
 
 def _embed_zhipu(texts):
-    sys.path.insert(0, r'E:\RUANJIAN\ai-audit')
-    import cred_env
-    cred_env.env()
-    key = os.environ['ZHIPU_KEY']
+    # P1-fix (a42): key resolution is env-first, portable. The old code
+    # hard-coded a private machine path (sys.path.insert of a local vault
+    # loader) which both broke on any other machine and leaked the owner's
+    # directory layout into the public repo.
+    key = os.environ.get('ZHIPU_KEY', '')
+    if not key:
+        cred_path = os.environ.get('MEM_CRED_ENV_PATH', '')
+        if cred_path and os.path.isfile(cred_path):
+            sys.path.insert(0, os.path.dirname(cred_path))
+            try:
+                mod = __import__(os.path.splitext(os.path.basename(cred_path))[0])
+                if hasattr(mod, 'env'):
+                    mod.env()
+            except Exception:
+                pass
+            finally:
+                sys.path.pop(0)
+            key = os.environ.get('ZHIPU_KEY', '')
+    if not key:
+        raise RuntimeError(
+            'ZHIPU_KEY 未设置。请 export ZHIPU_KEY=<key>，或设 MEM_CRED_ENV_PATH '
+            '指向一个提供 env() 的凭据模块（可选）。')
     body = {'model': EMBED_MODEL, 'input': texts}
     req = urllib.request.Request(
         'https://open.bigmodel.cn/api/paas/v4/embeddings',

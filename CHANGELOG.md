@@ -1,3 +1,23 @@
+## [0.1.0a42] - 2026-10-06
+
+### Fixed - portable paths + dockerignore __init__ regression
+
+- **memsearch._embed_zhipu**: removed the hard-coded private vault path.
+  Key resolution is now env-first (`ZHIPU_KEY`), with optional
+  `MEM_CRED_ENV_PATH` for a local credentials module. Missing key raises a
+  clear actionable error instead of ImportError on machines without `E:\`.
+- **gateway._llm_json**: same env-first pattern (the old code had a
+  sanitized `<AUDIT>` placeholder that silently disabled auto-reflection
+  everywhere). Event-driven reflection now works when keys are present.
+- **13 test files**: replaced `sys.path.insert(0, r'E:\RUANJIAN\memtether')`
+  with a path derived from `__file__` — tests now run from any checkout
+  location (CI passed before only because pytest rootdir insertion saved it).
+- **.dockerignore**: `_*` also matched `__init__.py`, so Docker builds
+  dropped every package `__init__` and the in-image `pip install .` produced
+  a broken package. Mirrors git's `_[!_]*` pattern; simulated matcher
+  verified (init files kept, dev junk still ignored).
+
+Tests: 125 passed, 2 skipped.
 ## [0.1.0a40] - 2026-10-06
 
 ### Added - D5 memsearch RRF/multi-path tests + PyPI README star hint
