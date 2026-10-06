@@ -12,8 +12,8 @@ API_BASE = "http://127.0.0.1:8820"
 
 # Search
 print("Search:")
-print(f'  curl -X POST {API_BASE}/search -H "Content-Type: application/json" '
-      f'-d '{{"query": "theme preference", "limit": 5}}'')
+print('  curl -X POST ' + API_BASE + '/search -H "Content-Type: application/json" '
+      + '-d \'{"query": "theme preference", "limit": 5}\'')
 
 # List
 print("\nList:")

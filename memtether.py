@@ -179,6 +179,66 @@ def demo(out=None, force=False, seed=None):
 
 
 # ---------------------------------------------------------------- P4: import
+def _cmd_conflicts(args):
+    """Review conflict-review candidates (P0-3, 2026-10-06).
+
+    Governance detection writes pairs with verdict='pending'; this command
+    closes the loop: list -> accept (confirm conflict) / discard (no_conflict).
+    Discarded pairs are excluded from governance scoring via
+    governance.reviewed_no_conflict().
+    """
+    import sqlite3
+    db_path = os.environ.get("MEM_DB") or DEFAULT_DB
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    conn.execute("""CREATE TABLE IF NOT EXISTS conflict_reviews (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, uid_a TEXT, uid_b TEXT,
+        verdict TEXT, note TEXT, by_agent TEXT, ts TEXT)""")
+
+    if args.stats:
+        rows = conn.execute("SELECT verdict, COUNT(*) n FROM conflict_reviews GROUP BY verdict").fetchall()
+        for r in rows:
+            print(f"  {r['verdict']}: {r['n']}")
+        conn.close()
+        return 0
+
+    if args.list:
+        rows = conn.execute(
+            "SELECT id, uid_a, uid_b FROM conflict_reviews WHERE verdict='pending' LIMIT ?",
+            (args.limit,)).fetchall()
+        for r in rows:
+            ca = conn.execute("SELECT content FROM facts WHERE uid=?", (r['uid_a'],)).fetchone()
+            cb = conn.execute("SELECT content FROM facts WHERE uid=?", (r['uid_b'],)).fetchone()
+            sa = (ca['content'] if ca else r['uid_a'])[:60]
+            sb = (cb['content'] if cb else r['uid_b'])[:60]
+            print(f"  #{r['id']}  A: {sa}")
+            print(f"        B: {sb}")
+        conn.close()
+        return 0
+
+    if args.accept or args.discard:
+        verdict = 'conflict' if args.accept else 'no_conflict'
+        ids = (args.accept or args.discard).split(',')
+        by = args.by or 'cli'
+        n = 0
+        for i in ids:
+            i = i.strip()
+            if not i.isdigit():
+                continue
+            cur = conn.execute(
+                "UPDATE conflict_reviews SET verdict=?, note=?, by_agent=?, ts=datetime('now','localtime') "
+                "WHERE id=? AND verdict='pending'", (verdict, args.note or '', by, int(i)))
+            n += cur.rowcount
+        conn.commit()
+        print(f"✓ reviewed {n} pair(s) as {verdict}")
+        conn.close()
+        return 0
+
+    conn.close()
+    print("nothing to do: use --stats / --list / --accept ID[,ID] / --discard ID[,ID]")
+    return 1
+
+
 def _cmd_download_models(args):
     """Download local embedding models for semantic search (stdlib-only)."""
     import subprocess
@@ -500,6 +560,16 @@ def main(argv=None):
     sp_dash = sub.add_parser("dashboard", help="Start the web dashboard (API server + browser UI)")
     sp_dash.add_argument("--port", type=int, default=8820, help="Port to run on (default 8820)")
     sp_dash.set_defaults(func=_cmd_dashboard)
+
+    sp_cf = sub.add_parser("conflicts", help="Review conflict-detection candidates (governance loop)")
+    sp_cf.add_argument("--stats", action="store_true", help="Show counts by verdict")
+    sp_cf.add_argument("--list", action="store_true", help="List pending pairs with content preview")
+    sp_cf.add_argument("--limit", type=int, default=20, help="Max pairs to list")
+    sp_cf.add_argument("--accept", default=None, help="Comma-separated ids: confirm genuine conflict")
+    sp_cf.add_argument("--discard", default=None, help="Comma-separated ids: mark no_conflict")
+    sp_cf.add_argument("--note", default="", help="Optional review note")
+    sp_cf.add_argument("--by", default="", help="Reviewer agent/source name")
+    sp_cf.set_defaults(func=_cmd_conflicts)
 
     sp_dl = sub.add_parser("download-models", help="Download local embedding models for semantic search (bge-small-zh ~46MB / bge-m3-int8 ~560MB)")
     sp_dl.add_argument("--profile", default="bge-m3-int8", help="Model profile (bge-small-zh or bge-m3-int8)")

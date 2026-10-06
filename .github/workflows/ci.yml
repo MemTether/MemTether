@@ -18,7 +18,6 @@ jobs:
         run: pip install ruff
       - name: Lint
         run: ruff check . --select E9,F63,F7,F82 --ignore E501
-        continue-on-error: true
 
   test:
     runs-on: ${{ matrix.os }}
@@ -46,8 +45,7 @@ jobs:
         run: pytest tests/ -v --tb=short
 
       - name: Test PII roundtrip
-        run: python test_pii_roundtrip.py
-        continue-on-error: true
+        run: python scripts/test_pii_roundtrip.py
 
   build:
     runs-on: ubuntu-latest

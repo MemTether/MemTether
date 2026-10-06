@@ -389,6 +389,7 @@ def verify_active_consistency():
     """
     out = {'sqlite_active': None, 'sqlite_assets': None, 'expected': None,
            'vector_count': None, 'ok': False, 'error': None}
+    conn = None
     try:
         conn = sqlite3.connect(DB)
         conn.row_factory = sqlite3.Row
@@ -398,10 +399,12 @@ def verify_active_consistency():
             arows = conn.execute("SELECT * FROM tool_assets WHERE status='active'").fetchall()
         except Exception:
             arows = []
-        conn.close()
     except Exception as e:
         out['error'] = 'sqlite: %s: %s' % (type(e).__name__, e)
         return out
+    finally:
+        if conn is not None:
+            conn.close()
 
     out['sqlite_active'] = len(frows)
     out['sqlite_assets'] = len(arows)
@@ -578,16 +581,20 @@ def rebuild_vector_index(verbose=True, reclaim=True, reuse=False):
       ★默认仍为 False：生产路径继续走 delete_collection（它能顺带回收泄漏目录）。
         这不是绕过护栏，而是**换一种不触发它的等价操作**。
     """
-    conn = sqlite3.connect(DB)
-    conn.row_factory = sqlite3.Row
-    rows = conn.execute(
-"SELECT uid, content, type, source, scope FROM facts WHERE status='active'" + _scope_filter() + _tenant_filter()[0], (_tenant_filter()[1],)).fetchall()
+    conn = None
     try:
-        arows = conn.execute(
-            "SELECT * FROM tool_assets WHERE status='active'").fetchall()
-    except Exception:
-        arows = []
-    conn.close()
+        conn = sqlite3.connect(DB)
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+"SELECT uid, content, type, source, scope FROM facts WHERE status='active'" + _scope_filter() + _tenant_filter()[0], (_tenant_filter()[1],)).fetchall()
+        try:
+            arows = conn.execute(
+                "SELECT * FROM tool_assets WHERE status='active'").fetchall()
+        except Exception:
+            arows = []
+    finally:
+        if conn is not None:
+            conn.close()
 
     kept, quarantined = [], []
     for r in rows:
@@ -981,30 +988,32 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
             rerank_k = 30
 
     conn = sqlite3.connect(DB)
-    conn.row_factory = sqlite3.Row
-    # ★2026-09-17（升级 1）：候选池补取 q_value —— 检索末尾的 Q-Value 加权要用它。
-    #   不加这一列，加权就只能全用默认 0.5，升级等于空转。
-    active = {r['uid']: dict(r) for r in conn.execute(
-        "SELECT uid, content, type, source, scope, updated_at, q_value, tags, valid_to, superseded_by"
-" FROM facts WHERE status='active'" + _scope_filter() + _tenant_filter()[0], (_tenant_filter()[1],))}
-    # ★2026-09-15：资产一并入候选池（kind='tool'），否则「XX装在哪」永远查不到
-    assets = {}
     try:
-        for a in conn.execute("SELECT * FROM tool_assets WHERE status='active'").fetchall():
-            doc = asset_text(a)
-            if is_placeholder(doc):
-                continue
-            # ★2026-09-20：补 q_value 键 —— 没有它加权兜底 0.5（因子恒 0.65），
-            #   资产占检索结果近半却永远吃不到 Q-Value。
-            aq = a['q_value'] if 'q_value' in a.keys() else None
-            assets[a['uid']] = {'uid': a['uid'], 'content': doc, 'type': 'tool',
-                                'source': 'tool_assets', 'scope': 'asset',
-                                'q_value': 0.5 if aq is None else aq,
-                                'updated_at': a['updated_at'] if 'updated_at' in a.keys() else '',
-                                '_asset': dict(a)}
-    except Exception:
+        conn.row_factory = sqlite3.Row
+        # ★2026-09-17（升级 1）：候选池补取 q_value —— 检索末尾的 Q-Value 加权要用它。
+        #   不加这一列，加权就只能全用默认 0.5，升级等于空转。
+        active = {r['uid']: dict(r) for r in conn.execute(
+            "SELECT uid, content, type, source, scope, updated_at, q_value, tags, valid_to, superseded_by"
+    " FROM facts WHERE status='active'" + _scope_filter() + _tenant_filter()[0], (_tenant_filter()[1],))}
+        # ★2026-09-15：资产一并入候选池（kind='tool'），否则「XX装在哪」永远查不到
         assets = {}
-    conn.close()
+        try:
+            for a in conn.execute("SELECT * FROM tool_assets WHERE status='active'").fetchall():
+                doc = asset_text(a)
+                if is_placeholder(doc):
+                    continue
+                # ★2026-09-20：补 q_value 键 —— 没有它加权兜底 0.5（因子恒 0.65），
+                #   资产占检索结果近半却永远吃不到 Q-Value。
+                aq = a['q_value'] if 'q_value' in a.keys() else None
+                assets[a['uid']] = {'uid': a['uid'], 'content': doc, 'type': 'tool',
+                                    'source': 'tool_assets', 'scope': 'asset',
+                                    'q_value': 0.5 if aq is None else aq,
+                                    'updated_at': a['updated_at'] if 'updated_at' in a.keys() else '',
+                                    '_asset': dict(a)}
+        except Exception:
+            assets = {}
+    finally:
+        conn.close()
     active.update(assets)
 
     # 门禁过滤掉垃圾（含 <见vault:key> 这类占位符）
@@ -1139,6 +1148,15 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
                 print('[warn] 实体图谱路失败（不影响其他路）:', str(_eg_e)[:80], file=sys.stderr)
 
 
+    # 4) RRF 融合（Reciprocal Rank Fusion）
+    #    旧实现把 semantic(余弦0~1) + ascii(0.3) + literal(0.5) 直接相加，量纲不一致导致
+    #    语义相近但不精确的条目（查"自动沉淀技能"返回"自动取件护栏"）压过精确匹配。
+    #    RRF 只用排名，各路量纲无关；K=60 为业界常用值。
+    #    关键词路权重 1.6：实测关键词 Top3 75% 优于纯语义 62%，专有名词命中更可靠。
+    K = 60
+    out = []
+
+    _consol_extra: list = []
     # R10b: consolidation index lookup (Mnemon arXiv 2609.36059)
     try:
         from consolidation import search_index as _consol_search
@@ -1147,33 +1165,26 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
             if _cr.get('type') == 'topic_timeline':
                 for _entry in _cr.get('entries', []):
                     _uid = _entry.get('uid', '')
-                    if _uid in active and _uid not in {x.get('uid') for x in out}:
+                    if _uid in active and _uid not in {x.get('uid') for x in _consol_extra}:
                         x = dict(active[_uid])
                         x['score'] = 0.03  # low but above noise floor
                         x['reason'] = list(x.get('reason') or []) + [
                             f"consolidation:{_cr.get('topic', '?')}"
                         ]
-                        out.append(x)
+                        _consol_extra.append(x)
             elif _cr.get('type') == 'standing_instruction':
                 # Standing instructions always rank high
                 _inst_uid = _cr.get('uid', '')
-                if _inst_uid in active and _inst_uid not in {x.get('uid') for x in out}:
+                if _inst_uid in active and _inst_uid not in {x.get('uid') for x in _consol_extra}:
                     x = dict(active[_inst_uid])
                     x['score'] = 0.08  # high boost for standing instructions
                     x['reason'] = list(x.get('reason') or []) + ['consolidation:standing_instruction']
-                    out.append(x)
+                    _consol_extra.append(x)
     except ImportError:
         pass  # consolidation.py not available
     except Exception:
         pass
 
-    # 4) RRF 融合（Reciprocal Rank Fusion）
-    #    旧实现把 semantic(余弦0~1) + ascii(0.3) + literal(0.5) 直接相加，量纲不一致导致
-    #    语义相近但不精确的条目（查"自动沉淀技能"返回"自动取件护栏"）压过精确匹配。
-    #    RRF 只用排名，各路量纲无关；K=60 为业界常用值。
-    #    关键词路权重 1.6：实测关键词 Top3 75% 优于纯语义 62%，专有名词命中更可靠。
-    K = 60
-    out = []
     _rrf_pool = set(vec_rank) | set(kw_rank) | set(bm25_rank) | lit_hit
     if _graph_on:
         _rrf_pool |= set(entity_rank)
@@ -1230,6 +1241,9 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
             if _hints:
                 _out['skill_hint'] = ' | '.join(_hints)
         out.append(_out)
+    # R10b: merge consolidation hits (computed pre-RRF; appended post-RRF so
+    # standing instructions keep their high boost and don't drown in the pool)
+    out.extend(_consol_extra)
     # ★4.35) R1 semantic boost（2026-09-25）：高向量相似度候选被 keyword 噪声挤出 top-N 的修复。
     #   根因：短资产文本（tool_assets）keyword 覆盖率极低（如 Everything 0/23、STM32CubeIDE 1/12），
     #   RRF 里 keyword 路 1.6x 权重让"碰词多的无关长文"压过"向量确认相关的精确答案"。
@@ -1473,12 +1487,17 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
     # For any result that is superseded, automatically follow the chain to the final active version
     try:
         _conn_mh = sqlite3.connect(DB)
-        _conn_mh.row_factory = sqlite3.Row
-        # Get all supersession relationships
-        _sup_map = {}  # old_uid -> new_uid
-        for _sr in _conn_mh.execute("SELECT old_uid, new_uid FROM supersessions").fetchall():
-            _sup_map[_sr['old_uid']] = _sr['new_uid']
-        _conn_mh.close()
+        try:
+            _conn_mh.row_factory = sqlite3.Row
+            # Get all supersession relationships
+            _sup_map = {}  # old_uid -> new_uid
+            for _sr in _conn_mh.execute("SELECT old_uid, new_uid FROM supersessions").fetchall():
+                _sup_map[_sr['old_uid']] = _sr['new_uid']
+        finally:
+            # P0-1 (2026-10-06): this conn leaked a read txn when the query
+            # failed (e.g. bench scratch schema has no supersessions table),
+            # locking the db for the rest of the process. Always close.
+            _conn_mh.close()
 
         _mh_added = 0
         for _x in out:
@@ -1663,6 +1682,7 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
     # ★R1 (2026-10-01): write-back on retrieval
     # Only in non-recursive calls (_round==0) and MEM_BUMP!=0
     if _round == 0 and os.environ.get('MEM_BUMP', '1') != '0':
+        _bc = None
         try:
             _bc = _sq3.connect(DB)
             for _x in _kept[:limit]:
@@ -1671,9 +1691,16 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
                     _bc.execute("UPDATE facts SET use_count = use_count + 1 WHERE uid=?", (_u,))
                     _bc.execute("UPDATE tool_assets SET use_count = use_count + 1 WHERE uid=?", (_u,))
             _bc.commit()
-            _bc.close()
         except Exception:
             pass  # bump failure does not block retrieval
+        finally:
+            # P0-1 (2026-10-06): a leaked bump conn holds a write txn on the
+            # bench scratch db and locks the NEXT question's schema reset.
+            if _bc is not None:
+                try:
+                    _bc.close()
+                except Exception:
+                    pass
 
     # \u2605R7 (2026-10-01): Three-layer deduplication
     # Layer 1: supersession dedup - remove old versions if new version is in results

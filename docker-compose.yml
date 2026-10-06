@@ -7,6 +7,11 @@ services:
       - memtether_data:/home/memtether/.memtether
     ports:
       - "8080:8080"
+    environment:
+      # P0-5 (2026-10-06): a keyed deployment must set MEMTETHER_API_KEY —
+      # unset means the REST API accepts unauthenticated writes from anyone
+      # who can reach port 8080. See docs/SECURITY.md.
+      - MEMTETHER_API_KEY=${MEMTETHER_API_KEY:-}
     command: uvicorn api_server:app --host 0.0.0.0 --port 8080
 
 volumes:
