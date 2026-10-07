@@ -1,3 +1,14 @@
+## [0.1.0a52] - 2026-10-08
+
+### Fixed — Packaging
+
+- **`memory_court.py` missing from wheel (a50/a51)**: the module was never
+  registered in `pyproject.toml` `py-modules`, so `pip install` shipped a
+  wheel without the Court CLI module — and setuptools silently accepts the
+  omission (same failure class as the a49 Dockerfile bug). Caught by
+  `scripts/check_packaging.py` exit 1 on a fresh-instance audit. Verified:
+  fresh wheel now contains `memory_court.py`; the PyPI a51 wheel does NOT.
+
 ## [0.1.0a51] - 2026-10-07
 
 ### Added — Production hardening
