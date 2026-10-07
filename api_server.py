@@ -295,11 +295,12 @@ def absorb(req: AbsorbRequest):
         if candidates:
             top = candidates[0][score_key]
             if method == "semantic":
-                # thresholds calibrated on 12 EN probe pairs (2026-10-07) and
-                # 8 ZH probe pairs (a47): EN paraphrase 0.84-0.97, ZH paraphrase
-                # 0.86-0.94, unrelated both 0.53-0.76. Digit guard sits above
-                # duplicate so "port 7890 -> 7897" (ZH sim 0.931) is update,
-                # never duplicate.
+                # thresholds calibrated on 12 EN + 23 ZH probe pairs (a49,
+                # LLM-generated via scripts/zh_calibration.py): same-topic
+                # 0.84-0.96 (EN+ZH), unrelated 0.53-0.78. dup=0.92 is
+                # conservative (a misjudged duplicate degrades to update =
+                # still written); related=0.80 excludes all measured unrelated
+                # pairs. Digit guard above duplicate handles detail changes.
                 import re as _re
                 def _nums(t):
                     return _re.findall(r"\d+", t or "")
@@ -317,7 +318,7 @@ def absorb(req: AbsorbRequest):
                     neg_in = _polarity(req.content)
                     neg_ex = _polarity(candidates[0]["content"])
                     classification = "contradiction" if ((neg_in < 0) != (neg_ex < 0)) else "update"
-                elif top >= 0.62:
+                elif top >= 0.80:
                     classification = "related"
             else:
                 if top > 0.7:

@@ -24,7 +24,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
         python-version: ['3.10', '3.12']
 
     steps:
@@ -46,6 +46,29 @@ jobs:
 
       - name: Test PII roundtrip
         run: python scripts/test_pii_roundtrip.py
+
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t memtether:ci .
+
+      - name: Boot container and probe /health + /dashboard
+        run: |
+          docker run -d --name mt --rm -p 8820:8080 \
+            -e MEMTETHER_API_KEY=ci-test-key \
+            memtether:ci
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:8820/health > /dev/null; then break; fi
+            sleep 2
+          done
+          curl -sf http://127.0.0.1:8820/health
+          BODY=$(curl -sf http://127.0.0.1:8820/dashboard)
+          echo "$BODY" | grep -q 'Dashboard not found' && (echo 'dashboard missing'; exit 1) || echo 'dashboard OK'
+          docker stop mt
 
   build:
     runs-on: ubuntu-latest

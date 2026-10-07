@@ -55,7 +55,12 @@ MIRRORS = ["https://huggingface.co", "https://hf-mirror.com"]
 
 
 def _fetch(url, dest, min_size=1):
-    """Stream url to dest with resume; returns True if the file is complete."""
+    """Stream url to dest with resume; returns True if the file is complete.
+
+    a49 fix: a proxy EOF mid-stream used to end the read loop cleanly and the
+    truncated .part file was accepted (min_size=1 passed). Now the response's
+    Content-Length is the source of truth -- the file is promoted out of .part
+    only when its size matches (resume offsets accounted for)."""
     tmp = dest + ".part"
     done = os.path.getsize(tmp) if os.path.exists(tmp) else 0
     req = urllib.request.Request(url, headers={"User-Agent": "memtether-downloader"})
@@ -64,11 +69,13 @@ def _fetch(url, dest, min_size=1):
     try:
         r = urllib.request.urlopen(req, timeout=30)
     except Exception as e:
-        # 416 = range not satisfiable → file already complete upstream
+        # 416 = range not satisfiable -> file already complete upstream
         if hasattr(e, "code") and e.code == 416 and os.path.exists(dest):
             return True
         raise
-    total = r.headers.get("Content-Length")
+    total_hdr = r.headers.get("Content-Length")
+    total = int(total_hdr) if total_hdr else None
+    expected = (done + total) if (done and total is not None) else total
     mode = "ab" if done else "wb"
     with open(tmp, mode) as f, r:
         while True:
@@ -76,15 +83,20 @@ def _fetch(url, dest, min_size=1):
             if not chunk:
                 break
             f.write(chunk)
-            if total:
-                pct = min(100, 100 * (done + f.tell()) // int(total))
+            if expected:
+                pct = min(100, 100 * f.tell() // expected)
                 sys.stdout.write(f"\r    {pct:3d}%  {dest_name(dest)}")
                 sys.stdout.flush()
     sys.stdout.write("\n")
-    if os.path.getsize(tmp) >= min_size:
-        os.replace(tmp, dest)
-        return True
-    return False
+    size = os.path.getsize(tmp)
+    if expected is not None and size < expected:
+        print(f"    [warn] truncated download ({size} / {expected} bytes); "
+              f"keeping .part for resume -- rerun to continue")
+        return False
+    if expected is None and size < min_size:
+        return False
+    os.replace(tmp, dest)
+    return True
 
 
 def dest_name(p):
@@ -96,11 +108,21 @@ def download(profile_key, out_dir=None):
     out = out_dir or MODELS_DIR
     base = os.path.join(out, prof["target_dir"])
     print(f"[{profile_key}] {prof['note']}")
+    # expected sizes probed via HEAD at write-time of this script; a cached
+    # file smaller than expected is stale/truncated and must re-download
+    EXPECTED_SIZES = {
+        "Xenova/bge-small-zh-v1.5/onnx/model_fp16.onnx": 47497427,
+    }
     for rel in prof["files"]:
         dest = os.path.join(base, rel)
+        key = f"{prof['repo']}/{rel}"
+        expected = EXPECTED_SIZES.get(key)
         if os.path.exists(dest) and os.path.getsize(dest) > 0:
-            print(f"  ✓ cached  {rel}")
-            continue
+            if expected and os.path.getsize(dest) < expected:
+                print(f"  ⚠ stale  {rel} ({os.path.getsize(dest)} < {expected} bytes) — re-downloading")
+            else:
+                print(f"  ✓ cached  {rel}")
+                continue
         os.makedirs(os.path.dirname(dest), exist_ok=True)
         ok = False
         for host in MIRRORS:
