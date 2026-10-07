@@ -7,8 +7,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy project files
-COPY pyproject.toml .
+# Copy project files (README.md is required by pyproject readme=)
+COPY pyproject.toml README.md ./
 COPY *.py .
 COPY clients/ clients/
 COPY scripts/ scripts/
