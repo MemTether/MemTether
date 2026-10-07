@@ -93,6 +93,25 @@ class TestAbsorbSemantic:
         d = r.json()
         assert d["classification"] in ("new", "related"), d
 
+    def test_chinese_port_change_is_update(self):
+        """ZH calibration: 7890->7897 sim=0.931 — digit guard must force update."""
+        r = client.post("/absorb", json={
+            "content": "Clash 端口是 7897", "source": "test",
+            "type": "fact", "dry_run": True})
+        d = r.json()
+        if d["method"] != "semantic":
+            pytest.skip("embed model unavailable")
+        assert d["classification"] in ("update", "contradiction"), d
+
+    def test_chinese_unrelated_is_new(self):
+        r = client.post("/absorb", json={
+            "content": "数据库迁移已完成", "source": "test",
+            "type": "fact", "dry_run": True})
+        d = r.json()
+        if d["method"] != "semantic":
+            pytest.skip("embed model unavailable")
+        assert d["classification"] in ("new", "related"), d
+
     def test_method_field_present(self):
         r = client.post("/absorb", json={
             "content": "hello world", "source": "test", "type": "fact",

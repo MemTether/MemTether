@@ -1,3 +1,37 @@
+## [0.1.0a47] - 2026-10-07
+
+### Tests - closed the biggest untested gaps (144 -> 172)
+
+- **MCP server smoke** (4): spawn `python -m mcp_server` subprocess,
+  speak JSON-RPC over stdio — initialize handshake, tools/list contract,
+  add->search roundtrip, invalid-method robustness. First automated
+  coverage of the MCP entry path every client uses.
+- **Dashboard end-to-end** (3): real uvicorn + GET /dashboard — regression
+  for the a40 "Dashboard not found" wheel incident.
+- **Timeline API** (3): /timeline/{uid} supersession chain.
+- **Docker compose config** (5): YAML parses, no deleted-module reference
+  (a25 regression), MEMTETHER_API_KEY passthrough matches api_server,
+  Dockerfile entry modules exist.
+- **Cross-process concurrent writes** (1): 4 real processes x 25 writes
+  on one shared db via hub_lock — zero crashes, integrity_check ok.
+- **Trust adapter** (10): Electron MCP trust hash algorithm, approve/
+  is_trusted roundtrip, command-change detection, corrupt-file
+  fail-closed (trust.py was 16% coverage).
+
+### Fixed
+
+- **/correct REST endpoint 500**: api_server passed `source=` but
+  `gateway.correct` expects `by_agent=` — every REST correction call
+  raised TypeError. Found by test_timeline_api on first run.
+
+### Changed
+
+- absorb thresholds recalibrated with 8 ZH probe pairs (ZH paraphrase
+  0.86-0.94): duplicate 0.95->0.92, related 0.65->0.62. Digit guard
+  still forces update for "port 7890 -> 7897" (ZH sim 0.931).
+
+Tests: 172 passed, 2 skipped (was 144+2).
+
 ## [0.1.0a46] - 2026-10-07
 
 ### Fixed - all four known real bugs

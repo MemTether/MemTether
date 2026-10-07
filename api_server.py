@@ -295,12 +295,15 @@ def absorb(req: AbsorbRequest):
         if candidates:
             top = candidates[0][score_key]
             if method == "semantic":
-                # thresholds calibrated on 12 probe pairs (2026-10-07):
-                # paraphrase 0.84-0.93 / unrelated 0.53-0.64
+                # thresholds calibrated on 12 EN probe pairs (2026-10-07) and
+                # 8 ZH probe pairs (a47): EN paraphrase 0.84-0.97, ZH paraphrase
+                # 0.86-0.94, unrelated both 0.53-0.76. Digit guard sits above
+                # duplicate so "port 7890 -> 7897" (ZH sim 0.931) is update,
+                # never duplicate.
                 import re as _re
                 def _nums(t):
                     return _re.findall(r"\d+", t or "")
-                if top >= 0.95:
+                if top >= 0.92:
                     if _nums(req.content) != _nums(candidates[0]["content"]):
                         # different digits = conflicting fact (port 7890 vs 7897),
                         # never a duplicate -> update/contradiction
@@ -314,7 +317,7 @@ def absorb(req: AbsorbRequest):
                     neg_in = _polarity(req.content)
                     neg_ex = _polarity(candidates[0]["content"])
                     classification = "contradiction" if ((neg_in < 0) != (neg_ex < 0)) else "update"
-                elif top >= 0.65:
+                elif top >= 0.62:
                     classification = "related"
             else:
                 if top > 0.7:
