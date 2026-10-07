@@ -253,6 +253,48 @@ class Adapter:
 # --------------------------------------------------------------------------
 # 最常见的形态：JSON / JSONC，根键下是一个 {name: spec} 映射
 # --------------------------------------------------------------------------
+
+
+class _FileLock:
+    """Cross-process advisory lock via O_CREAT|O_EXCL lockfile with stale detection.
+
+    a50: two `memtether setup` processes racing on one config produced
+    lost updates (each read the original, wrote its own version — last
+    replace clobbered the peer). Serializes the read-modify-write.
+    """
+    def __init__(self, path, timeout=10.0):
+        self.lock_path = path + ".memtether-lock"
+        self.timeout = timeout
+        self._fd = None
+
+    def __enter__(self):
+        import time as _t
+        deadline = _t.time() + self.timeout
+        while True:
+            try:
+                self._fd = os.open(self.lock_path,
+                                   os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                os.write(self._fd, str(os.getpid()).encode())
+                return self
+            except FileExistsError:
+                if _t.time() > deadline:
+                    # stale lock (crashed process) — break it
+                    try:
+                        os.unlink(self.lock_path)
+                    except OSError:
+                        pass
+                    deadline = _t.time() + self.timeout
+                _t.sleep(0.05)
+
+    def __exit__(self, *a):
+        if self._fd is not None:
+            os.close(self._fd)
+        try:
+            os.unlink(self.lock_path)
+        except OSError:
+            pass
+
+
 class JsonAdapter(Adapter):
     """root_path 指向那个「{名字: server定义}」的对象。"""
 
@@ -282,6 +324,10 @@ class JsonAdapter(Adapter):
         return d
 
     def write(self, target: Target, spec: ServerSpec, dry_run=True):
+        with _FileLock(target.path):
+            return self._write_locked(target, spec, dry_run)
+
+    def _write_locked(self, target: Target, spec: ServerSpec, dry_run=True):
         want = self.render(spec)
         created = not target.exists
         if created:
