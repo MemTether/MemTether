@@ -1,3 +1,52 @@
+## [0.1.0a50] - 2026-10-07
+
+### Added — Memory Court: the AI memory司法基础设施
+
+The first memory hub with a **tamper-evident evidence chain** for
+memory-level decisions — aligned with EU AI Act Article 12
+record-keeping requirements.
+
+- **`memory_court.py`**: hash-chained anchors over audit_log (every 10
+  entries or forced). Full-chain sha256 recomputation detects any edit
+  or deletion of anchored entries. Design trade-off: full recompute over
+  Merkle tree (simpler + faster at local-first scale, no trusted
+  third-party anchor service needed).
+- **`memtether court <uid>`**: five-section evidence dossier CLI —
+  content, bi-temporal timestamps, provenance chain, conflict
+  adjudications, integrity proof. Exit 1 on tamper detection.
+- **`memtether court --verify`**: full chain recompute.
+- **`memtether court <uid> --export out.zip`**: self-verifying evidence
+  package — case.json (Art.12 format), chain.jsonl, verify.html
+  (recomputes sha256 in the reader's browser, zero dependencies),
+  README.txt for auditors.
+- **GET `/court/{uid}`** + **GET `/court/verify`**: machine-readable API.
+- **Dashboard Memory Court tab**: UID lookup renders case file; verify
+  button runs full hash recompute with color-coded PASS/FAIL.
+- **README repositioned**: "The AI Memory Court" narrative with court
+  CLI demo block, EU AI Act Article 12 hook, and competitor matrix rows
+  for evidence chain and human adjudication.
+
+### Fixed
+
+- **Config file race**: two `memtether setup` processes racing on the
+  same config produced lost updates (Windows CI caught writer-1 entry
+  vanishing). `_FileLock` (O_CREAT|O_EXCL + stale detection) now
+  serializes read-modify-write in `JsonAdapter.write` — all 23 adapters
+  inherit the guarantee.
+- **`/remember` 500 on oversized content**: gateway ValueError (content
+  > 10240 chars) now mapped to HTTP 422 with error message.
+- **`/court/verify` 404**: route ordering — `/court/verify` was shadowed
+  by `/court/{uid}`. Moved above.
+
+### Security
+
+- **JSON config corruption via server-name injection** (found by red
+  team): `jsonc.set_entry` interpolated server name raw into config
+  text — a name containing quotes produced an invalid config file that
+  would break the client. Names are now JSON-escaped via `_jstr()`.
+
+Tests: 334 passed, 4 skipped (was 313+4).
+
 ## [0.1.0a49] - 2026-10-07
 
 ### Fixed
