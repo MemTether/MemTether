@@ -266,6 +266,86 @@ def _cmd_conflicts(args):
     return 1
 
 
+def _cmd_court(args):
+    """Memory Court: evidence dossier for one memory + chain verification."""
+    import sqlite3
+    db_path = os.environ.get("MEM_DB") or DEFAULT_DB
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+
+    if args.verify:
+        import memory_court as mc
+        ok, detail = mc.verify_chain(conn)
+        print("=" * 60)
+        if ok:
+            print(f"  MEMORY COURT: chain PASS - {detail.get('anchors',0)} anchor(s), "
+                  f"{detail.get('entries_covered',0)} entries covered, "
+                  f"{detail.get('unanchored_tail',0)} unanchored tail")
+        else:
+            print(f"  MEMORY COURT: chain FAIL - {detail.get('reason')}")
+        print("=" * 60)
+        conn.close()
+        return 0 if ok else 1
+
+    uid = args.uid
+    fact = conn.execute("SELECT * FROM facts WHERE uid=?", (uid,)).fetchone()
+    if fact is None:
+        print(f"no such memory: {uid}")
+        conn.close()
+        return 1
+
+    W = 60
+    def bar(c): return "=" * c
+    print("+" + bar(W) + "+")
+    print("| MEMTETHER MEMORY COURT - CASE FILE".ljust(W + 2) + "|")
+    print("| UID: " + uid.ljust(W - 6) + "|")
+    print("+" + bar(W) + "+")
+
+    print("| 1. CONTENT (current active version)".ljust(W + 2) + "|")
+    content = fact["content"] or ""
+    for i in range(0, min(len(content), 180), W - 6):
+        print("|   " + content[i:i+W-6].ljust(W - 4) + " |")
+    print("|   status=%s conf=%.2f q=%.2f uses=%d" % (fact["status"], fact["confidence"], fact["q_value"], fact["use_count"]))
+    print("|")
+    print("| 2. TEMPORAL EVIDENCE (bi-temporal)".ljust(W + 2) + "|")
+    print("|   valid (T):  %s -> %s" % (fact["valid_from"] or "?", fact["valid_to"] or "present"))
+    print("|   known (T'): %s -> %s" % (fact["recorded_at"] or "?", fact["invalidated_at"] or "present"))
+    print("|")
+    print("| 3. PROVENANCE CHAIN (audit_log)".ljust(W + 2) + "|")
+    logs = conn.execute(
+        "SELECT id, op, agent, detail, ts FROM audit_log "
+        "WHERE target=? ORDER BY id", (uid,)).fetchall()
+    for lg in logs:
+        d = (lg["detail"] or "")[:36]
+        print("|   #%s %-9s by=%-12s %s" % (lg["id"], lg["op"], lg["agent"], d))
+    if not logs:
+        print("|   (no audit entries)".ljust(W + 2) + "|")
+    print("|")
+    print("| 4. CONFLICT ADJUDICATIONS".ljust(W + 2) + "|")
+    crs = conn.execute(
+        "SELECT id, uid_a, uid_b, verdict, by_agent FROM conflict_reviews "
+        "WHERE uid_a=? OR uid_b=?", (uid, uid)).fetchall()
+    if crs:
+        for c in crs:
+            other = c["uid_b"] if c["uid_a"] == uid else c["uid_a"]
+            print("|   case #%d: vs %s... verdict=%s by=%s" % (c["id"], other[:20], c["verdict"], c["by_agent"]))
+    else:
+        print("|   (no conflicts on record)")
+    print("|")
+    print("| 5. INTEGRITY PROOF".ljust(W + 2) + "|")
+    import memory_court as mc
+    mc.maybe_anchor(conn, force=True)
+    ok, detail = mc.verify_chain(conn)
+    if ok:
+        print("|   chain: PASS (%d anchors, %d entries hashed)" % (detail.get("anchors",0), detail.get("entries_covered",0)))
+        print("|   verify anytime: memtether court --verify")
+    else:
+        print("|   chain: TAMPER DETECTED - see court --verify")
+    print("+" + bar(W) + "+")
+    conn.close()
+    return 0
+
+
 def _cmd_download_models(args):
     """Download local embedding models for semantic search (stdlib-only)."""
     import subprocess
@@ -672,6 +752,11 @@ def main(argv=None):
     sp_cf.add_argument("--by", default="", help="Reviewer agent/source name")
     sp_cf.set_defaults(func=_cmd_conflicts)
 
+    sp_ct = sub.add_parser("court", help="Memory Court: evidence dossier / hash-chain verify")
+    sp_ct.add_argument("uid", nargs="?", default=None)
+    sp_ct.add_argument("--verify", action="store_true")
+    sp_ct.add_argument("--export", metavar="ZIP", default=None)
+    sp_ct.set_defaults(func=_cmd_court)
     sp_dl = sub.add_parser("download-models", help="Download local embedding models for semantic search (bge-small-zh ~46MB / bge-m3-int8 ~560MB)")
     sp_dl.add_argument("--profile", default="bge-m3-int8", help="Model profile (bge-small-zh or bge-m3-int8)")
     sp_dl.add_argument("--out", default=None, help="Target models dir (default: <repo>/models or MEM_MODELS_DIR)")
