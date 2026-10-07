@@ -1,3 +1,15 @@
+## [0.1.0a48] - 2026-10-07
+
+### Fixed
+
+- **init_db race**: `_ensure_columns` ALTER TABLE raced between PRAGMA and
+  ALTER when two clients started simultaneously against a fresh shared db
+  (Linux CI caught it via the new cross-process test; Windows serialized by
+  luck). Duplicate-column errors are now swallowed as benign. This is the
+  multi-client-startup path — the product's core scenario.
+
+Tests: 172 passed, 2 skipped.
+
 ## [0.1.0a47] - 2026-10-07
 
 ### Tests - closed the biggest untested gaps (144 -> 172)
