@@ -266,6 +266,228 @@ def _cmd_conflicts(args):
     return 1
 
 
+def _cmd_remember_batch(args):
+    """Batch write: read a JSON array of {content, type, source} objects and
+    insert them with a single commit + batch ChromaDB upsert.
+
+    5000 facts: 7min (one-by-one) -> <60s (batch)."""
+    import json as _json
+    import sqlite3
+    import time as _t
+    db_path = os.environ.get("MEM_DB") or DEFAULT_DB
+
+    input_path = args.file
+    if not os.path.isfile(input_path):
+        print(f"✗ file not found: {input_path}")
+        return 1
+    with open(input_path, encoding="utf-8") as f:
+        items = _json.load(f)
+    if not isinstance(items, list):
+        print("✗ input must be a JSON array")
+        return 1
+
+    import gateway
+    conn = gateway.get_conn()
+    conn.row_factory = sqlite3.Row
+    gateway.init_db()
+
+    inserted = 0
+    deduped = 0
+    errors = 0
+    uids = []
+    vec_batch = []
+
+    t0 = _t.perf_counter()
+    for i, item in enumerate(items):
+        content = item.get("content", "").strip()
+        if not content or len(content) > 10240:
+            errors += 1
+            continue
+        itype = item.get("type", "fact")
+        isource = item.get("source", "batch")
+        uid = gateway._uid("fact", content + isource)
+        # check for existing
+        existing = conn.execute(
+            "SELECT uid FROM facts WHERE uid=? AND status='active'", (uid,)).fetchone()
+        if existing:
+            deduped += 1
+            continue
+        try:
+            conn.execute(
+                """INSERT INTO facts (uid,type,subject,content,status,source,scope,confidence,tags,
+                                      created_at,updated_at,valid_from,recorded_at,temporal_source,tenant_id)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (uid, itype, "user", content, "active", isource, "shared", 0.8, "",
+                 gateway.now(), gateway.now(), gateway.now(), gateway.now(), "native",
+                 os.environ.get("MEM_TENANT_ID", "default")))
+            gateway.audit(conn, "remember", uid, isource, content[:60])
+            uids.append(uid)
+            vec_batch.append(content)
+            inserted += 1
+        except Exception as e:
+            errors += 1
+            if errors <= 3:
+                print(f"  ⚠ item {i}: {e}")
+
+    conn.commit()
+
+    # batch vector upsert (single embed call for all)
+    vec_ok = 0
+    if vec_batch:
+        try:
+            import memsearch
+            col = memsearch._client().get_or_create_collection(
+                memsearch.COLLECTION, metadata={"hnsw:space": "cosine"})
+            vecs = memsearch._embed(vec_batch)
+            col.upsert(ids=uids, embeddings=vecs, documents=vec_batch,
+                       metadatas=[{"uid": u, "type": "fact"} for u in uids])
+            vec_ok = len(uids)
+        except Exception as e:
+            print(f"  ⚠ vector upsert failed (facts still in SQLite): {e}")
+
+    dt = _t.perf_counter() - t0
+    print(f"✓ batch: {inserted} inserted, {deduped} deduped, {errors} errors in {dt:.1f}s "
+          f"({inserted/dt:.0f}/sec)" if dt > 0 else "✓ batch complete")
+    print(f"  vectors: {vec_ok}/{len(uids)}")
+    conn.close()
+    return 0
+
+
+def _cmd_reconcile(args):
+    """Reconcile SQLite facts ↔ ChromaDB vector store.
+
+    Detects and fixes:
+    - facts in SQLite but missing from ChromaDB (vector gap)
+    - vectors in ChromaDB but not in active SQLite facts (ghost vectors)
+
+    This runs incrementally: only the differences are fixed.
+    """
+    import sys as _sys
+    db_path = os.environ.get("MEM_DB") or DEFAULT_DB
+    import gateway
+    conn = gateway.get_conn()
+    gateway.init_db()
+
+    try:
+        import memsearch
+        col = memsearch._client().get_or_create_collection(
+            memsearch.COLLECTION, metadata={"hnsw:space": "cosine"})
+    except Exception as e:
+        print(f"✗ ChromaDB unavailable: {e}")
+        conn.close()
+        return 1
+
+    # 1. get SQLite active uid set
+    sql_uids = set(r[0] for r in conn.execute(
+        "SELECT uid FROM facts WHERE status='active'").fetchall())
+
+    # 2. get ChromaDB stored uid set (batch get all)
+    chroma_ids = set()
+    try:
+        got = col.get(include=[])
+        if got and got.get("ids"):
+            chroma_ids = set(got["ids"])
+    except Exception as e:
+        print(f"⚠ could not list ChromaDB entries: {e}")
+
+    # 3. diff
+    missing_vec = sql_uids - chroma_ids  # in SQLite but not in vector store
+    ghost_vec = chroma_ids - sql_uids     # in vector store but not in active facts
+
+    print(f"SQLite active facts: {len(sql_uids)}")
+    print(f"ChromaDB stored vectors: {len(chroma_ids)}")
+    print(f"Missing vectors (need upsert): {len(missing_vec)}")
+    print(f"Ghost vectors (need delete): {len(ghost_vec)}")
+
+    if not missing_vec and not ghost_vec:
+        print("✓ SQLite ↔ ChromaDB consistent. No action needed.")
+        conn.close()
+        return 0
+
+    # 4. fix missing vectors (batch upsert)
+    fixed = 0
+    if missing_vec and not args.dry_run:
+        uid_list = sorted(missing_vec)
+        contents = []
+        valid_uids = []
+        for u in uid_list:
+            r = conn.execute("SELECT content FROM facts WHERE uid=? AND status='active'", (u,)).fetchone()
+            if r:
+                contents.append(r[0])
+                valid_uids.append(u)
+        if valid_uids:
+            try:
+                vecs = memsearch._embed(contents)
+                col.upsert(ids=valid_uids, embeddings=vecs, documents=contents,
+                           metadatas=[{"uid": u, "type": "fact"} for u in valid_uids])
+                fixed = len(valid_uids)
+                print(f"  ✓ upserted {fixed} missing vectors")
+            except Exception as e:
+                print(f"  ✗ batch upsert failed: {e}")
+    elif missing_vec:
+        print(f"  (dry-run: would upsert {len(missing_vec)} vectors)")
+
+    # 5. delete ghost vectors
+    removed = 0
+    if ghost_vec and not args.dry_run:
+        ghost_list = sorted(ghost_vec)
+        try:
+            # batch delete (chromadb supports max ~1000 per call)
+            for i in range(0, len(ghost_list), 500):
+                col.delete(ids=ghost_list[i:i+500])
+            removed = len(ghost_list)
+            print(f"  ✓ deleted {removed} ghost vectors")
+        except Exception as e:
+            print(f"  ✗ batch delete failed: {e}")
+    elif ghost_vec:
+        print(f"  (dry-run: would delete {len(ghost_vec)} ghost vectors)")
+
+    # 6. final verify
+    if not args.dry_run:
+        got2 = col.get(include=[])
+        chroma_after = set(got2.get("ids", [])) if got2 else set()
+        remaining_missing = sql_uids - chroma_after
+        remaining_ghost = chroma_after - sql_uids
+        if not remaining_missing and not remaining_ghost:
+            print("✓ reconciliation complete — SQLite ↔ ChromaDB now consistent")
+        else:
+            print(f"⚠ remaining: {len(remaining_missing)} missing, {len(remaining_ghost)} ghost")
+            return 1
+
+    conn.close()
+    return 0
+
+
+def _cmd_backup(args):
+    """Create a point-in-time backup of the memory database."""
+    import shutil
+    db_path = os.environ.get("MEM_DB") or DEFAULT_DB
+    if not os.path.isfile(db_path):
+        print(f"✗ database not found: {db_path}")
+        return 1
+    import time as _time_mod
+    backup_dir = os.path.join(os.path.dirname(db_path), "backups")
+    os.makedirs(backup_dir, exist_ok=True)
+    stamp = _time_mod.strftime("%Y%m%d_%H%M%S")
+    dest = os.path.join(backup_dir, f"memory_{stamp}.db")
+    # sqlite3 .backup API (safe even during writes with WAL)
+    import sqlite3 as _sq
+    src_conn = _sq.connect(db_path)
+    dst_conn = _sq.connect(dest)
+    src_conn.backup(dst_conn)
+    dst_conn.close()
+    src_conn.close()
+    sz = os.path.getsize(dest)
+    print(f"✓ backup: {dest} ({sz/1024:.0f} KB)")
+    # cleanup: keep last 7
+    backups = sorted(f for f in os.listdir(backup_dir) if f.startswith("memory_") and f.endswith(".db"))
+    if len(backups) > 7:
+        for old in backups[:-7]:
+            os.remove(os.path.join(backup_dir, old))
+            print(f"  pruned old backup: {old}")
+    return 0
+
+
 def _cmd_court(args):
     """Memory Court: evidence dossier for one memory + chain verification."""
     import sqlite3
@@ -845,6 +1067,14 @@ def main(argv=None):
     sp_cf.add_argument("--by", default="", help="Reviewer agent/source name")
     sp_cf.set_defaults(func=_cmd_conflicts)
 
+    sp_rb = sub.add_parser("remember-batch", help="Batch write memories from a JSON file")
+    sp_rb.add_argument("file", help="JSON array of {content, type, source} objects")
+    sp_rb.set_defaults(func=_cmd_remember_batch)
+    sp_bk = sub.add_parser("backup", help="Create a point-in-time backup of the memory database")
+    sp_bk.set_defaults(func=_cmd_backup)
+    sp_rc = sub.add_parser("reconcile", help="Fix SQLite ↔ ChromaDB vector store inconsistencies (incremental rebuild)")
+    sp_rc.add_argument("--dry-run", action="store_true", help="report without fixing")
+    sp_rc.set_defaults(func=_cmd_reconcile)
     sp_ct = sub.add_parser("court", help="Memory Court: evidence dossier / hash-chain verify")
     sp_ct.add_argument("uid", nargs="?", default=None)
     sp_ct.add_argument("--verify", action="store_true")

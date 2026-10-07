@@ -553,7 +553,6 @@ def remember(content, type='fact', source=DEFAULT_SOURCE, scope='shared', subjec
         try:
             sys.path.insert(0, HUB)
             import memsearch
-            import difflib as _dl
             col = memsearch._client().get_collection(memsearch.COLLECTION)
             qv = memsearch._embed([content])[0]
             rr = col.query(query_embeddings=[qv], n_results=3)
@@ -577,7 +576,7 @@ def remember(content, type='fact', source=DEFAULT_SOURCE, scope='shared', subjec
                         pass
                     continue
                 doc = got['documents'][0]
-                if _dl.SequenceMatcher(None, content, doc).ratio() >= 0.85:
+                if True:  # a50: embed sim >= 0.92 IS the dedup criterion (SequenceMatcher fails on CJK paraphrases)
                     conn.execute("UPDATE facts SET updated_at=? WHERE uid=?", (now(), did))
                     audit(conn, 'remember_near_dup', did, source, content[:60])
                     conn.commit()
