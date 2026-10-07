@@ -2,18 +2,36 @@
 
 <img src="assets/demo.gif" width="100%" alt="MemTether — cross-client AI memory in action"/>
 
-# MemTether
+# MemTether — The AI Memory Court
 
-**The only memory hub where corrections don't delete.**
+**Your agent remembers things. Who audits what it remembers?**
 
-When an agent corrects a fact, the old value isn't destroyed — it's linked in a
-**supersession chain** you can trace, audit, and roll back. Combined with
-**bi-temporal timestamps** (when facts were true vs when the system learned them)
-and a **portable exchange format** (import/export with integrity hashes),
-MemTether treats agent memory as governed data, not a cache.
+MemTether is the first memory hub where every fact carries a **verifiable
+evidence chain**: who wrote it, when it took effect, what it superseded,
+which conflicts were adjudicated by a human, and a **tamper-evident hash
+chain** anyone can verify in their browser — no code, no dependencies.
 
-One physical SQLite database, shared by every AI client via file-level pointers.
-No cloud. No API fees. No sync daemon. Greppable, git-able, yours.
+```bash
+$ memtether court fact-20261007-abc
++============================================================+
+| MEMTETHER MEMORY COURT - CASE FILE                          |
+| 1. CONTENT    Clash proxy port is 7897                      |
+| 2. TEMPORAL   valid: 10-05 → present | known: 10-05 → now   |
+| 3. PROVENANCE #1 remember by=codex → #2 correct by=user     |
+| 4. CONFLICTS  case #3: vs fact-...old verdict=superseded    |
+| 5. INTEGRITY  chain: PASS (3 anchors, 42 entries hashed)    |
++============================================================+
+```
+
+Under the hood: **supersession chains** (corrections never delete),
+**bi-temporal timestamps** (when facts were true vs when the system
+learned them), **human-adjudicated conflict resolution**, and a
+**hash-chained audit log** aligned with EU AI Act Article 12
+record-keeping requirements.
+
+One physical SQLite database, shared by every AI client via file-level
+pointers. No cloud. No API fees. No sync daemon. Greppable, git-able,
+yours — and **auditable**.
 
 > *Compared to mem0 (66.6K★), Zep/Graphiti (31.5K★), and agentmemory (29.2K★):
 > those systems either overwrite or delete old values. MemTether's supersession
@@ -25,6 +43,8 @@ No cloud. No API fees. No sync daemon. Greppable, git-able, yours.
 | | MemTether | [memora](https://github.com/agentic-box/memora) (731★) | [memtrace](https://github.com/syncable-dev/memtrace-public) (486★) | [icarus](https://github.com/esaradev/icarus-memory-infra) (290★) | [mem0](https://github.com/mem0ai/mem0) (66K★) |
 |---|---|---|---|---|---|
 | **Supersession chains** (corrections don't delete) | ✅ enforced | ❌ | ❌ | ✅ | ❌ overwrite |
+| **Evidence chain** (tamper-evident, browser-verifiable) | ✅ court CLI + zip | ❌ | ❌ | ❌ | ❌ |
+| **Human conflict adjudication** (decisions on record) | ✅ conflicts CLI | ❌ | ❌ | ❌ | ❌ |
 | **Bi-temporal** (valid_from ≠ recorded_at) | ✅ 100% coverage | ❌ | ✅ graph | ❌ | ❌ |
 | **Source attribution** (who wrote it, enforced) | ✅ registry + reject | ❌ | ❌ | ✅ provenance | ❌ |
 | **File-level pointer** (zero cloud, zero sync daemon) | ✅ | ❌ | ❌ | ❌ | ❌ server |

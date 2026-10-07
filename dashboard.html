@@ -83,6 +83,17 @@
     <button onclick="doAudit()">查链</button>
     <div id="audit-results" class="result"></div>
   </div>
+  <div class="card" id="court-card">
+    <h2>⚖️ Memory Court — 记忆法庭</h2>
+    <p class="muted" data-i18n="court-desc">输入记忆 UID，查看完整证据卷宗：内容、双时间轴、溯源链、冲突裁决、hash 链完整性。</p>
+    <div style="display:flex;gap:8px;">
+      <input id="court-uid" placeholder="fact-..." style="flex:1" onkeydown="if(event.key==='Enter')doCourt()" />
+      <button onclick="doCourt()">查卷宗</button>
+      <button onclick="doCourtVerify()" title="全链 hash 重算">验链</button>
+    </div>
+    <div id="court-result" class="results"></div>
+  </div>
+
 </div>
 <script>
 function escapeHtml(text) {
@@ -253,5 +264,40 @@ function setLang(l) {
   document.getElementById('remember-source').placeholder = t.source_ph;
   document.documentElement.lang = l === 'zh' ? 'zh-CN' : 'en';
 }
+
+async function doCourt() {
+  const uid = document.getElementById('court-uid').value.trim();
+  const el = document.getElementById('court-result');
+  if (!uid) { el.innerHTML = '<span style="color:#ff5d6c">请输入 UID</span>'; return; }
+  el.innerHTML = '加载中...';
+  try {
+    const r = await fetch(api() + '/court/' + encodeURIComponent(uid), { headers: authHeaders() });
+    const d = await r.json();
+    if (!r.ok) { el.innerHTML = `<span style="color:#ff5d6c">${d.detail || r.status}</span>`; return; }
+    let prov = (d.provenance||[]).map(p=>`<div>#${p.id} ${p.op} by=${p.agent} — ${(p.detail||'').slice(0,60)}</div>`).join('');
+    let conf = (d.conflict_adjudications||[]).map(c=>`<div>case #${c.id}: ${c.verdict} (by ${c.by_agent})</div>`).join('');
+    const chainCls = d.chain_verified ? 'ok' : 'bad';
+    el.innerHTML = `
+      <div><b>内容:</b> ${(d.content||'').slice(0,120)}</div>
+      <div><b>状态:</b> ${d.status} | conf=${d.confidence} | q=${(+d.q_value).toFixed(2)} | uses=${d.use_count}</div>
+      <div><b>生效期(T):</b> ${d.valid_from||'?'} → ${d.valid_to||'present'}</div>
+      <div><b>认知期(T'):</b> ${d.recorded_at||'?'} → ${d.invalidated_at||'present'}</div>
+      <details><summary>溯源链 (${(d.provenance||[]).length})</summary>${prov||'(无)'}</details>
+      <details><summary>冲突裁决 (${(d.conflict_adjudications||[]).length})</summary>${conf||'(无)'}</details>
+      <div class="${chainCls}"><b>hash 链: ${d.chain_verified ? '✓ PASS' : '✗ FAIL'}</b></div>`;
+  } catch(e) { el.innerHTML = `<span style="color:#ff5d6c">ERR: ${e}</span>`; }
+}
+
+async function doCourtVerify() {
+  const el = document.getElementById('court-result');
+  el.innerHTML = '全链重算中...';
+  try {
+    const r = await fetch(api() + '/court/verify', { headers: authHeaders() });
+    const d = await r.json();
+    const cls = d.verified ? 'ok' : 'bad';
+    el.innerHTML = `<div class="${cls}"><b>${d.verified ? '✓ 链完整' : '✗ 检测到篡改'}</b> — ${d.anchors||0} anchors, ${d.entries_covered||0} entries, ${d.unanchored_tail||0} tail</div>`;
+  } catch(e) { el.innerHTML = `<span style="color:#ff5d6c">ERR: ${e}</span>`; }
+}
+
 </script></body>
 </html>

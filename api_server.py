@@ -110,6 +110,60 @@ def root():
     from fastapi.responses import RedirectResponse
     return RedirectResponse(url="/dashboard")
 
+@app.get("/court/verify")
+def court_verify():
+    """Full hash-chain recompute. Returns PASS/FAIL + details."""
+    import memory_court as mc
+    import sqlite3
+    db_path = os.environ.get("MEM_DB", "memory.db")
+    conn = sqlite3.connect(db_path)
+    try:
+        mc.maybe_anchor(conn, force=True)
+        ok, detail = mc.verify_chain(conn)
+        return {"verified": ok, **detail}
+    finally:
+        conn.close()
+
+
+@app.get("/court/{uid}")
+def court_case(uid: str):
+    """Memory Court: evidence dossier for one memory (machine-readable)."""
+    import sqlite3
+    db_path = os.environ.get("MEM_DB", "memory.db")
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    try:
+        fact = conn.execute("SELECT * FROM facts WHERE uid=?", (uid,)).fetchone()
+        if fact is None:
+            raise HTTPException(status_code=404, detail=f"no such memory: {uid}")
+        logs = conn.execute(
+            "SELECT id, op, target, agent, detail, ts FROM audit_log "
+            "WHERE target=? ORDER BY id", (uid,)).fetchall()
+        crs = conn.execute(
+            "SELECT id, uid_a, uid_b, verdict, by_agent, ts FROM conflict_reviews "
+            "WHERE uid_a=? OR uid_b=?", (uid, uid)).fetchall()
+        import memory_court as mc
+        mc.maybe_anchor(conn, force=True)
+        ok, detail = mc.verify_chain(conn)
+        return {
+            "uid": uid,
+            "content": fact["content"],
+            "status": fact["status"],
+            "confidence": fact["confidence"],
+            "q_value": fact["q_value"],
+            "use_count": fact["use_count"],
+            "valid_from": fact["valid_from"], "valid_to": fact["valid_to"],
+            "recorded_at": fact["recorded_at"], "invalidated_at": fact["invalidated_at"],
+            "source": fact["source"],
+            "provenance": [dict(zip(("id","op","target","agent","detail","ts"), r)) for r in logs],
+            "conflict_adjudications": [dict(zip(("id","uid_a","uid_b","verdict","by_agent","ts"), r)) for r in crs],
+            "chain_verified": ok,
+            "chain_detail": detail,
+        }
+    finally:
+        conn.close()
+
+
 @app.get("/dashboard", response_class=HTMLResponse)
 def dashboard():
     """Serve the web dashboard."""
