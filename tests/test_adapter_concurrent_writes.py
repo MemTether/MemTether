@@ -27,12 +27,23 @@ spec = ServerSpec(name='memory-hub-' + sys.argv[1], command='python',
                   args=['-m', 'mcp_server'], env={})
 t = Target(a.id, a.display, 'user', p, True, True, '')
 ok = 0
+import time as _t
 for i in range(10):
-    try:
-        ch = a.write(t, spec, dry_run=False)
-        ok += 1
-    except Exception as e:
-        print('EXC', e); break
+    done = False
+    for attempt in range(5):
+        try:
+            ch = a.write(t, spec, dry_run=False)
+            ok += 1
+            done = True
+            break
+        except Exception as e:
+            msg = str(e)
+            if '32' in msg or 'in use' in msg.lower() or '使用' in msg:
+                _t.sleep(0.1 * (attempt + 1))  # transient share violation: retry
+                continue
+            print('EXC', e); break
+    if not done:
+        break
 print('OK=' + str(ok))
 """
 WORKER = WORKER.replace('__REPO__', repr(REPO))

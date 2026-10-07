@@ -89,7 +89,18 @@ def atomic_write(path: str, text: str) -> None:
             f.write(text)
             f.flush()
             os.fsync(f.fileno())
-        os.replace(tmp, path)
+        # a50: two concurrent `setup` runs on the same config race at
+        # os.replace (WinError 32 when the other process holds the target
+        # open). Brief bounded retry — last writer wins, file stays valid.
+        import time as _t
+        for attempt in range(5):
+            try:
+                os.replace(tmp, path)
+                break
+            except PermissionError:
+                if attempt == 4:
+                    raise
+                _t.sleep(0.05 * (attempt + 1))
     finally:
         if os.path.exists(tmp):
             try:
