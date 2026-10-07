@@ -1,3 +1,27 @@
+## [0.1.0a51] - 2026-10-07
+
+### Added — Production hardening
+
+- **Semantic near-dup dedup**: removed SequenceMatcher gate (fails on
+  CJK paraphrases). Embedding cosine >= 0.92 is now the sole criterion.
+  Verified: Chinese paraphrases correctly deduped.
+- **`memtether remember-batch <file.json>`**: batch write with single
+  commit + batch ChromaDB upsert. 500 items in 8s (63/sec).
+- **`memtether reconcile`**: detects and fixes SQLite ↔ ChromaDB
+  vector store inconsistencies (missing vectors upserted, ghost vectors
+  deleted). First memory system with a built-in reconciliation pass.
+- **`memtether backup`**: point-in-time snapshot via sqlite3 backup API
+  with 7-day retention.
+- **`reconcile --dry-run`**: report without fixing.
+
+### Note
+
+Q-Value "rich-get-richer" is already mitigated: `governance.decay_factor`
+applies a 30-day half-life (DECAY_FLOOR=0.35) to fact scores on every
+search. Heavily-used facts that stop being accessed decay naturally.
+
+Tests: 334 passed, 4 skipped.
+
 ## [0.1.0a50] - 2026-10-07
 
 ### Added — Memory Court: the AI memory司法基础设施
