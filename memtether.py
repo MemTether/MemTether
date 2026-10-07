@@ -287,6 +287,99 @@ def _cmd_court(args):
         conn.close()
         return 0 if ok else 1
 
+    if args.export:
+        import zipfile, json as _json
+        import memory_court as mc
+        uid_exp = args.uid
+        if not uid_exp:
+            print("usage: memtether court <uid> --export out.zip")
+            conn.close()
+            return 1
+        fact = conn.execute("SELECT * FROM facts WHERE uid=?", (uid_exp,)).fetchone()
+        if fact is None:
+            print(f"no such memory: {uid_exp}")
+            conn.close()
+            return 1
+        logs = conn.execute(
+            "SELECT id, op, target, agent, detail, ts FROM audit_log "
+            "WHERE target=? ORDER BY id", (uid_exp,)).fetchall()
+        mc.maybe_anchor(conn, force=True)
+        ok, detail = mc.verify_chain(conn)
+        anchors = conn.execute(
+            "SELECT id, last_log_id, chain_hash, entries_hashed, ts "
+            "FROM audit_anchors ORDER BY id").fetchall()
+        # case.json — machine-readable dossier
+        case = {
+            "uid": uid_exp,
+            "content": fact["content"],
+            "status": fact["status"],
+            "confidence": fact["confidence"],
+            "q_value": fact["q_value"],
+            "use_count": fact["use_count"],
+            "valid_from": fact["valid_from"], "valid_to": fact["valid_to"],
+            "recorded_at": fact["recorded_at"], "invalidated_at": fact["invalidated_at"],
+            "source": fact["source"],
+            "audit_entries": [dict(zip(("id","op","target","agent","detail","ts"), r)) for r in logs],
+            "anchors": [dict(zip(("id","last_log_id","chain_hash","entries_hashed","ts"), r)) for r in anchors],
+            "chain_verified": ok,
+        }
+        # verify.html — self-verifying: recompute chain in browser JS
+        chain_js = _json.dumps({
+            "genesis": "GENESIS",
+            "anchors": [dict(zip(("id","last_log_id","chain_hash","entries_hashed","ts"), r)) for r in anchors],
+            "entries": [list(r) for r in logs],
+        }, ensure_ascii=False)
+        verify_html = '''<!DOCTYPE html><html><head><meta charset="utf-8"><title>MemTether Evidence</title>
+<style>body{font-family:monospace;background:#0a0e17;color:#e8ecf4;padding:2em}
+.ok{color:#4ade80}.bad{color:#ff5d6c}pre{white-space:pre-wrap}</style></head><body>
+<h1>MemTether Evidence Chain — self-verifying report</h1>
+<p>This page re-computes the sha256 hash chain locally in your browser.
+No network, no dependencies. If the status below is PASS, the audit
+records embedded here are exactly the records that were anchored.</p>
+<div id="st">verifying…</div><pre id="d"></pre>
+<script>
+const data = %s;
+async function sha256hex(s){
+  const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+  return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');
+}
+(async () => {
+  let h = data.genesis; let checked = 0; let fail = null;
+  for (const a of data.anchors) {
+    for (const e of data.entries) {
+      if (e[0] <= (data.anchors[data.anchors.indexOf(a)-1]?.last_log_id || 0)) continue;
+      if (e[0] > a.last_log_id) continue;
+      h = await sha256hex(h + e.join('|'));
+      checked++;
+    }
+    if (h !== a.chain_hash) { fail = a; break; }
+  }
+  const st = document.getElementById('st');
+  if (fail) { st.innerHTML = '<span class="bad">FAIL — anchor #'+fail.id+' hash mismatch</span>'; }
+  else { st.innerHTML = '<span class="ok">PASS — '+data.anchors.length+' anchors, '+checked+' entries verified</span>'; }
+  document.getElementById('d').textContent = JSON.stringify(data, null, 2);
+})();
+</script></body></html>''' % chain_js
+
+        zpath = args.export
+        with zipfile.ZipFile(zpath, "w", zipfile.ZIP_DEFLATED) as z:
+            z.writestr("case.json", _json.dumps(case, ensure_ascii=False, indent=1))
+            z.writestr("chain.jsonl",
+                       "\n".join(_json.dumps(dict(zip(("id","op","target","agent","detail","ts"), r)), ensure_ascii=False) for r in logs))
+            z.writestr("verify.html", verify_html)
+            z.writestr("README.txt", (
+                "MemTether Memory Court — evidence package\n"
+                f"uid: {uid_exp}\n"
+                f"chain_verified: {ok}\n\n"
+                "How to verify:\n"
+                "1. Open verify.html in any browser (works offline, no deps).\n"
+                "   It re-computes the sha256 hash chain and shows PASS/FAIL.\n"
+                "2. Or run: memtether court --verify  (on the source machine)\n"
+                "3. case.json is the machine-readable dossier (EU AI Act Art.12).\n"))
+        print(f"✓ evidence package: {zpath} (chain {'PASS' if ok else 'FAIL'})")
+        conn.close()
+        return 0
+
     uid = args.uid
     fact = conn.execute("SELECT * FROM facts WHERE uid=?", (uid,)).fetchone()
     if fact is None:
