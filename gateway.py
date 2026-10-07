@@ -393,7 +393,14 @@ def _ensure_columns(conn):
     for name, typ, dflt in (('q_value', 'REAL', '0.5'), ('use_count', 'INTEGER', '0'), ('predicate', 'TEXT', None)):
         if name in have:
             continue
-        conn.execute('ALTER TABLE facts ADD COLUMN %s %s%s' % (name, typ, (' DEFAULT ' + dflt) if dflt else ''))
+        try:
+            conn.execute('ALTER TABLE facts ADD COLUMN %s %s%s' % (name, typ, (' DEFAULT ' + dflt) if dflt else ''))
+        except sqlite3.OperationalError as e:
+            if 'duplicate column' not in str(e).lower():
+                raise
+            # a47: two processes ran init_db concurrently (multi-client startup
+            # on a shared db is the product's core scenario) — the other process
+            # added the column between our PRAGMA and our ALTER. Harmless.
     # ★2026-09-20 扩展：tool_assets 也补 —— 资产条目占检索结果近半，
     #   没有这两列就永远吃不到 Q-Value 加权（bump 也无对象）。
     try:
@@ -403,8 +410,12 @@ def _ensure_columns(conn):
     for name, typ, dflt in (('q_value', 'REAL', '0.5'), ('use_count', 'INTEGER', '0')):
         if name in have_a:
             continue
-        conn.execute('ALTER TABLE tool_assets ADD COLUMN %s %s DEFAULT %s'
-                     % (name, typ, dflt))
+        try:
+            conn.execute('ALTER TABLE tool_assets ADD COLUMN %s %s DEFAULT %s'
+                         % (name, typ, dflt))
+        except sqlite3.OperationalError as e:
+            if 'duplicate column' not in str(e).lower():
+                raise
 
 
 def init_db():
