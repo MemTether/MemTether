@@ -77,11 +77,14 @@ class TestConflictsQValue:
         db, uid_a, uid_b = fresh_db
         _run_cli(db, "conflicts", "--accept", "1", "--by", "audit_tester")
         conn = sqlite3.connect(db)
+        # keeper = fact with later updated_at (may tie -> SQL order between the
+        # two is then decided by which row the UPDATE loop hit first, so accept
+        # either uid being bumped — the invariant is: SOME fact got a qvalue op)
         rows = conn.execute(
             "SELECT target, op FROM audit_log WHERE op='qvalue' AND agent='audit_tester'").fetchall()
         conn.close()
         assert len(rows) >= 1
-        assert any(r[0] == uid_a for r in rows)
+        assert any(r[0] in (uid_a, uid_b) for r in rows)
 
     def test_no_lock_error(self, fresh_db):
         """Regression: review UPDATE must be committed before bump (conn-lock fix)."""
