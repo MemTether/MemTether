@@ -268,6 +268,12 @@ def _newline_of(text: str) -> str:
 # --------------------------------------------------------------------------
 # 外科式写入
 # --------------------------------------------------------------------------
+def _jstr(s):
+    """JSON-escape a string for embedding between quotes (a50 security fix:
+    server names with quotes/newlines previously corrupted config files)."""
+    return json.dumps(str(s), ensure_ascii=False)[1:-1]
+
+
 def set_entry(text: str, path, name: str, obj, indent: str | None = None):
     """把 text 里 path 指向对象的 `name` 键设为 obj。
 
@@ -309,7 +315,7 @@ def set_entry(text: str, path, name: str, obj, indent: str | None = None):
         first_ks = entries[0][1]
         # text[:first_ks] 末尾已带「换行 + 缩进」，那份缩进现在归插入项用；
         # 所以插入项后面要自己补一份「换行 + 缩进」还给原来的第一个键。
-        ins = '"%s": %s,%s%s' % (name, new_val, nl, entry_ind)
+        ins = '"%s": %s,%s%s' % (_jstr(name), new_val, nl, entry_ind)
         return text[:first_ks] + ins + text[first_ks:], "insert"
 
     # 空对象：自己补换行与缩进（注意别把 `{\n}` 变成 `{\n\n}`）
@@ -321,7 +327,7 @@ def set_entry(text: str, path, name: str, obj, indent: str | None = None):
     else:
         lead = nl
         indent_lead = entry_ind
-    body = lead + indent_lead + '"%s": %s' % (name, new_val) + nl + ind * (depth - 1)
+    body = lead + indent_lead + '"%s": %s' % (_jstr(name), new_val) + nl + ind * (depth - 1)
     return text[:after] + body + text[after:], "insert"
 
 
