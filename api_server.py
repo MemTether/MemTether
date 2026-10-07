@@ -189,7 +189,7 @@ def stats():
 @app.post("/correct")
 @_limiter.limit("60/minute")
 def correct(request: Request, req: CorrectRequest):
-    return gateway.correct(req.old_uid, req.new_content, req.reason, source=req.source)
+    return gateway.correct(req.old_uid, req.new_content, req.reason, by_agent=req.source)
 
 @app.post("/retire")
 @_limiter.limit("60/minute")
