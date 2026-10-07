@@ -1,3 +1,28 @@
+## [0.1.0a49] - 2026-10-07
+
+### Fixed
+
+- **docker build never worked**: pyproject declares readme=README.md and
+  packages=memtether_assets, but the Dockerfile COPYed neither — every
+  `docker build` died at setuptools. First-run docker CI job caught both.
+  README first install path now actually builds and boots, verified by
+  CI booting the container and probing /health + /dashboard.
+
+### Changed
+
+- **absorb related threshold 0.62 -> 0.80**: 23 LLM-generated ZH probe
+  pairs (scripts/zh_calibration.py, free-credit WB2API pool) showed
+  unrelated max sim 0.782 — the old 0.62 let unrelated pairs classify
+  as related. dup stays 0.92 (conservative: a misjudged duplicate
+  degrades to update = still written).
+
+### Tests
+
+- 172 passed, 2 skipped. New: trust adapter (10), zh absorb calibration (2),
+  macos matrix, docker build+boot CI job.
+- download_models: fixed truncation acceptance (real defect found by
+  downloading the real 46MB model through a proxy) + stale-cache guard.
+
 ## [0.1.0a48] - 2026-10-07
 
 ### Fixed
