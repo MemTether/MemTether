@@ -27,9 +27,18 @@ if HAS_FASTAPI:
     # (module-level MEM_DB ownership belongs to whichever test file imports it first).
 
 requires_fastapi = pytest.mark.skipif(not HAS_FASTAPI, reason="fastapi not installed")
-requires_embed = pytest.mark.skipif(
-    not __import__("importlib").util.find_spec("embed_local") or True,
-    reason="embed_local availability checked at runtime")
+
+
+def _embed_available():
+    try:
+        import embed_local
+        return embed_local.available()
+    except Exception:
+        return False
+
+
+requires_embed = pytest.mark.skipif(not _embed_available(),
+                                    reason="local embedding model not installed on this runner")
 
 
 def _seed():
@@ -55,6 +64,7 @@ def _seed():
 
 
 @requires_fastapi
+@requires_embed
 class TestAbsorbSemantic:
     @classmethod
     def setup_class(cls):
