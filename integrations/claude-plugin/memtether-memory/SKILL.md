@@ -2,6 +2,12 @@
 
 Cross-client AI memory hub. Claude Code can use MemTether MCP tools to remember and recall across sessions.
 
+## Slash commands
+
+- /mem-remember <fact> - save a memory
+- /mem-search <query> - search shared memory
+- /mem-stats - recent memories summary
+
 ## Available MCP tools
 
 When the MemTether MCP server is connected (via install.sh or install.ps1), you have access to:

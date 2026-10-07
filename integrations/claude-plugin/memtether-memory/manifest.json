@@ -2,7 +2,7 @@
   "name": "memtether-memory",
   "displayName": "MemTether Memory",
   "description": "Cross-client AI memory hub via file-level pointers",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "mcpServers": {
     "memtether": {
       "command": "python",

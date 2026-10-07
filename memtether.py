@@ -221,16 +221,43 @@ def _cmd_conflicts(args):
         ids = (args.accept or args.discard).split(',')
         by = args.by or 'cli'
         n = 0
+        q_bumped = 0
+        # a46: accept = the kept (newer) fact's assertion survives -> reward it;
+        #      discard = the pair was noise -> mild penalty on both to damp future
+        #      false candidates. Q-Value learning loop (P0-3 / bug fix #2).
+        import gateway as _gw
+        reward = 1.0 if args.accept else 0.0
         for i in ids:
             i = i.strip()
             if not i.isdigit():
+                continue
+            row = conn.execute(
+                "SELECT uid_a, uid_b FROM conflict_reviews WHERE id=? AND verdict='pending'",
+                (int(i),)).fetchone()
+            if row is None:
                 continue
             cur = conn.execute(
                 "UPDATE conflict_reviews SET verdict=?, note=?, by_agent=?, ts=datetime('now','localtime') "
                 "WHERE id=? AND verdict='pending'", (verdict, args.note or '', by, int(i)))
             n += cur.rowcount
+            conn.commit()  # release write lock before bump_qvalue opens its own conn (a46: fixes 'database is locked')
+            if cur.rowcount:
+                # pick the newer fact as the "kept" side for accept
+                try:
+                    ua = conn.execute("SELECT updated_at FROM facts WHERE uid=?", (row['uid_a'],)).fetchone()
+                    ub = conn.execute("SELECT updated_at FROM facts WHERE uid=?", (row['uid_b'],)).fetchone()
+                    keep = row['uid_a'] if (ua and ub and ua['updated_at'] >= ub['updated_at']) else row['uid_b']
+                    _gw.bump_qvalue(uid=keep, reward=reward, agent=by,
+                                    detail=f'conflict review #{i} {verdict}')
+                    if not args.accept:
+                        loser = row['uid_b'] if keep == row['uid_a'] else row['uid_a']
+                        _gw.bump_qvalue(uid=loser, reward=0.0, agent=by,
+                                        detail=f'conflict review #{i} {verdict}')
+                    q_bumped += 1
+                except Exception as _e:
+                    print(f"⚠ q_value bump failed: {_e}", file=sys.stderr)  # best-effort; review itself already recorded
         conn.commit()
-        print(f"✓ reviewed {n} pair(s) as {verdict}")
+        print(f"✓ reviewed {n} pair(s) as {verdict}" + (f" (q_value bumped: {q_bumped})" if q_bumped else ""))
         conn.close()
         return 0
 

@@ -139,9 +139,11 @@ def health():
 @app.post("/remember")
 @_limiter.limit("60/minute")
 async def remember(request: Request, req: RememberRequest):
+    # a46: asyncio.to_thread (Py3.9+) uses a dedicated pool instead of the
+    # default executor shared with Starlette internals — no event-loop blocking,
+    # no executor starvation under concurrent writes.
     import asyncio
-    loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(None, _remember_sync, req)
+    return await asyncio.to_thread(_remember_sync, req)
 
 
 def _remember_sync(req):
@@ -150,12 +152,12 @@ def _remember_sync(req):
 @app.post("/search")
 @_limiter.limit("60/minute")
 async def search(request: Request, req: SearchRequest):
-    """P1 (2026-10-05): async wrapper - runs gateway.search in thread pool
+    """a46: runs gateway.search via asyncio.to_thread (dedicated thread pool)
     so the event loop is not blocked by FTS5/vector computation. Compatible
-    with async agent frameworks (LangGraph, Flowise, n8n)."""
+    with async agent frameworks (LangGraph, Flowise, n8n).
+    Note: this is I/O offload, not a native-async rewrite of the engine."""
     import asyncio
-    loop = asyncio.get_event_loop()
-    result = await loop.run_in_executor(None, _search_sync, req.query, req.limit)
+    result = await asyncio.to_thread(_search_sync, req.query, req.limit)
     return result
 
 
@@ -231,60 +233,116 @@ def _polarity(text):
 
 @app.post("/absorb")
 def absorb(req: AbsorbRequest):
-    """Keyword-based absorb (not semantic — LLM embedding absorb is roadmap): classify incoming fact against existing memories.
+    """Semantic absorb (P0, a46): classify incoming fact against existing memories
+    using local embeddings (embed_local, bge-m3-int8). Falls back to keyword
+    overlap when the model is unavailable (honest degradation, same as memsearch).
 
     Returns classification per candidate (duplicate / contradiction / related / new)
     and optionally writes if dry_run=False. Uses gateway.remember + conflict detection.
     """
     import sqlite3
     db_path = os.environ.get("MEM_DB", "memory.db")
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
     try:
-        conn = sqlite3.connect(db_path)
-        conn.row_factory = sqlite3.Row
-        # find top candidates by simple keyword overlap (L0 absorb, no LLM)
-        words = set(req.content.lower().split())
         rows = conn.execute(
             "SELECT uid, content, type FROM facts WHERE status='active' AND scope NOT IN ('private','restricted') ORDER BY updated_at DESC LIMIT 200"
         ).fetchall()
+
+        # --- semantic path (preferred) ---
+        method = "keyword"
+        incoming_vec = None
+        row_texts = [(r["uid"], r["content"] or "", r["type"]) for r in rows]
+        try:
+            import embed_local
+            if embed_local.available() and row_texts:
+                incoming_vec = embed_local.encode([req.content])[0]
+                row_vecs = embed_local.encode([t for _, t, _ in row_texts])
+                method = "semantic"
+            else:
+                row_vecs = None
+        except Exception:
+            row_vecs = None  # fall through to keyword
+
         candidates = []
-        for r in rows:
-            rwords = set((r['content'] or '').lower().split())
-            overlap = len(words & rwords) / max(len(words | rwords), 1)
-            if overlap > 0.15:
-                candidates.append({'uid': r['uid'], 'content': r['content'][:120],
-                                   'type': r['type'], 'overlap': round(overlap, 3)})
-        candidates.sort(key=lambda x: x['overlap'], reverse=True)
-        conn.close()
+        if method == "semantic" and row_vecs is not None:
+            import math
+            def _cos(a, b):
+                dot = sum(x * y for x, y in zip(a, b))
+                na = math.sqrt(sum(x * x for x in a))
+                nb = math.sqrt(sum(x * x for x in b))
+                return dot / (na * nb) if na and nb else 0.0
+            for (uid, text, typ), vec in zip(row_texts, row_vecs):
+                sim = _cos(incoming_vec, vec)
+                if sim > 0.50:
+                    candidates.append({"uid": uid, "content": text[:120],
+                                       "type": typ, "similarity": round(sim, 3)})
+            candidates.sort(key=lambda x: x["similarity"], reverse=True)
+        else:
+            # keyword fallback (L0, no LLM) — same logic as pre-a46
+            words = set(req.content.lower().split())
+            for uid, text, typ in row_texts:
+                rwords = set(text.lower().split())
+                overlap = len(words & rwords) / max(len(words | rwords), 1)
+                if overlap > 0.15:
+                    candidates.append({"uid": uid, "content": text[:120],
+                                       "type": typ, "overlap": round(overlap, 3)})
+            candidates.sort(key=lambda x: x["overlap"], reverse=True)
 
         # classify best candidate
-        classification = 'new'
+        score_key = "similarity" if method == "semantic" else "overlap"
+        classification = "new"
         if candidates:
-            top = candidates[0]['overlap']
-            if top > 0.7:
-                classification = 'duplicate'
-            elif top > 0.4:
-                # check polarity for contradiction
-                neg_in = _polarity(req.content)
-                neg_ex = _polarity(candidates[0]['content'])
-                classification = 'contradiction' if ((neg_in < 0) != (neg_ex < 0)) else 'update'
-            elif top > 0.15:
-                classification = 'related'
+            top = candidates[0][score_key]
+            if method == "semantic":
+                # thresholds calibrated on 12 probe pairs (2026-10-07):
+                # paraphrase 0.84-0.93 / unrelated 0.53-0.64
+                import re as _re
+                def _nums(t):
+                    return _re.findall(r"\d+", t or "")
+                if top >= 0.95:
+                    if _nums(req.content) != _nums(candidates[0]["content"]):
+                        # different digits = conflicting fact (port 7890 vs 7897),
+                        # never a duplicate -> update/contradiction
+                        neg_in = _polarity(req.content)
+                        neg_ex = _polarity(candidates[0]["content"])
+                        classification = ("contradiction"
+                                          if ((neg_in < 0) != (neg_ex < 0)) else "update")
+                    else:
+                        classification = "duplicate"
+                elif top >= 0.75:
+                    neg_in = _polarity(req.content)
+                    neg_ex = _polarity(candidates[0]["content"])
+                    classification = "contradiction" if ((neg_in < 0) != (neg_ex < 0)) else "update"
+                elif top >= 0.65:
+                    classification = "related"
+            else:
+                if top > 0.7:
+                    classification = "duplicate"
+                elif top > 0.4:
+                    neg_in = _polarity(req.content)
+                    neg_ex = _polarity(candidates[0]["content"])
+                    classification = "contradiction" if ((neg_in < 0) != (neg_ex < 0)) else "update"
+                elif top > 0.15:
+                    classification = "related"
 
         result = {
-            'ok': True,
-            'classification': classification,
-            'candidates': candidates[:5],
-            'dry_run': req.dry_run,
+            "ok": True,
+            "classification": classification,
+            "method": method,
+            "candidates": candidates[:5],
+            "dry_run": req.dry_run,
         }
-        if not req.dry_run and classification in ('new', 'update'):
+        if not req.dry_run and classification in ("new", "update"):
             wr = gateway.remember(content=req.content, type=req.type, source=req.source)
-            result['write'] = wr
-        elif not req.dry_run and classification == 'duplicate':
-            result['write'] = {'skipped': True, 'reason': 'duplicate of existing fact'}
+            result["write"] = wr
+        elif not req.dry_run and classification == "duplicate":
+            result["write"] = {"skipped": True, "reason": "duplicate of existing fact"}
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)[:300])
-
+    finally:
+        conn.close()
 @app.post("/qvalue")
 def qvalue(req: QValueRequest):
     return gateway.bump_qvalue(req.uid, req.reward, req.source)

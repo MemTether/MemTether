@@ -1,3 +1,32 @@
+## [0.1.0a46] - 2026-10-07
+
+### Fixed - all four known real bugs
+
+- **Semantic absorb (P0-HIGH)**: `/absorb` now uses local embeddings
+  (`embed_local`, bge-m3-int8, 1024-dim) instead of word overlap.
+  Digit-aware duplicate guard: same-sentence with different numbers
+  (port 7890 vs 7897) classifies as update/contradiction, never duplicate.
+  Calibrated on 12 probe pairs (paraphrase 0.84-0.93 / unrelated 0.53-0.64).
+  Falls back to keyword overlap when the model is unavailable (honest
+  degradation, same pattern as memsearch). `method` field in the response
+  reports which path ran. New tests: `tests/test_absorb_semantic.py` (5).
+- **Q-Value learning loop (P0-HIGH)**: `memtether conflicts --accept` now
+  rewards the kept (newer) fact (+0.05); `--discard` penalises both (-0.05).
+  Every bump is logged to `audit_log` with agent + detail. This gives the
+  governance review loop an actual learning signal — q_value no longer stuck
+  at 0.5 for reviewed facts. Also fixes a latent sqlite conn-lock bug
+  (review UPDATE is now committed before bump opens its own connection).
+  New tests: `tests/test_conflicts_qvalue.py` (4).
+- **Async I/O offload**: `/remember` and `/search` use `asyncio.to_thread`
+  (Py3.9+ dedicated pool) instead of `run_in_executor(None, ...)` shared
+  executor. Docstring honestly notes this is I/O offload, not a native-async
+  engine rewrite.
+- **Plugin slash commands**: Claude plugin ships `/mem-remember`, `/mem-search`,
+  `/mem-stats` (commands/*.md); Cursor gets `.cursorrules` hints; OpenClaw
+  gets `AGENTS.md` hints. Claude manifest bumped to 0.1.2.
+
+Tests: 144 passed, 2 skipped (was 135+2).
+
 ## [0.1.0a45] - 2026-10-07
 
 ### Changed - Narrative repositioning + community tooling

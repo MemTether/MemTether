@@ -1,0 +1,10 @@
+# MemTether Memory Rules
+
+When this project uses MemTether (MCP server "memtether" connected):
+- User says "remember this" → call add_memories (source="cursor")
+- User asks about past context → search_memory FIRST before answering
+- First sentence of content = the key conclusion (projection keeps only that)
+
+Slash-style requests:
+- "/mem-search <query>" → search_memory(query)
+- "/mem-remember <fact>" → add_memories(content, source="cursor", type="fact")
