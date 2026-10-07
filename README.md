@@ -19,6 +19,23 @@ No cloud. No API fees. No sync daemon. Greppable, git-able, yours.
 > those systems either overwrite or delete old values. MemTether's supersession
 > chain preserves the full history with source attribution and Q-Value ranking.*
 > EAF retrieval: 75.7% strict on LongMemEval 500Q (paired delta +19.4pp, McNemar p=7.8e-7).
+
+### How MemTether compares
+
+| | MemTether | [memora](https://github.com/agentic-box/memora) (731★) | [memtrace](https://github.com/syncable-dev/memtrace-public) (486★) | [icarus](https://github.com/esaradev/icarus-memory-infra) (290★) | [mem0](https://github.com/mem0ai/mem0) (66K★) |
+|---|---|---|---|---|---|
+| **Supersession chains** (corrections don't delete) | ✅ enforced | ❌ | ❌ | ✅ | ❌ overwrite |
+| **Bi-temporal** (valid_from ≠ recorded_at) | ✅ 100% coverage | ❌ | ✅ graph | ❌ | ❌ |
+| **Source attribution** (who wrote it, enforced) | ✅ registry + reject | ❌ | ❌ | ✅ provenance | ❌ |
+| **File-level pointer** (zero cloud, zero sync daemon) | ✅ | ❌ | ❌ | ❌ | ❌ server |
+| **Conflict detection** (rule-based + human review) | ✅ candidate generator | ❌ | ❌ | ❌ | ❌ |
+| **MCP server** | ✅ | ✅ | ✅ | ❌ | ✅ |
+| **23+ client adapters** | ✅ auto-detect | ❌ | ❌ | ❌ | ❌ |
+| **Evaluation integrity framework** | ✅ 5 patterns | ❌ | ❌ | ❌ | ❌ |
+| **CI: 9 jobs / 325 tests** | ✅ | ? | ? | ? | ✅ |
+| **Language** | Python | ? | Rust | ? | Python |
+
+*'Each cell reflects the feature's presence in the project's public documentation as of 2026-10-07. MemTether's differentiator is not any single feature — it's the combination of all governance dimensions in one local-first deployment.'*
 > [Artifact bundle](releases/eaf_artifact_bundle/) with per-question records.
 
 [![PyPI](https://img.shields.io/pypi/v/memtether)](https://pypi.org/project/memtether/)
@@ -300,3 +317,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 ---
 
 **If MemTether helps you, please give it a ⭐ on [GitHub](https://github.com/MemTether/MemTether)** — it helps other agents find it.
+

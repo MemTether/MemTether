@@ -534,6 +534,80 @@ def _cmd_dashboard(args):
         print("\nServer stopped.")
 
 
+
+def _cmd_provenance(args: argparse.Namespace) -> None:
+    """Show the full provenance audit trail for a fact."""
+    import sqlite3, json
+    db_path = os.environ.get("MEM_DB", os.path.join(DATA_DIR, "memory.db"))
+    conn = sqlite3.connect(str(db_path))
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+
+    uid = args.uid
+    print(f"Provenance audit trail for: {uid}")
+    print("=" * 60)
+
+    # Get the fact itself
+    cur.execute("SELECT uid, content, source, type, status, valid_from, valid_to, recorded_at, superseded_by, q_value FROM facts WHERE uid = ?", (uid,))
+    fact = cur.fetchone()
+    if not fact:
+        print(f"Fact not found: {uid}")
+        return
+
+    print(f"  UID:          {fact['uid']}")
+    print(f"  Content:      {fact['content'][:100]}...")
+    print(f"  Source:       {fact['source']}")
+    print(f"  Type:         {fact['type']}")
+    print(f"  Status:       {fact['status']}")
+    print(f"  Valid from:   {fact['valid_from']}")
+    print(f"  Valid to:     {fact['valid_to'] or '(still active)'}")
+    print(f"  Recorded at:  {fact['recorded_at']}")
+    print(f"  Q-Value:      {fact['q_value']}")
+    print(f"  Superseded by: {fact['superseded_by'] or '(none)'}")
+
+    # Walk forward: what superseded this fact
+    print(f"\n  Supersession chain (forward):")
+    current = uid
+    depth = 0
+    while depth < 20:
+        cur.execute("SELECT new_uid FROM supersessions WHERE old_uid = ?", (current,))
+        row = cur.fetchone()
+        if not row: break
+        new_uid = row["new_uid"]
+        cur.execute("SELECT ts, by_agent, reason FROM supersessions WHERE old_uid = ?", (current,))
+        meta = cur.fetchone()
+        ts = meta["ts"] if meta else "?"
+        agent = meta["by_agent"] if meta else "?"
+        reason = (meta["reason"] or "")[:60] if meta else ""
+        print(f"    {depth+1}. {current} → {new_uid}")
+        print(f"       at {ts} by {agent}: {reason}")
+        current = new_uid
+        depth += 1
+    if depth == 0:
+        print(f"    (no forward supersessions)")
+
+    # Walk backward: what did this fact supersede
+    print(f"\n  Supersession chain (backward):")
+    current = uid
+    depth = 0
+    while depth < 20:
+        cur.execute("SELECT old_uid FROM supersessions WHERE new_uid = ?", (current,))
+        row = cur.fetchone()
+        if not row: break
+        old_uid = row["old_uid"]
+        cur.execute("SELECT ts, by_agent FROM supersessions WHERE new_uid = ?", (current,))
+        meta = cur.fetchone()
+        ts = meta["ts"] if meta else "?"
+        agent = meta["by_agent"] if meta else "?"
+        print(f"    {depth+1}. {current} ← {old_uid}")
+        print(f"       at {ts} by {agent}")
+        current = old_uid
+        depth += 1
+    if depth == 0:
+        print(f"    (no backward supersessions)")
+
+    conn.close()
+    print("=" * 60)
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
     p = argparse.ArgumentParser(
@@ -610,6 +684,9 @@ def main(argv=None):
     sp_import.add_argument("--type", default="fact", help="Memory type")
     sp_import.add_argument("--max-size", type=int, default=100000, help="Max file size in bytes")
     sp_import.set_defaults(func=_cmd_import_docs)
+    sp = sub.add_parser("provenance", help="Show full audit trail for a fact (supersession chain + source + timestamps)")
+    sp.add_argument("uid", help="Fact UID to trace")
+    sp.set_defaults(func=_cmd_provenance)
 
     args = p.parse_args(argv)
     if not getattr(args, "cmd", None):
@@ -620,3 +697,5 @@ def main(argv=None):
 
 if __name__ == "__main__":
     sys.exit(main())
+
+
