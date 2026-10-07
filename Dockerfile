@@ -13,6 +13,7 @@ COPY *.py .
 COPY clients/ clients/
 COPY scripts/ scripts/
 COPY integrations/ integrations/
+COPY memtether_assets/ memtether_assets/
 
 # Install the package
 RUN pip install --no-cache-dir .
