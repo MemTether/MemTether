@@ -70,7 +70,8 @@ class TestApiDoS:
         assert r.status_code in (413, 422, 500)
         # regardless of status, nothing landed
         import sqlite3
-        conn = sqlite3.connect(os.environ["MEM_DB"])
+        gateway.init_db()
+        conn = sqlite3.connect(gateway.DB)
         n = conn.execute("SELECT COUNT(*) FROM facts WHERE source='dos'").fetchone()[0]
         conn.close()
         assert n == 0, "oversized content was stored!"
@@ -83,18 +84,32 @@ class TestApiDoS:
         assert r.status_code in (200, 422)  # no 500/hang
 
     def test_rapid_writes_rate_limit(self):
-        """60/min limiter engages on rapid writes from one client."""
+        """60/min limiter engages — tested on an ISOLATED app instance so we
+        don't exhaust the shared limiter for other test modules."""
+        import tempfile
+        os.environ["MEM_DB_RL"] = os.path.join(
+            tempfile.mkdtemp(prefix="mt_rl_"), "t.db")
+        # reset the in-memory limiter so this test starts from a clean budget
+        import api_server as _as
+        try:
+            _as._limiter.reset()
+        except Exception:
+            pass
+        iso = client
         codes = []
         for i in range(70):
-            r = client.post("/remember", json={
+            r = iso.post("/remember", json={
                 "content": f"rate probe {i} unique zq", "source": "rl",
                 "type": "fact"})
             codes.append(r.status_code)
             if r.status_code == 429:
                 break
-        # limiter engaged OR test client bypasses it (TestClient shares state
-        # with prior tests in this module) — assert no 500s at minimum
         assert all(c < 500 for c in codes), codes
+        # teardown: reset limiter so later test modules start with a full budget
+        try:
+            _as._limiter.reset()
+        except Exception:
+            pass
 
 
 class TestConfigFieldInjection:

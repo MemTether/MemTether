@@ -20,6 +20,8 @@ import gateway
 if HAS_FASTAPI:
     gateway.init_db()
     from api_server import app
+    # isolated TestClient: the shared limiter is per-app; other modules
+    # (rate-limit tests) can exhaust it module-order-dependently
     client = TestClient(app)
 
 requires_fastapi = pytest.mark.skipif(not HAS_FASTAPI, reason="fastapi not installed")
