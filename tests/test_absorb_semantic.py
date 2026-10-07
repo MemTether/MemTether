@@ -102,6 +102,10 @@ class TestAbsorbSemantic:
 
 @requires_fastapi
 class TestAbsorbKeywordFallback:
+    @classmethod
+    def setup_class(cls):
+        _seed()
+
     def test_fallback_when_model_missing(self):
         """When embed_local unavailable, degrade to keyword overlap."""
         with patch("embed_local.available", return_value=False):
