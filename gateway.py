@@ -864,7 +864,7 @@ def _search_like_legacy(query, limit=10, mem0=False):
         results = []
         # 1) 事实：关键词 LIKE（active 优先，superseded 惩罚）
         for row in conn.execute(
-            "SELECT * FROM facts WHERE status='active' AND (content LIKE ? OR subject LIKE ? OR tags LIKE ?) ORDER BY updated_at DESC LIMIT ?",
+            "SELECT * FROM facts WHERE status='active' AND scope NOT IN ('private','restricted') AND (content LIKE ? OR subject LIKE ? OR tags LIKE ?) ORDER BY updated_at DESC LIMIT ?",
             ('%' + q + '%', '%' + q + '%', '%' + q + '%', limit)).fetchall():
             results.append({'kind': 'fact', 'uid': row['uid'], 'type': row['type'],
                             'content': row['content'], 'status': row['status'],
