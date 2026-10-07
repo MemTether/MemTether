@@ -1,3 +1,23 @@
+## [0.1.0a53] - 2026-10-08
+
+### Fixed — Test coverage round (v19 tech-debt #1/#2)
+
+- **predicates.py regex fix**: `_ATTR_PATTERN`/`_SUPPORT_PATTERN` never matched
+  spaced Chinese ("Clash 的端口") — retrieval-side `_QUERY_ATTR` had `\s*`,
+  write-side did not. Predicates were silently missing for the most common
+  input format. Coverage 28% -> 95%.
+- **New tests (54)**: test_predicates.py (12), test_governance_deep.py (22),
+  test_exchange_adapters_io.py (13 — mem0/zep adapters were 0%),
+  test_tool_audit.py (7), test_consolidation.py (4).
+- **v19 correction**: consolidation.py and memtether_pipeline.py are NOT dead
+  (memsearch lazy-import + exchange sanitize path). Kept + tested instead of
+  deleted. Honest note: consolidation.build_topic_timelines JOINs
+  fact_entities — a table no shipped schema creates; that path remains
+  untested/would crash on real DBs.
+- governance.py 21% -> 44% (decay/apply_decay/stale/review/retire/residual/
+  self-contradiction paths). TOTAL coverage 41% -> 46%.
+- Tests: 392 passed, 4 skipped.
+
 ## [0.1.0a52] - 2026-10-08
 
 ### Fixed — Packaging

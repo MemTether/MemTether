@@ -21,11 +21,14 @@ import sqlite3
 
 # 中文常见属性词（首句截断前的「的X」模式）
 _ATTR_PATTERN = re.compile(
-    r'(?P<entity>[\w\u4e00-\u9fff\-\.]{2,15})的(?P<attr>[\w\u4e00-\u9fff\-\.]{1,15})'
+    # ★2026-10-08 fix: allow whitespace around 的 — 'Clash 的端口' never matched
+    # without it (retrieval-side _QUERY_ATTR already had \s*; write-side didn't).
+    r'(?P<entity>[\w\u4e00-\u9fff\-\.]{2,15})\s*的\s*(?P<attr>[\w\u4e00-\u9fff\-\.]{1,15})'
 )
 # 「X支持Y」「X有Y」模式
 _SUPPORT_PATTERN = re.compile(
-    r'(?P<entity>[\w\u4e00-\u9fff\-\.]{2,15})(?:支持|有|具备|提供|包含)(?P<attr>[\w\u4e00-\u9fff\-\.]{2,15})'
+    # ★2026-10-08 fix: same whitespace tolerance as _ATTR_PATTERN.
+    r'(?P<entity>[\w\u4e00-\u9fff\-\.]{2,15})\s*(?:支持|有|具备|提供|包含)\s*(?P<attr>[\w\u4e00-\u9fff\-\.]{2,15})'
 )
 
 def extract_predicates(content):
