@@ -71,10 +71,10 @@ memtether search "Test content" --list
 cd MemTether
 pip install -e ".[server]"
 
-# Run 100 tests
+# Run the full test suite
 pytest tests/ -v --tb=short
 
-# Expected: 100 passed (or 100 passed, 1 warning)</code></pre>
+# Expected: 464+ passed, 4 skipped (a63 口径; count grows each release)</code></pre>
 </div>
 
 <h2>4. Coverage</h2>
@@ -82,8 +82,8 @@ pytest tests/ -v --tb=short
 <pre><code>pip install pytest-cov
 pytest tests/ --cov=. --cov-report=term
 
-# Expected: TOTAL ~26% (100 tests)
-# Breakdown: hubguard 61% / memsearch 47% / gateway 24% / governance 21%</code></pre>
+# Expected: TOTAL ~55% (a61+; 466 tests)
+# Breakdown: memory_court 98% / predicates 95% / governance 57% / gateway 54% / tether_connect 49%</code></pre>
 </div>
 
 <h2>5. LongMemEval benchmark</h2>
@@ -97,8 +97,8 @@ pytest tests/ --cov=. --cov-report=term
 <table>
 <tr><th>Claim</th><th>Evidence</th><th>Status</th></tr>
 <tr><td>23 adapters auto-connect</td><td><code>memtether init</code> output + tether_connect.py 597 lines</td><td>✅ Reproducible</td></tr>
-<tr><td>52 → 100 tests</td><td><code>pytest tests/ -v</code></td><td>✅ Reproducible</td></tr>
-<tr><td>Coverage 26%</td><td><code>pytest --cov</code></td><td>✅ Reproducible</td></tr>
+<tr><td>334 → 466 tests</td><td><code>pytest tests/ -v</code></td><td>✅ Reproducible</td></tr>
+<tr><td>Coverage ~55%</td><td><code>pytest --cov</code></td><td>✅ Reproducible</td></tr>
 <tr><td>WAL mode enabled</td><td><code>sqlite3 memory.db "PRAGMA journal_mode"</code></td><td>✅ Reproducible (a26 fix)</td></tr>
 <tr><td>Tenant isolation</td><td><code>tests/test_tenant.py</code> — cross-tenant 0 leak</td><td>✅ Reproducible</td></tr>
 <tr><td>Rate limit 60/min</td><td><code>tests/test_rate_limit.py</code></td><td>✅ Reproducible</td></tr>

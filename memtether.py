@@ -197,6 +197,8 @@ def _cmd_conflicts(args):
 
     if args.stats:
         rows = conn.execute("SELECT verdict, COUNT(*) n FROM conflict_reviews GROUP BY verdict").fetchall()
+        if not rows:
+            print("  (no conflict reviews recorded — run governance detection first)")
         for r in rows:
             print(f"  {r['verdict']}: {r['n']}")
         conn.close()
@@ -206,6 +208,8 @@ def _cmd_conflicts(args):
         rows = conn.execute(
             "SELECT id, uid_a, uid_b FROM conflict_reviews WHERE verdict='pending' LIMIT ?",
             (args.limit,)).fetchall()
+        if not rows:
+            print("  (no pending conflict candidates — governance detection writes them)")
         for r in rows:
             ca = conn.execute("SELECT content FROM facts WHERE uid=?", (r['uid_a'],)).fetchone()
             cb = conn.execute("SELECT content FROM facts WHERE uid=?", (r['uid_b'],)).fetchone()

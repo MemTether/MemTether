@@ -75,7 +75,7 @@ pip install -e ".[server]"
 # 运行全部测试
 pytest tests/ -v --tb=short
 
-# 预期: 461 passed, 4 skipped（a61 起口径）</code></pre>
+# 预期: 464+ passed, 4 skipped（a63 起口径；随版本递增）</code></pre>
 </div>
 
 <h2>4. 覆盖率</h2>
@@ -83,7 +83,7 @@ pytest tests/ -v --tb=short
 <pre><code>pip install pytest-cov
 pytest tests/ --cov=. --cov-report=term
 
-# 预期: TOTAL ~55%（461 测试口径）
+# 预期: TOTAL ~55%（466 测试口径）
 # 明细: memory_court 98% / predicates 95% / consolidation 67%
 #       governance 57% / memsearch ~57% / gateway 54% / tether_connect 49%</code></pre>
 </div>
@@ -99,7 +99,7 @@ pytest tests/ --cov=. --cov-report=term
 <table>
 <tr><th>结论</th><th>证据</th><th>状态</th></tr>
 <tr><td>23 个适配器自动接入</td><td><code>memtether init</code> 输出 + tether_connect.py 597 行</td><td>✅ 可复现</td></tr>
-<tr><td>461 项测试</td><td><code>pytest tests/ -v</code></td><td>✅ 可复现</td></tr>
+<tr><td>466 项测试</td><td><code>pytest tests/ -v</code></td><td>✅ 可复现</td></tr>
 <tr><td>覆盖率 ~55%</td><td><code>pytest --cov</code></td><td>✅ 可复现</td></tr>
 <tr><td>WAL 模式启用</td><td><code>sqlite3 memory.db "PRAGMA journal_mode"</code></td><td>✅ 可复现（a26 修复）</td></tr>
 <tr><td>租户隔离</td><td><code>tests/test_tenant.py</code> — 跨租户 0 泄露</td><td>✅ 可复现</td></tr>

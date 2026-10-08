@@ -1,3 +1,14 @@
+## [0.1.0a65] - 2026-10-08
+
+### Fixed — stale numbers sweep + CLI UX (black-box audit round 2b)
+
+- **Stale numbers across all public pages**: EN reproduce.html still claimed
+  "100 tests / 26% coverage"; README comparison table said "325 tests";
+  zh badges said 461. All synced to 466 / ~55% (a63-a64 口径).
+- `conflicts --stats` / `--list` printed nothing on empty DBs (silent
+  no-op) — now prints an explanatory zero-state line.
+- Docs updated: docs/INTRO + TECHNICAL test counts, benchmark table.
+
 ## [0.1.0a64] - 2026-10-08
 
 ### Fixed — reconcile mutation gate (black-box audit round 2)

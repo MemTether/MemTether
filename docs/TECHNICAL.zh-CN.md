@@ -197,7 +197,7 @@ sha256（内容哈希）
 ## 9. 测试与质量
 
 ```
-461 passed, 4 skipped
+466 passed, 4 skipped
 CI: 9 jobs（ubuntu×2 + windows×2 + macos×2 + Docker boot + lint + build）
 ```
 

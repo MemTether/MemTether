@@ -52,7 +52,7 @@ yours — and **auditable**.
 | **MCP server** | ✅ | ✅ | ✅ | ❌ | ✅ |
 | **23+ client adapters** | ✅ auto-detect | ❌ | ❌ | ❌ | ❌ |
 | **Evaluation integrity framework** | ✅ 5 patterns | ❌ | ❌ | ❌ | ❌ |
-| **CI: 9 jobs / 325 tests** | ✅ | ? | ? | ? | ✅ |
+| **CI: 9 jobs / 466 tests** | ✅ | ? | ? | ? | ✅ |
 | **Language** | Python | ? | Rust | ? | Python |
 
 *'Each cell reflects the feature's presence in the project's public documentation as of 2026-10-07. MemTether's differentiator is not any single feature — it's the combination of all governance dimensions in one local-first deployment.'*
@@ -279,7 +279,7 @@ memtether dashboard                    # Web UI
 
 | Test | Result |
 |---|---|
-| pytest | 30/30 (CI runs full tests/ directory) |
+| pytest | 466 passed, 4 skipped (CI runs full tests/ directory) |
 | hard_bench | 62/62 |
 | e2e_verify | 13/13 |
 | refuse_bench | 26/26 (wordform gate; 09-25 calibration; known blind spot: same-form-different-attribute) |
