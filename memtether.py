@@ -488,6 +488,33 @@ def _cmd_backup(args):
     return 0
 
 
+def _cmd_correct(args):
+    import gateway as _gw
+    _gw.init_db()
+    by = args.by or _gw.DEFAULT_SOURCE
+    r = _gw.correct(args.uid, args.content, args.reason or 'corrected', by_agent=by,
+                    valid_from=args.valid_from)
+    print(json.dumps(r, ensure_ascii=False, indent=2))
+    return 0 if r.get('ok') else 1
+
+
+def _cmd_retire(args):
+    # guarded flow via governance.retire (dry-run default, residual-facts guard, --force)
+    import gateway as _gw
+    import governance as _gov
+    _gw.init_db()  # ensure schema exists (governance assumes DB ready)
+    _gov.DB = _gw.DB
+    reason = args.reason or 'retired'
+    if args.by:
+        reason = f'{reason} (by {args.by})'
+    r = _gov.retire(args.uid, reason=reason, apply=args.apply, force=args.force)
+    if (not args.apply and not r.get('ok') is None and r.get('dry_run') and r.get('residual_warning')):
+        # surface a clear hint on dry-run when --apply would be refused
+        r['hint'] = 'apply will be refused unless --force (residual facts present)'
+    print(json.dumps(r, ensure_ascii=False, indent=2))
+    return 0 if r.get('ok') else 1
+
+
 def _cmd_court(args):
     """Memory Court: evidence dossier for one memory + chain verification."""
     import sqlite3
@@ -1075,6 +1102,22 @@ def main(argv=None):
     sp_rc = sub.add_parser("reconcile", help="Fix SQLite ↔ ChromaDB vector store inconsistencies (incremental rebuild)")
     sp_rc.add_argument("--dry-run", action="store_true", help="report without fixing")
     sp_rc.set_defaults(func=_cmd_reconcile)
+    sp_co = sub.add_parser("correct", help="Correct a memory: supersede old content with new (chain, no delete)")
+    sp_co.add_argument("uid", help="UID of the memory to correct")
+    sp_co.add_argument("content", help="New content")
+    sp_co.add_argument("--reason", default="", help="Why this correction")
+    sp_co.add_argument("--by", default="", help="Agent/source performing the correction")
+    sp_co.add_argument("--valid-from", dest="valid_from", default=None, help="T-axis start of the new fact")
+    sp_co.set_defaults(func=_cmd_correct)
+
+    sp_re = sub.add_parser("retire", help="Retire a memory (mark superseded; data is kept)")
+    sp_re.add_argument("uid", help="UID of the memory to retire")
+    sp_re.add_argument("--reason", default="", help="Why retiring")
+    sp_re.add_argument("--by", default="", help="Agent/source performing the retirement")
+    sp_re.add_argument("--apply", action="store_true", help="Actually apply (default: dry-run)")
+    sp_re.add_argument("--force", action="store_true", help="Override residual-facts guard")
+    sp_re.set_defaults(func=_cmd_retire)
+
     sp_ct = sub.add_parser("court", help="Memory Court: evidence dossier / hash-chain verify")
     sp_ct.add_argument("uid", nargs="?", default=None)
     sp_ct.add_argument("--verify", action="store_true")

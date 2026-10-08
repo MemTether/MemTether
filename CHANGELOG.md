@@ -1,3 +1,18 @@
+## [0.1.0a63] - 2026-10-08
+
+### Added — `correct` / `retire` CLI subcommands (black-box audit finding)
+
+- Black-box wheel-install audit found `gateway.correct()` and
+  `governance.retire()` had **no CLI surface**: pip users could not call
+  them without writing Python. Added `memtether correct <uid> <content>
+  [--reason --by --valid-from]` and `memtether retire <uid> [--reason
+  --by --apply --force]`.
+- `retire` routes through governance.retire: **dry-run default**,
+  residual-facts guard (blocks `--apply` when independent facts share the
+  entry; `--force` is the documented override; plain `--apply` on a
+  residual-guarded entry exits 1 with the residual list).
+- 3 CLI subprocess tests. Tests: 464 passed, 4 skipped.
+
 ## [0.1.0a62] - 2026-10-08
 
 ### Fixed — Court Playground v2 (live demo)
