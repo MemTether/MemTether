@@ -1,3 +1,16 @@
+## [0.1.0a61] - 2026-10-08
+
+### Tests — memsearch retrieval-branch net (10 tests)
+
+- R8 low-confidence marker consistency (kw_count/max_vec/low_confidence
+  invariant), R7 three-layer dedup (content dedup counter, supersession
+  removal), R10 scaffold prepending + question-type detection matrix
+  (counting/comparison/temporal/knowledge-update/aggregation/single-session),
+  T-B AFAG hints (COUNT/FREQUENT NUMBERS/EARLIEST/LATEST — string block
+  shape), P4-2 multi-round disabled-by-default + trigger-on-low-score.
+- API shape notes: afag_hints is a formatted string; question_type always
+  in diag. Tests: 461 passed, 4 skipped.
+
 ## [0.1.0a60] - 2026-10-08
 
 ### Removed — consolidation.build_topic_timelines (user decision B)
