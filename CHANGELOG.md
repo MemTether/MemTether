@@ -1,3 +1,13 @@
+## [0.1.0a56] - 2026-10-08
+
+### Tests — tether_connect 14% -> 49%
+
+- 13 new tests covering the no-real-config surface: hub_defaults venv
+  resolution, default_spec env parsing, _register_sources idempotency +
+  active-only registration (agents.json pollution guard), rollback from
+  crafted manifests, selftest end-to-end, pick_adapters filtering.
+- Tests: 416 passed, 4 skipped.
+
 ## [0.1.0a55] - 2026-10-08
 
 ### Tests — governance 44% -> 57% (v19 target 50% reached)
