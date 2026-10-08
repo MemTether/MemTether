@@ -1,3 +1,15 @@
+## [0.1.0a59] - 2026-10-08
+
+### Tests — rebuild projection pipeline locked (7 tests)
+
+- sink.json structure/type routing/supersession exclusion; pin
+  unconditional inclusion; MEM_PROJ_BUDGET hard cap; retired exclusion;
+  idempotency (byte-identical re-runs); usage-header presence.
+- Isolation contract exercised: MEM_SINK_PATH + MEM_PROJ_PATH + HG=None
+  (the documented sandbox path for testing rebuild without touching the
+  live shared projection).
+- Tests: 450 passed, 4 skipped.
+
 ## [0.1.0a58] - 2026-10-08
 
 ### Tests — gateway 32% -> 37% + Q-Value contract locked
