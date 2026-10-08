@@ -1,3 +1,18 @@
+## [0.1.0a64] - 2026-10-08
+
+### Fixed — reconcile mutation gate (black-box audit round 2)
+
+- Bare `memtether reconcile` previously **silently mutated** the vector
+  store: deleted every "ghost" vector and upserted gaps — catastrophic if
+  the store directory is shared across databases (test db pairing with a
+  production store would mass-delete production vectors).
+- Now: bare/`--dry-run` = report only. Mutation requires explicit
+  `--apply`. All three mutation paths (upsert/delete/summary) gated.
+- Found via black-box audit: reconcile on a throwaway test db reported
+  1122 "ghost" vectors that actually belonged to the production store
+  sharing the directory.
+- 2 gate regression tests. Tests: 466 passed, 4 skipped.
+
 ## [0.1.0a63] - 2026-10-08
 
 ### Added — `correct` / `retire` CLI subcommands (black-box audit finding)
