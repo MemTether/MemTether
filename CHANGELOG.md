@@ -1,3 +1,14 @@
+## [0.1.0a57] - 2026-10-08
+
+### Tests — gateway 27% -> 32% + bi-temporal surface locked
+
+- 16 new tests: remember validation matrix (length/type/confidence/scope),
+  dup-noop, explicit valid_from backdating, **as_of dual-axis semantics**
+  (valid vs known — the docstring example now enforced by tests), timeline
+  forward-chain walking, stats/set_pin/bump_qvalue (incl. ghost-uid safety),
+  private-scope search exclusion.
+- Tests: 432 passed, 4 skipped.
+
 ## [0.1.0a56] - 2026-10-08
 
 ### Tests — tether_connect 14% -> 49%
