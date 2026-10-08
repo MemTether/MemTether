@@ -406,7 +406,7 @@ def _cmd_reconcile(args):
 
     # 4. fix missing vectors (batch upsert)
     fixed = 0
-    if missing_vec and not args.dry_run:
+    if missing_vec and args.apply and not args.dry_run:
         uid_list = sorted(missing_vec)
         contents = []
         valid_uids = []
@@ -429,7 +429,7 @@ def _cmd_reconcile(args):
 
     # 5. delete ghost vectors
     removed = 0
-    if ghost_vec and not args.dry_run:
+    if ghost_vec and args.apply and not args.dry_run:
         ghost_list = sorted(ghost_vec)
         try:
             # batch delete (chromadb supports max ~1000 per call)
@@ -443,7 +443,7 @@ def _cmd_reconcile(args):
         print(f"  (dry-run: would delete {len(ghost_vec)} ghost vectors)")
 
     # 6. final verify
-    if not args.dry_run:
+    if args.apply and not args.dry_run:
         got2 = col.get(include=[])
         chroma_after = set(got2.get("ids", [])) if got2 else set()
         remaining_missing = sql_uids - chroma_after
@@ -1101,6 +1101,7 @@ def main(argv=None):
     sp_bk.set_defaults(func=_cmd_backup)
     sp_rc = sub.add_parser("reconcile", help="Fix SQLite ↔ ChromaDB vector store inconsistencies (incremental rebuild)")
     sp_rc.add_argument("--dry-run", action="store_true", help="report without fixing")
+    sp_rc.add_argument("--apply", action="store_true", help="apply fixes (upsert missing + delete ghosts). Required to mutate.")
     sp_rc.set_defaults(func=_cmd_reconcile)
     sp_co = sub.add_parser("correct", help="Correct a memory: supersede old content with new (chain, no delete)")
     sp_co.add_argument("uid", help="UID of the memory to correct")

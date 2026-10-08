@@ -11,7 +11,11 @@
   residual-facts guard (blocks `--apply` when independent facts share the
   entry; `--force` is the documented override; plain `--apply` on a
   residual-guarded entry exits 1 with the residual list).
-- 3 CLI subprocess tests. Tests: 464 passed, 4 skipped.
+- **`reconcile` mutation gate**: bare `memtether reconcile` previously
+  silently FIXED the vector store (deleting all "ghost" vectors — dangerous
+  when the store directory is shared across databases). Mutation now
+  requires explicit `--apply`; bare/`--dry-run` is report-only.
+- 5 new tests (CLI ×3, reconcile gate ×2). Tests: 464 passed, 4 skipped.
 
 ## [0.1.0a62] - 2026-10-08
 
