@@ -1,3 +1,13 @@
+## [0.1.0a58] - 2026-10-08
+
+### Tests — gateway 32% -> 37% + Q-Value contract locked
+
+- 11 new tests: bump_qvalue full contract (readonly distribution mode,
+  reward validation, convergence formula, dry-run, tool_assets fallback,
+  ghost-uid error, audit trail), record_tool roundtrip, incident ->
+  run_events contract, on_miss.
+- Tests: 443 passed, 4 skipped.
+
 ## [0.1.0a57] - 2026-10-08
 
 ### Tests — gateway 27% -> 32% + bi-temporal surface locked
