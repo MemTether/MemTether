@@ -1,3 +1,13 @@
+## [0.1.0a73] — SGM Phase 1 验收 PASS (82.6%)
+
+### Improved — entity extraction action/keyword patterns
+
+- Replaced broken regex _ACTION_PATTERN with keyword-based extraction for
+  completion phrases ("XX完成", "XX发布", "XX跑完", "XX解除", etc.)
+- Phase 1 验收: 100 production facts → 82.6% entity extraction rate
+  (fact/environment/preference types; PASS at ≥80% threshold)
+- Global rate: 82/100 = 82% (up from 66% before action patterns)
+
 ## [0.1.0a72] — SGM scale validation
 
 ### Added — multi-session recall at scale validation

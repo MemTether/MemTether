@@ -31,6 +31,11 @@ _SUPPORT_PATTERN = re.compile(
     r'(?P<entity>[\w\u4e00-\u9fff\-\.]{2,15})\s*(?:支持|有|具备|提供|包含)\s*(?P<attr>[\w\u4e00-\u9fff\-\.]{2,15})'
 )
 
+# 动作/完成句式：内容含完成关键词时，取首段作为 entity
+_ACTION_KEYWORDS = re.compile(
+    r'(?:发布完成|全渠道发布|上线完成|跑完|修复完成|写完|做完|制作完成|评测完成|扫描完成|全覆盖完成|全量.*完成|批.*完成|审稿完成|到达|解除)'
+)
+
 def extract_predicates(content):
     """从中文 content 抽取 (entity, attr) 对，返回 list[dict]。
 
@@ -51,6 +56,16 @@ def extract_predicates(content):
         if key not in seen:
             seen.add(key)
             preds.append({'e': e, 'a': a})
+    if _ACTION_KEYWORDS.search(t):
+        # extract first meaningful phrase as entity (before punctuation/parens)
+        _first = re.split(r'[（(。；，,\n]', t)[0].strip()
+        # remove 【...】 prefix
+        _first = re.sub(r'^【[^】]*】', '', _first).strip()
+        if len(_first) >= 2:
+            key = (_first[:30], '__status__')
+            if key not in seen:
+                seen.add(key)
+                preds.append({'e': _first[:30], 'a': '__status__'})
     for m in _SUPPORT_PATTERN.finditer(t):
         e, a = m.group('entity'), m.group('attr')
         if len(e) < 2 or len(a) < 2 or e in ('我','你','他','她','这','那','其','本'):
