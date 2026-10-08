@@ -208,3 +208,5 @@ standing_instructions.json
 # hubguard transient lock-holder probe files (2026-10-06: one landed in a
 # commit via `git add -A` while a concurrent search held the lock)
 .hg-*.tmp
+# local promo assets (v19: local only, not shipped)
+promo/

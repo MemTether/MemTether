@@ -1745,6 +1745,23 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
         _diag['tag_dedup'] = len(_kept) - len(_final)
     _kept = _final
 
+    # \u2605P2-2 wired (2026-10-08): retrieval-side attribute coverage check.
+    # predicates.check_attr_coverage was written (十三修) but never called here —
+    # "X的Y" queries had no not_answered downweight. Default ON; MEM_PREDICATES=0
+    # disables. Runs after dedup (scores final) and re-sorts.
+    _pred_on = (os.environ.get('MEM_PREDICATES') or '1').strip().lower() not in ('0', 'false', 'no')
+    if _pred_on and _kept:
+        try:
+            from predicates import check_attr_coverage as _cac
+            _kept, _all_un = _cac(q, _kept)
+            if any(x.get('not_answered') for x in _kept):
+                _kept.sort(key=lambda _x: -_x.get('score', 0.0))
+                _diag['predicates_downweighted'] = sum(1 for _x in _kept if _x.get('not_answered'))
+            if _all_un:
+                _diag['predicates_all_unanswered'] = True
+        except Exception as _pe:
+            _diag['predicates_err'] = str(_pe)[:80]
+
     # \u2605R8 (2026-10-01): Low-confidence rejection marker (MemX Section 3.6)
     # If keyword recall is empty AND max vector similarity < threshold, mark as low confidence
     _kw_had = len(bm25_rank) > 0

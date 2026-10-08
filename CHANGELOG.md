@@ -1,3 +1,17 @@
+## [0.1.0a54] - 2026-10-08
+
+### Fixed — P2-2 wired: retrieval-side attribute coverage
+
+- **`check_attr_coverage` is now actually called** by `search_hybrid()`
+  (after dedup layers, before low-confidence marking). "X的Y" queries now
+  downweight candidates that mention X but not Y (`not_answered`,
+  score ×0.15) and surface `predicates_downweighted` in diag. Written in
+  十三修 but never wired — the retrieval half of the predicate feature
+  was dead code until now. Default ON; `MEM_PREDICATES=0` disables.
+- 3 new wiring tests (`test_predicates_wired.py`). Tests: 395 passed,
+  4 skipped.
+- chore: promo/ gitignored (local-only assets per v19).
+
 ## [0.1.0a53] - 2026-10-08
 
 ### Fixed — Test coverage round (v19 tech-debt #1/#2)
