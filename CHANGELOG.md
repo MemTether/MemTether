@@ -1,3 +1,17 @@
+## [0.1.0a66] - 2026-10-08
+
+### Fixed — court export browser verification (CRITICAL, black-box audit round 3)
+
+- **Exported evidence ALWAYS failed browser verification** on a valid chain.
+  Two compounding bugs: ① `court --export` filtered audit entries by target
+  uid, but the anchor's hash covers ALL entries in id order — the subset can
+  never re-verify; ② the embedded JS hashed raw 5-field rows, while the CLI
+  hashes 6-field row_hashes (including `target`).
+- Fixed: export now ships the FULL audit chain, and verify.html replicates
+  `memory_court._row_hash` exactly. Browser-verified: authentic export →
+  PASS, tampered copy → FAIL (both headless-tested).
+- 2 round-trip regression tests. Tests: 466 passed, 4 skipped.
+
 ## [0.1.0a65] - 2026-10-08
 
 ### Fixed — stale numbers sweep + CLI UX (black-box audit round 2b)

@@ -553,10 +553,13 @@ def _cmd_court(args):
             print(f"no such memory: {uid_exp}")
             conn.close()
             return 1
+        # FULL chain up to the last anchor — the anchor covers every entry in id
+        # order, so a target-filtered subset would never re-verify in the browser
+        # (export bug found 2026-10-08: browser FAIL on valid chain).
+        mc.maybe_anchor(conn, force=True)
         logs = conn.execute(
             "SELECT id, op, target, agent, detail, ts FROM audit_log "
-            "WHERE target=? ORDER BY id", (uid_exp,)).fetchall()
-        mc.maybe_anchor(conn, force=True)
+            "ORDER BY id").fetchall()
         ok, detail = mc.verify_chain(conn)
         anchors = conn.execute(
             "SELECT id, last_log_id, chain_hash, entries_hashed, ts "
@@ -602,7 +605,9 @@ async function sha256hex(s){
     for (const e of data.entries) {
       if (e[0] <= (data.anchors[data.anchors.indexOf(a)-1]?.last_log_id || 0)) continue;
       if (e[0] > a.last_log_id) continue;
-      h = await sha256hex(h + e.join('|'));
+      // canonical row = 6 fields incl. target (matches memory_court._row_hash)
+      const rowHash = await sha256hex(e.join('|'));
+      h = await sha256hex(h + rowHash);
       checked++;
     }
     if (h !== a.chain_hash) { fail = a; break; }
