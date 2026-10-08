@@ -525,6 +525,8 @@ def _cmd_retire(args):
 def _cmd_court(args):
     """Memory Court: evidence dossier for one memory + chain verification."""
     import sqlite3
+    import gateway as _gw
+    _gw.init_db()  # fresh-DB safety (2026-10-08 audit)
     db_path = os.environ.get("MEM_DB") or DEFAULT_DB
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
@@ -787,6 +789,8 @@ def _cmd_demo(args):
 def _cmd_search(args):
     if getattr(args, "tenant", None):
         os.environ["MEM_TENANT_ID"] = args.tenant
+    import gateway as _gw
+    _gw.init_db()  # fresh-DB safety: search before any remember must not crash (2026-10-08 audit)
     res = search(args.query, limit=args.limit)
     rows = res.get("results", []) if isinstance(res, dict) else (res or [])
     if not rows:
@@ -972,6 +976,8 @@ def _cmd_dashboard(args):
 def _cmd_provenance(args: argparse.Namespace) -> None:
     """Show the full provenance audit trail for a fact."""
     import sqlite3, json
+    import gateway as _gw
+    _gw.init_db()  # fresh-DB safety (2026-10-08 audit)
     db_path = os.environ.get("MEM_DB", os.path.join(DATA_DIR, "memory.db"))
     conn = sqlite3.connect(str(db_path))
     conn.row_factory = sqlite3.Row

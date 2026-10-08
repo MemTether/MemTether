@@ -1,3 +1,13 @@
+## [0.1.0a68] - 2026-10-08
+
+### Fixed — fresh-DB crash on first search (black-box audit round 4)
+
+- `memtether search x` on a brand-new install (before any remember/init)
+  crashed with "no such table: facts" — the very first command a new user
+  runs. `_cmd_search` now calls `init_db()` first.
+- 10 fresh-DB regression tests: every CLI command must not crash on an
+  empty/nonexistent database. Tests: 468 passed, 4 skipped.
+
 ## [0.1.0a67] - 2026-10-08
 
 ### Fixed — reconcile graceful degradation without chromadb
