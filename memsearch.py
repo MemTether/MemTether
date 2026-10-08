@@ -1753,6 +1753,11 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
         try:
             from predicates import _query_attrs
             _attrs = _query_attrs(q)
+            # also extract ASCII entities for queries without 的 pattern
+            from memsearch import extract_ascii_entities as _eae_p2
+            for _ent in _eae_p2(q):
+                if not any(_pair['e'] == _ent for _pair in _attrs):
+                    _attrs.append({'e': _ent, 'a': ''})
             if _attrs:
                 _conn_sgm = _sq3.connect(DB)
                 _conn_sgm.row_factory = _sq3.Row
@@ -1779,6 +1784,8 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
                                 "FROM facts WHERE uid=? AND status='active'", (_mu,)).fetchone()
                             if _fr:
                                 _kept.append(dict(_fr) | {'score': 1.0, 'reason': ['sql_deterministic']})
+                        # re-sort after SGM Phase 2 injection
+                        _kept.sort(key=lambda _x: -_x.get('score', 0.0))
                         _diag['sgm_sql_hits'] = len(_sgm_hits)
                 # boost existing results that match SQL
                 for _x in _kept:
@@ -1796,6 +1803,24 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
                     _agg_entities.append({'e': _ent, 'a': ''})
             if _qtype in ('counting', 'aggregation') and _agg_entities:
                 _conn_sgm2 = _sq3.connect(DB)
+                _sgm2_uids = set()
+                for _pair in _agg_entities:
+                    _sql2 = ("SELECT fe.fact_uid FROM fact_entities fe "
+                             "JOIN facts f ON f.uid = fe.fact_uid "
+                             "WHERE fe.entity = ? AND f.status = 'active'")
+                    _params2 = [_pair['e']]
+                    for _r2 in _conn_sgm2.execute(_sql2, _params2).fetchall():
+                        _sgm2_uids.add(_r2[0])
+                if _sgm2_uids:
+                    _existing2 = {x.get('uid') for x in _kept}
+                    for _mu2 in (_sgm2_uids - _existing2):
+                        _fr2 = _conn_sgm2.execute(
+                            "SELECT uid, content, type, source, scope, updated_at, q_value, tags "
+                            "FROM facts WHERE uid=? AND status='active'", (_mu2,)).fetchone()
+                        if _fr2:
+                            _kept.append(dict(_fr2) | {'score': 1.0, 'reason': ['sql_deterministic']})
+                    # re-sort after SGM injection (score=1.0 items should rank first)
+                    _kept.sort(key=lambda _x: -_x.get('score', 0.0))
                 _agg_lines = []
                 for _pair in _agg_entities:
                     _e, _a = _pair['e'], _pair.get('a', '')
@@ -1873,9 +1898,14 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
     
     # Apply packet compilation for aggregation-type questions
     if _q_type in ('counting', 'aggregation', 'comparison', 'knowledge-update'):
-        _kept = compile_packet(_kept[:limit], max_items=16, max_chars=12000)
-        _diag['packet_compiled'] = True
-        _diag['packet_size'] = len(_kept)
+        # SGM: skip compile_packet when SQL-deterministic results are present
+        # (they're already the correct answer set; truncating defeats the purpose)
+        if any(_x.get('reason') and 'sql_deterministic' in _x['reason'] for _x in _kept):
+            _diag['packet_skipped_sgm'] = True
+        else:
+            _kept = compile_packet(_kept[:limit], max_items=16, max_chars=12000)
+            _diag['packet_compiled'] = True
+            _diag['packet_size'] = len(_kept)
 
     return {'query': q, 'results': _kept[:limit], 'diag': _diag}
 

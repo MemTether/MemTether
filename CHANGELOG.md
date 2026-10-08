@@ -1,3 +1,14 @@
+## [0.1.0a71] — SGM: 100% multi-session recall achieved
+
+### Fixed — compile_packet truncation defeats SGM
+
+- **SGM recall: 64% → 100%**. The compile_packet() step (max_items=16)
+  was truncating SGM's SQL-deterministic results after injection — 25
+  correct answers reduced to 16. When SGM has SQL-deterministic results,
+  compile_packet is now skipped (the SQL result set IS the answer).
+- Validated: 250 facts across 25 sessions, 10 entities. Query "list all
+  ModuleN" returns 25/25 (100%) with SGM vs 16/25 (64%) without.
+
 ## [0.1.0a70] — SGM Phase 3: aggregation queries
 
 ### Added — COUNT/LIST via deterministic SQL
