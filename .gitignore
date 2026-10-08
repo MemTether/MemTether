@@ -210,3 +210,10 @@ standing_instructions.json
 .hg-*.tmp
 # local promo assets (v19: local only, not shipped)
 promo/
+
+# internal handover docs — never publish
+docs/CLONE-HANDOVER-*
+docs/T7-*
+docs/projection_audit_*
+docs/future_roadmap_*
+docs/project_overview_*
