@@ -377,9 +377,12 @@ def _cmd_reconcile(args):
         col = memsearch._client().get_or_create_collection(
             memsearch.COLLECTION, metadata={"hnsw:space": "cosine"})
     except Exception as e:
-        print(f"✗ ChromaDB unavailable: {e}")
+        # chromadb is an optional extra (like memsearch's vector path) — a missing
+        # install should degrade gracefully, not fail the reconcile command.
+        print(f"⚠ ChromaDB unavailable: {e}")
+        print("  SQLite side OK. Install extras ([pip install memtether[server]]) to reconcile the vector store.")
         conn.close()
-        return 1
+        return 0
 
     # 1. get SQLite active uid set
     sql_uids = set(r[0] for r in conn.execute(

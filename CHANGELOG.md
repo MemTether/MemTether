@@ -1,3 +1,13 @@
+## [0.1.0a67] - 2026-10-08
+
+### Fixed — reconcile graceful degradation without chromadb
+
+- `reconcile` on a machine without the optional chromadb extra exited 1 with
+  "ChromaDB unavailable". chromadb is optional everywhere else (search
+  degrades to keyword gracefully) — reconcile now does the same: reports the
+  SQLite side OK, notes the vector store is unavailable, exits 0.
+- Found via CI (ubuntu/windows jobs run without the vector extra).
+
 ## [0.1.0a66] - 2026-10-08
 
 ### Fixed — court export browser verification (CRITICAL, black-box audit round 3)
