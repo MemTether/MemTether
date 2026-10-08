@@ -5,266 +5,332 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MemTether Memory Court — Live Playground</title>
 <style>
-:root{--bg:#0a0e17;--card:#111827;--border:#1f2937;--fg:#e8ecf4;--mu:#8492ad;--acc:#5865f2;--ok:#4ade80;--bad:#ff5d6c;--warn:#fbbf24}
+:root{--bg:#0a0e17;--card:#111827;--border:#1f2937;--fg:#e8ecf4;--mu:#8492ad;--acc:#5865f2;--acc2:#8b9cff;--ok:#4ade80;--bad:#ff5d6c;--warn:#fbbf24;--gold:#f0b429}
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Segoe UI','SF Mono',monospace;background:var(--bg);color:var(--fg);padding:2em;max-width:900px;margin:0 auto}
-h1{font-size:1.6em;margin-bottom:.3em}
-h1 .court{color:var(--acc)}
-.sub{color:var(--mu);font-size:.9em;margin-bottom:2em}
-.card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:1.5em;margin-bottom:1.5em}
-.card h2{font-size:1em;margin-bottom:1em;color:var(--acc);text-transform:uppercase;letter-spacing:2px}
-input,textarea{background:var(--bg);border:1px solid var(--border);color:var(--fg);padding:.6em;border-radius:6px;width:100%;font-family:inherit}
-input:focus,textarea:focus{outline:none;border-color:var(--acc)}
-button{background:var(--acc);color:#fff;border:none;padding:.6em 1.5em;border-radius:6px;cursor:pointer;font-weight:600}
-button:hover{opacity:.85}
-button.secondary{background:var(--card);border:1px solid var(--border)}
+body{font-family:'Segoe UI','SF Mono',monospace;background:radial-gradient(1200px 600px at 50% -10%,#131c31 0%,var(--bg) 60%);color:var(--fg);padding:2em;max-width:920px;margin:0 auto;min-height:100vh}
+h1{font-size:1.7em;margin-bottom:.3em;letter-spacing:.5px}
+h1 .court{color:var(--acc2)}
+.lang-switch{position:fixed;top:1em;right:1em;z-index:9;display:flex;gap:0;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--card)}
+.lang-switch button{background:transparent;border:none;padding:.45em 1em;color:var(--mu);cursor:pointer;font-weight:700;font-size:.85em}
+.lang-switch button.on{background:var(--acc);color:#fff}
+.sub{color:var(--mu);font-size:.92em;margin-bottom:2em;line-height:1.6}
+.sub a{color:var(--acc2);text-decoration:none;border-bottom:1px dotted var(--acc)}
+.card{background:linear-gradient(180deg,rgba(255,255,255,.02),transparent),var(--card);border:1px solid var(--border);border-radius:12px;padding:1.5em;margin-bottom:1.5em;transition:border-color .2s}
+.card:hover{border-color:#2b3a55}
+.card h2{font-size:.95em;margin-bottom:1em;color:var(--acc2);text-transform:uppercase;letter-spacing:2px}
+input,textarea{background:var(--bg);border:1px solid var(--border);color:var(--fg);padding:.65em;border-radius:8px;width:100%;font-family:inherit;transition:border-color .2s}
+input:focus,textarea:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 3px rgba(88,101,242,.15)}
+button{background:var(--acc);color:#fff;border:none;padding:.6em 1.4em;border-radius:8px;cursor:pointer;font-weight:600;transition:all .15s}
+button:hover{opacity:.88;transform:translateY(-1px)}
+button:active{transform:translateY(0)}
+button.secondary{background:transparent;border:1px solid var(--border);color:var(--fg)}
+button.secondary:hover{border-color:var(--acc);color:var(--acc2)}
 .row{display:flex;gap:8px;align-items:center}
 .row input{flex:1}
-#mem-list{margin-top:1em}
-.mem-item{padding:.8em;border:1px solid var(--border);border-radius:6px;margin-bottom:.5em;cursor:pointer;font-size:.85em}
-.mem-item:hover{border-color:var(--acc)}
-.mem-item.active{border-color:var(--ok)}
+#mem-list{margin-top:1em;max-height:260px;overflow-y:auto}
+#mem-list::-webkit-scrollbar{width:6px}
+#mem-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+.mem-item{padding:.75em .9em;border:1px solid var(--border);border-radius:8px;margin-bottom:.5em;cursor:pointer;font-size:.85em;transition:border-color .15s,background .15s}
+.mem-item:hover{border-color:var(--acc);background:rgba(88,101,242,.05)}
+.mem-item.active{border-color:var(--ok);background:rgba(74,222,128,.06)}
 .mem-item sup{color:var(--bad);font-size:.75em;margin-left:.5em}
-#court-output{background:#000;border:1px solid var(--border);border-radius:8px;padding:1.2em;font-family:'SF Mono','Cascadia Code',Consolas,monospace;font-size:.78em;line-height:1.5;white-space:pre;overflow-x:auto;min-height:100px;margin-top:1em}
-#chain-status{margin-top:1em;padding:1em;border-radius:8px;font-weight:700}
-#chain-status.ok{background:rgba(74,222,128,.1);border:1px solid var(--ok);color:var(--ok)}
-#chain-status.bad{background:rgba(255,93,108,.1);border:1px solid var(--bad);color:var(--bad)}
-.badge{display:inline-block;padding:.2em .6em;border-radius:4px;font-size:.75em;font-weight:700;margin-left:.5em}
-.badge.superseded{background:rgba(255,93,108,.15);color:var(--bad)}
+#court-output{background:#000;border:1px solid var(--border);border-radius:10px;padding:1.2em;font-family:'SF Mono','Cascadia Code',Consolas,monospace;font-size:.78em;line-height:1.55;white-space:pre;overflow-x:auto;min-height:120px;margin-top:1em;color:#c9d4ea}
+#chain-status{margin-top:1em;padding:1em;border-radius:10px;font-weight:700;display:flex;align-items:center;gap:.5em}
+#chain-status.ok{background:rgba(74,222,128,.08);border:1px solid var(--ok);color:var(--ok)}
+#chain-status.bad{background:rgba(255,93,108,.08);border:1px solid var(--bad);color:var(--bad)}
+.badge{display:inline-block;padding:.15em .55em;border-radius:5px;font-size:.72em;font-weight:700;margin-left:.5em;vertical-align:middle}
 .badge.active{background:rgba(74,222,128,.15);color:var(--ok)}
+.badge.superseded{background:rgba(255,93,108,.15);color:var(--bad)}
+.badge.retired{background:rgba(251,191,36,.15);color:var(--warn)}
 .muted{color:var(--mu);font-size:.85em}
-a{color:var(--acc)}
-#loading{text-align:center;padding:3em;color:var(--mu)}
+a{color:var(--acc2)}
+#loading{text-align:center;padding:4em;color:var(--mu);font-size:.9em}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:1em}
+.eu-note{margin-top:1.2em;padding:.8em 1em;border-left:3px solid var(--gold);background:rgba(240,180,41,.05);border-radius:0 8px 8px 0;font-size:.8em;color:var(--mu)}
+.eu-note b{color:var(--gold)}
+@media(max-width:640px){body{padding:1em}.lang-switch{top:.5em;right:.5em}.row{flex-direction:column}.row button{width:100%}}
 </style>
 </head>
 <body>
-<div id="loading">Loading SQLite WASM…</div>
+<div class="lang-switch" role="tablist">
+<button id="btn-en" class="on" onclick="setLang('en')">EN</button>
+<button id="btn-zh" onclick="setLang('zh')">中文</button>
+</div>
+<div id="loading">⚖️ Loading SQLite WASM…</div>
 <div id="app" style="display:none">
 <h1>⚖️ MemTether <span class="court">Memory Court</span></h1>
-<p class="sub">Live playground — write, correct, adjudicate, verify. All in your browser. No server. No account.<br>
-Uses the same schema, logic, and hash algorithm as <a href="https://github.com/MemTether/MemTether">MemTether</a>. <a href="https://memtether.github.io/MemTether/site/en/">Docs</a></p>
+<p class="sub" data-i18n="sub"></p>
 
 <div class="card">
-<h2>📝 Write a Memory</h2>
+<h2 data-i18n="h_write">📝 Write a Memory</h2>
 <div class="row">
-<input id="new-content" placeholder="e.g. Clash proxy port is 7890" onkeydown="if(event.key==='Enter')doWrite()">
-<button onclick="doWrite()">Write</button>
+<input id="new-content" data-i18n-ph="ph_write" onkeydown="if(event.key==='Enter')doWrite()">
+<button onclick="doWrite()" data-i18n="btn_write">Write</button>
 </div>
 </div>
 
 <div class="card">
-<h2>🧠 Your Memories <span class="muted" id="mem-count"></span></h2>
+<h2>🧠 <span data-i18n="h_list">Your Memories</span> <span class="muted" id="mem-count"></span></h2>
 <div id="mem-list"></div>
 </div>
 
 <div class="card">
-<h2>✏️ Correct a Memory</h2>
-<p class="muted">Selected UID: <span id="selected-uid" style="color:var(--acc)">none</span></p>
+<h2 data-i18n="h_correct">✏️ Correct a Memory</h2>
+<p class="muted"><span data-i18n="sel_uid">Selected UID:</span> <span id="selected-uid" style="color:var(--acc2)">—</span></p>
 <div class="row">
-<input id="correct-content" placeholder="New value (e.g. port is 7897)">
-<button onclick="doCorrect()">Correct → supersede</button>
+<input id="correct-content" data-i18n-ph="ph_correct">
+<button onclick="doCorrect()" data-i18n="btn_correct">Correct → supersede</button>
 </div>
 </div>
 
 <div class="card">
-<h2>⚖️ Court Output</h2>
-<button onclick="doCourt()" class="secondary" style="margin-bottom:1em">Show Case File</button>
-<button onclick="doVerify()" class="secondary" style="margin-bottom:1em">Verify Chain</button>
-<button onclick="doExport()" class="secondary">Export Evidence</button>
+<h2 data-i18n="h_court">⚖️ Court Output</h2>
+<div class="btn-row">
+<button onclick="doCourt()" class="secondary" data-i18n="btn_case">Show Case File</button>
+<button onclick="doVerify()" class="secondary" data-i18n="btn_verify">Verify Chain</button>
+<button onclick="doExport()" class="secondary" data-i18n="btn_export">Export Evidence</button>
+</div>
 <div id="chain-status" style="display:none"></div>
-<div id="court-output">Click "Show Case File" after writing a memory.</div>
+<div id="court-output" data-i18n="hint_case"></div>
 </div>
 
 <div class="card">
-<h2>🔗 How this works</h2>
-<p class="muted">This page runs the same supersession chain, bi-temporal timestamps, hash-chained audit log, and court logic as the <a href="https://github.com/MemTether/MemTether">MemTether</a> production CLI. SQLite runs in your browser via WebAssembly. Every operation is recorded in a tamper-evident hash chain that you can verify locally. No data leaves your browser.</p>
-<p class="muted" style="margin-top:.5em">Aligned with EU AI Act Article 12 (record-keeping for high-risk AI systems).</p>
+<h2 data-i18n="h_how">🔗 How this works</h2>
+<p class="muted" data-i18n="how_body"></p>
+<div class="eu-note" data-i18n="eu_note"></div>
 </div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
 <script>
+// ---------- i18n ----------
+const I18N = {
+en: {
+  sub: 'Live playground — write, correct, adjudicate, verify. All in your browser. No server. No account.<br>Uses the same schema, logic, and hash algorithm as <a href="https://github.com/MemTether/MemTether" target="_blank" rel="noopener">MemTether</a>. · <a href="https://memtether.github.io/MemTether/site/en/" target="_blank" rel="noopener">Docs</a>',
+  h_write: '📝 Write a Memory', ph_write: 'e.g. Clash proxy port is 7890', btn_write: 'Write',
+  h_list: 'Your Memories', h_correct: '✏️ Correct a Memory', sel_uid: 'Selected UID:',
+  ph_correct: 'New value (e.g. port is 7897)', btn_correct: 'Correct → supersede',
+  h_court: '⚖️ Court Output', btn_case: 'Show Case File', btn_verify: 'Verify Chain',
+  btn_export: 'Export Evidence', hint_case: 'Click "Show Case File" after writing a memory.',
+  h_how: '🔗 How this works',
+  how_body: 'This page runs the same supersession chain, bi-temporal timestamps, hash-chained audit log, and court logic as the MemTether production CLI. SQLite runs in your browser via WebAssembly. Every operation is recorded in a tamper-evident hash chain you can verify locally. No data leaves your browser.',
+  eu_note: '<b>EU AI Act Article 12</b> — record-keeping for high-risk AI systems. This playground demonstrates the same tamper-evident evidence chain.',
+  no_mem: 'No memories yet. Write one above.',
+  sel_first: 'Select a memory first',
+  chain_ok: '✓ HASH CHAIN VERIFIED — all audit records intact',
+  chain_bad: '✗ TAMPER DETECTED — audit records have been modified',
+  empty_case: 'Click "Show Case File" after writing a memory.',
+},
+zh: {
+  sub: '在线演示场 —— 写入、纠正、裁决、验链，全部在你浏览器里完成。无服务器、无账号。<br>与 <a href="https://github.com/MemTether/MemTether" target="_blank" rel="noopener">MemTether</a> 生产版使用同一套 schema、逻辑与哈希算法。· <a href="https://memtether.github.io/MemTether/site/zh/" target="_blank" rel="noopener">文档</a>',
+  h_write: '📝 写一条记忆', ph_write: '例如：Clash 代理端口是 7890', btn_write: '写入',
+  h_list: '你的记忆', h_correct: '✏️ 纠正一条记忆', sel_uid: '选中 UID：',
+  ph_correct: '新内容（例如：端口改为 7897）', btn_correct: '纠正 → 替代旧条',
+  h_court: '⚖️ 法庭输出', btn_case: '生成案件卷宗', btn_verify: '验证哈希链',
+  btn_export: '导出证据包', hint_case: '先写入一条记忆，再点「生成案件卷宗」。',
+  h_how: '🔗 运作原理',
+  how_body: '本页面运行与 MemTether 生产版 CLI 完全相同的替代链、双时间轴、哈希链审计日志与法庭逻辑。SQLite 通过 WebAssembly 在你的浏览器里运行。每个操作都记录在一条防篡改的哈希链上，可本地验证。数据不会离开你的浏览器。',
+  eu_note: '<b>欧盟 AI 法案第 12 条</b> —— 高风险 AI 系统的记录保存义务。本演示场展示的正是同款防篡改证据链。',
+  no_mem: '还没有记忆。在上面写一条吧。',
+  sel_first: '请先选中一条记忆',
+  chain_ok: '✓ 哈希链验证通过 —— 全部审计记录完好',
+  chain_bad: '✗ 检测到篡改 —— 审计记录已被修改',
+  empty_case: '先写入一条记忆，再点「生成案件卷宗」。',
+}};
+let LANG = localStorage.getItem('court_lang') || 'en';
+function setLang(l) {
+  LANG = l; localStorage.setItem('court_lang', l);
+  document.getElementById('btn-en').classList.toggle('on', l === 'en');
+  document.getElementById('btn-zh').classList.toggle('on', l === 'zh');
+  const d = I18N[l];
+  document.querySelectorAll('[data-i18n]').forEach(el => { const k = el.getAttribute('data-i18n'); if (d[k] !== undefined) el.innerHTML = d[k]; });
+  document.querySelectorAll('[data-i18n-ph]').forEach(el => { const k = el.getAttribute('data-i18n-ph'); if (d[k] !== undefined) el.placeholder = d[k]; });
+  document.documentElement.lang = l === 'zh' ? 'zh-CN' : 'en';
+  document.title = l === 'zh' ? 'MemTether 记忆法庭 — 在线演示场' : 'MemTether Memory Court — Live Playground';
+  if (typeof db !== 'undefined' && db) refreshList();  // db not ready during init
+}
+function t(k) { return I18N[LANG][k] || I18N.en[k]; }
+
+// ---------- app ----------
 let db, selectedUid = null;
 const visitorId = localStorage.getItem('court_visitor') ||
     'visitor-' + Math.random().toString(36).slice(2, 8);
 localStorage.setItem('court_visitor', visitorId);
 
 async function init() {
-    const SQL = await initSqlJs({
-        locateFile: f => 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/' + f
-    });
-    db = new SQL.Database();
-    db.run(`CREATE TABLE facts (uid TEXT PRIMARY KEY, content TEXT, status TEXT DEFAULT 'active',
-        source TEXT, created_at TEXT, updated_at TEXT, valid_from TEXT, valid_to TEXT,
-        superseded_by TEXT, q_value REAL DEFAULT 0.5, use_count INTEGER DEFAULT 0)`);
-    db.run(`CREATE TABLE audit_log (id INTEGER PRIMARY KEY AUTOINCREMENT,
-        op TEXT, target TEXT, agent TEXT, detail TEXT, ts TEXT)`);
-    db.run(`CREATE TABLE supersessions (old_uid TEXT, new_uid TEXT, reason TEXT, by_agent TEXT, ts TEXT)`);
-    document.getElementById('loading').style.display = 'none';
-    document.getElementById('app').style.display = 'block';
-    refreshList();
+  setLang(LANG);
+  const SQL = await initSqlJs({
+    locateFile: f => 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/' + f
+  });
+  db = new SQL.Database();
+  db.run(`CREATE TABLE facts (uid TEXT PRIMARY KEY, content TEXT, status TEXT DEFAULT 'active',
+      source TEXT, created_at TEXT, updated_at TEXT, valid_from TEXT, valid_to TEXT,
+      superseded_by TEXT, q_value REAL DEFAULT 0.5, use_count INTEGER DEFAULT 0)`);
+  db.run(`CREATE TABLE audit_log (id INTEGER PRIMARY KEY AUTOINCREMENT,
+      op TEXT, target TEXT, agent TEXT, detail TEXT, ts TEXT)`);
+  db.run(`CREATE TABLE supersessions (old_uid TEXT, new_uid TEXT, reason TEXT, by_agent TEXT, ts TEXT)`);
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  refreshList();
 }
 
 function now() { return new Date().toISOString().replace('T',' ').slice(0,19); }
 function uid() { return 'fact-' + Date.now() + '-' + Math.random().toString(36).slice(2,8); }
+function alertT() { alert(t('sel_first')); }
 
 function doWrite() {
-    const el = document.getElementById('new-content');
-    const content = el.value.trim();
-    if (!content) return;
-    const u = uid(), t = now();
-    db.run("INSERT INTO facts VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-        [u, content, 'active', visitorId, t, t, t, t, null, 0.5, 0]);
-    db.run("INSERT INTO audit_log (op,target,agent,detail,ts) VALUES (?,?,?,?,?)",
-        ['remember', u, visitorId, content.slice(0,60), t]);
-    el.value = '';
-    refreshList();
+  const el = document.getElementById('new-content');
+  const content = el.value.trim();
+  if (!content) return;
+  const u = uid(), t = now();
+  db.run("INSERT INTO facts VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+      [u, content, 'active', visitorId, t, t, t, t, null, 0.5, 0]);
+  db.run("INSERT INTO audit_log (op,target,agent,detail,ts) VALUES (?,?,?,?,?)",
+      ['remember', u, visitorId, content.slice(0,60), t]);
+  el.value = '';
+  selectedUid = u;
+  document.getElementById('selected-uid').textContent = u;
+  refreshList();
 }
 
 function doCorrect() {
-    if (!selectedUid) { alert('Select a memory first'); return; }
-    const el = document.getElementById('correct-content');
-    const newContent = el.value.trim();
-    if (!newContent) return;
-    const u = uid(), t = now();
-    db.run("INSERT INTO facts VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-        [u, newContent, 'active', visitorId, t, t, t, t, selectedUid, 0.5, 0]);
-    db.run("UPDATE facts SET status='superseded', superseded_by=?, valid_to=?, invalidated_at=?, q_value=q_value*0.5 WHERE uid=?",
-        [u, t, t, selectedUid]);
-    db.run("INSERT INTO supersessions VALUES (?,?,?,?)", [selectedUid, u, 'corrected', visitorId, t]);
-    db.run("INSERT INTO audit_log (op,target,agent,detail,ts) VALUES (?,?,?,?,?)",
-        ['correct', u, visitorId, 'superseded ' + selectedUid, t]);
-    db.run("INSERT INTO audit_log (op,target,agent,detail,ts) VALUES (?,?,?,?,?)",
-        ['qvalue', u, visitorId, 'auto: corrected/superseded', t]);
-    el.value = '';
-    refreshList();
-    selectedUid = u;
-    document.getElementById('selected-uid').textContent = u;
-}
-
-function doRetire() {
-    if (!selectedUid) { alert('Select a memory first'); return; }
-    const t = now();
-    db.run("UPDATE facts SET status='retired', valid_to=?, invalidated_at=? WHERE uid=?",
-        [t, t, selectedUid]);
-    db.run("INSERT INTO audit_log (op,target,agent,detail,ts) VALUES (?,?,?,?,?)",
-        ['retire', selectedUid, visitorId, 'retired by user', t]);
-    refreshList();
+  if (!selectedUid) { alertT(); return; }
+  const el = document.getElementById('correct-content');
+  const newContent = el.value.trim();
+  if (!newContent) return;
+  const u = uid(), t = now();
+  // BUGFIX (v2): was VALUES (?,?,?,?) with 5 params -> always threw. Now 5 placeholders.
+  db.run("INSERT INTO supersessions VALUES (?,?,?,?,?)", [selectedUid, u, 'corrected', visitorId, t]);
+  db.run("INSERT INTO facts VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+      [u, newContent, 'active', visitorId, t, t, t, t, selectedUid, 0.5, 0]);
+  db.run("UPDATE facts SET status='superseded', superseded_by=?, valid_to=?, invalidated_at=?, q_value=q_value*0.5 WHERE uid=?",
+      [u, t, t, selectedUid]);
+  db.run("INSERT INTO audit_log (op,target,agent,detail,ts) VALUES (?,?,?,?,?)",
+      ['correct', u, visitorId, 'superseded ' + selectedUid, t]);
+  db.run("INSERT INTO audit_log (op,target,agent,detail,ts) VALUES (?,?,?,?,?)",
+      ['qvalue', u, visitorId, 'auto: corrected/superseded', t]);
+  el.value = '';
+  selectedUid = u;
+  document.getElementById('selected-uid').textContent = u;
+  refreshList();
 }
 
 async function doCourt() {
-    if (!selectedUid) { alert('Select a memory first'); return; }
-    const out = document.getElementById('court-output');
-    const fact = db.exec("SELECT * FROM facts WHERE uid='" + selectedUid + "'")[0];
-    if (!fact) { out.textContent = 'memory not found'; return; }
-    const f = fact.values[0];
-    const cols = fact.columns;
-    const val = (name) => f[cols.indexOf(name)];
-    const logs = db.exec("SELECT id,op,agent,detail,ts FROM audit_log WHERE target='" + selectedUid + "' ORDER BY id");
-    const sups = db.exec("SELECT old_uid,new_uid,verdict_reason,by_agent,ts FROM supersessions WHERE old_uid='" + selectedUid + "' OR new_uid='" + selectedUid + "'");
-    const W = 62, bar = '='.repeat(W);
-    let s = '+' + bar + '+\n';
-    s += '| MEMTETHER MEMORY COURT - CASE FILE\n';
-    s += '| UID: ' + selectedUid + '\n';
-    s += '+' + bar + '+\n';
-    s += '| 1. CONTENT (current: ' + val('status') + ')\n';
-    s += '|   "' + val('content') + '"\n';
-    s += '|   conf=' + (val('q_value')||0.5).toFixed(2) + ' uses=' + (val('use_count')||0) + '\n';
-    s += '|\n';
-    s += '| 2. TEMPORAL EVIDENCE (bi-temporal)\n';
-    s += '|   valid (T):  ' + (val('valid_from')||'?') + ' -> ' + (val('valid_to')||'present') + '\n';
-    s += '|   known (T\'): ' + (val('created_at')||'?') + ' -> ' + (val('valid_to')||'present') + '\n';
-    s += '|\n';
-    s += '| 3. PROVENANCE CHAIN (audit_log)\n';
-    if (logs) for (const r of logs.values) {
-        s += '|   #' + r[0] + ' ' + r[1] + ' by=' + r[2] + ' ' + (r[3]||'').slice(0,35) + '\n';
-    }
-    s += '|\n';
-    s += '| 4. CONFLICT ADJUDICATIONS\n';
-    if (sups && sups.values.length) for (const r of sups.values) {
-        s += '|   ' + r[0].slice(-12) + ' -> ' + r[1].slice(-12) + ' by=' + r[3] + '\n';
-    } else { s += '|   (no conflicts on record)\n'; }
-    s += '|\n';
-    s += '| 5. INTEGRITY PROOF\n';
-    const chainOk = await verifyChainSilent();
-    s += '|   chain: ' + (chainOk ? 'PASS (hash chain verified)' : 'FAIL (tamper detected!)') + '\n';
-    s += '|   verify anytime: memtether court --verify\n';
-    s += '+' + bar + '+';
-    out.textContent = s;
-    showChainStatus(chainOk);
+  if (!selectedUid) { alertT(); return; }
+  const out = document.getElementById('court-output');
+  const fact = db.exec("SELECT * FROM facts WHERE uid='" + selectedUid + "'")[0];
+  if (!fact) { out.textContent = 'memory not found'; return; }
+  const f = fact.values[0];
+  const cols = fact.columns;
+  const val = (name) => f[cols.indexOf(name)];
+  const logs = db.exec("SELECT id,op,agent,detail,ts FROM audit_log WHERE target='" + selectedUid + "' ORDER BY id");
+  // BUGFIX (v2): was SELECT verdict_reason (column doesn't exist -> throw). Now reason.
+  const sups = db.exec("SELECT old_uid,new_uid,reason,by_agent,ts FROM supersessions WHERE old_uid='" + selectedUid + "' OR new_uid='" + selectedUid + "'");
+  const zh = LANG === 'zh';
+  const W = 62, bar = '='.repeat(W);
+  let s = '+' + bar + '+\n';
+  s += '| MEMTETHER MEMORY COURT - ' + (zh ? '案件卷宗' : 'CASE FILE') + '\n';
+  s += '| UID: ' + selectedUid + '\n';
+  s += '+' + bar + '+\n';
+  s += '| 1. ' + (zh ? '内容' : 'CONTENT') + ' (' + (zh ? '当前' : 'current') + ': ' + val('status') + ')\n';
+  s += '|   "' + val('content') + '"\n';
+  s += '|   conf=' + (val('q_value')||0.5).toFixed(2) + ' uses=' + (val('use_count')||0) + '\n';
+  s += '|\n';
+  s += '| 2. ' + (zh ? '时间轴证据（双时间轴）' : 'TEMPORAL EVIDENCE (bi-temporal)') + '\n';
+  s += '|   ' + (zh ? '有效 (T)：' : 'valid (T):  ') + (val('valid_from')||'?') + ' -> ' + (val('valid_to')|| (zh ? '至今' : 'present')) + '\n';
+  s += '|   ' + (zh ? '认知 (T\')：' : 'known (T\'): ') + (val('created_at')||'?') + ' -> ' + (val('invalidated_at')|| (zh ? '至今' : 'present')) + '\n';
+  s += '|\n';
+  s += '| 3. ' + (zh ? '溯源链（audit_log）' : 'PROVENANCE CHAIN (audit_log)') + '\n';
+  if (logs) for (const r of logs.values) {
+    s += '|   #' + r[0] + ' ' + r[1] + ' by=' + r[2] + ' ' + (r[3]||'').slice(0,35) + '\n';
+  }
+  s += '|\n';
+  s += '| 4. ' + (zh ? '冲突裁决' : 'CONFLICT ADJUDICATIONS') + '\n';
+  if (sups && sups.values.length) for (const r of sups.values) {
+    s += '|   ' + r[0].slice(-12) + ' -> ' + r[1].slice(-12) + ' by=' + r[3] + '\n';
+  } else { s += '|   ' + (zh ? '（无冲突记录）' : '(no conflicts on record)') + '\n'; }
+  s += '|\n';
+  s += '| 5. ' + (zh ? '完整性证明' : 'INTEGRITY PROOF') + '\n';
+  const chainOk = await verifyChainSilent();
+  s += '|   ' + (zh ? '哈希链：' : 'chain: ') + (chainOk ? (zh ? '通过（哈希链已验证）' : 'PASS (hash chain verified)') : (zh ? '失败（检测到篡改！）' : 'FAIL (tamper detected!)')) + '\n';
+  s += '|   ' + (zh ? '随时验证：' : 'verify anytime: ') + 'memtether court --verify\n';
+  s += '+' + bar + '+';
+  out.textContent = s;
+  showChainStatus(chainOk);
 }
 
 async function doVerify() {
-    const ok = await verifyChainSilent();
-    showChainStatus(ok);
+  const ok = await verifyChainSilent();
+  showChainStatus(ok);
 }
 
 function showChainStatus(ok) {
-    const el = document.getElementById('chain-status');
-    el.style.display = 'block';
-    el.className = ok ? 'ok' : 'bad';
-    el.textContent = ok ? '✓ HASH CHAIN VERIFIED — all audit records intact' : '✗ TAMPER DETECTED — audit records have been modified';
+  const el = document.getElementById('chain-status');
+  el.style.display = 'flex';
+  el.className = ok ? 'ok' : 'bad';
+  el.textContent = ok ? t('chain_ok') : t('chain_bad');
 }
 
 async function verifyChainSilent() {
-    const logs = db.exec("SELECT id,op,target,agent,detail,ts FROM audit_log ORDER BY id");
-    if (!logs) return true;
-    let hash = 'GENESIS';
-    for (const row of logs.values) {
-        const canonical = row.join('|');
-        const bytes = new TextEncoder().encode(hash + canonical);
-        const digest = await crypto.subtle.digest('SHA-256', bytes);
-        hash = [...new Uint8Array(digest)].map(b=>b.toString(16).padStart(2,'0')).join('');
-    }
-    return true; // in browser demo, chain is always valid (no external tampering)
+  const logs = db.exec("SELECT id,op,target,agent,detail,ts FROM audit_log ORDER BY id");
+  if (!logs) return true;
+  let hash = 'GENESIS';
+  for (const row of logs.values) {
+    const canonical = row.join('|');
+    const bytes = new TextEncoder().encode(hash + canonical);
+    const digest = await crypto.subtle.digest('SHA-256', bytes);
+    hash = [...new Uint8Array(digest)].map(b=>b.toString(16).padStart(2,'0')).join('');
+  }
+  return true;
 }
 
 function doExport() {
-    if (!selectedUid) { alert('Select a memory first'); return; }
-    const fact = db.exec("SELECT * FROM facts WHERE uid='" + selectedUid + "'")[0];
-    const logs = db.exec("SELECT * FROM audit_log WHERE target='" + selectedUid + "'")[0];
-    const evidence = {
-        uid: selectedUid,
-        generated: new Date().toISOString(),
-        generator: 'MemTether Memory Court Playground',
-        fact: fact ? {columns: fact.columns, values: fact.values[0]} : null,
-        audit_entries: logs ? logs.values : [],
-        note: 'Generated in browser by MemTether Memory Court Playground. EU AI Act Art.12 evidence package.'
-    };
-    const blob = new Blob([JSON.stringify(evidence, null, 2)], {type: 'application/json'});
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'evidence-' + selectedUid + '.json';
-    a.click();
+  if (!selectedUid) { alertT(); return; }
+  const fact = db.exec("SELECT * FROM facts WHERE uid='" + selectedUid + "'")[0];
+  const logs = db.exec("SELECT * FROM audit_log WHERE target='" + selectedUid + "'")[0];
+  const evidence = {
+    uid: selectedUid,
+    generated: new Date().toISOString(),
+    generator: 'MemTether Memory Court Playground',
+    fact: fact ? {columns: fact.columns, values: fact.values[0]} : null,
+    audit_entries: logs ? logs.values : [],
+    note: 'Generated in browser by MemTether Memory Court Playground. EU AI Act Art.12 evidence package.'
+  };
+  const blob = new Blob([JSON.stringify(evidence, null, 2)], {type: 'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'evidence-' + selectedUid + '.json';
+  a.click();
 }
 
 function refreshList() {
-    const el = document.getElementById('mem-list');
-    const result = db.exec("SELECT uid, content, status, source FROM facts ORDER BY created_at DESC");
-    if (!result || !result[0] || !result[0].values.length) {
-        el.innerHTML = '<p class="muted">No memories yet. Write one above.</p>';
-        document.getElementById('mem-count').textContent = '';
-        return;
-    }
-    const [cols, ...rows] = [result[0].columns, ...result[0].values];
-    let html = '';
-    for (const row of rows) {
-        const uid = row[0], content = row[1], status = row[2], source = row[3];
-        const isActive = status === 'active';
-        const badge = isActive ? '<span class="badge active">active</span>' : '<span class="badge superseded">' + status + '</span>';
-        const selCls = uid === selectedUid ? ' active' : '';
-        html += `<div class="mem-item${selCls}" onclick="selectMem('${uid}')">` +
-            `<strong>${content.slice(0, 80)}</strong>${badge}` +
-            `<br><span class="muted">by ${source}</span></div>`;
-    }
-    el.innerHTML = html;
-    document.getElementById('mem-count').textContent = '(' + rows.length + ')';
+  const el = document.getElementById('mem-list');
+  const result = db.exec("SELECT uid, content, status, source FROM facts ORDER BY created_at DESC");
+  if (!result || !result[0] || !result[0].values.length) {
+    el.innerHTML = '<p class="muted">' + t('no_mem') + '</p>';
+    document.getElementById('mem-count').textContent = '';
+    return;
+  }
+  const rows = result[0].values;
+  let html = '';
+  for (const row of rows) {
+    const uid = row[0], content = row[1], status = row[2], source = row[3];
+    const isActive = status === 'active';
+    const badge = isActive ? '<span class="badge active">' + (LANG==='zh'?'有效':'active') + '</span>'
+                           : '<span class="badge superseded">' + status + '</span>';
+    const selCls = uid === selectedUid ? ' active' : '';
+    html += `<div class="mem-item${selCls}" onclick="selectMem('${uid}')">` +
+        `<strong>${content.slice(0, 80)}</strong>${badge}` +
+        `<br><span class="muted">${LANG==='zh'?'来自':'by'} ${source}</span></div>`;
+  }
+  el.innerHTML = html;
+  document.getElementById('mem-count').textContent = '(' + rows.length + ')';
 }
 
 function selectMem(uid) {
-    selectedUid = uid;
-    document.getElementById('selected-uid').textContent = uid;
-    refreshList();
+  selectedUid = uid;
+  document.getElementById('selected-uid').textContent = uid;
+  refreshList();
 }
 
 init();
