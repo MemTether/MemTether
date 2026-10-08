@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>创始 10 人计划 — MemTether</title>
+<style>
+:root{--fg:#e6edf3;--bg:#0d1117;--card:#161b22;--border:#30363d;--accent:#58a6ff;--green:#3fb950}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",Helvetica,Arial,sans-serif;background:var(--bg);color:var(--fg);line-height:1.7}
+.wrap{max-width:860px;margin:0 auto;padding:40px 24px}
+h1{color:var(--accent);border-bottom:2px solid var(--border);padding-bottom:12px}
+h2{color:var(--accent);margin-top:36px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:20px;margin:20px 0}
+code{color:var(--green)}
+.badge{display:inline-block;padding:4px 10px;border-radius:12px;font-size:12px;font-weight:600;margin-right:8px}
+.b-green{background:#1a4d2e;color:var(--green)}
+.b-gold{background:#4d3d1a;color:#d29922}
+table{width:100%;border-collapse:collapse;margin:16px 0}
+th,td{border:1px solid var(--border);padding:10px;text-align:left}
+th{background:var(--card)}
+a{color:var(--accent)}
+.langbar{float:right;font-size:14px}
+.langbar a{margin-left:10px;text-decoration:none}
+.langbar a.on{color:var(--green);font-weight:700}
+.footer{margin-top:48px;padding-top:24px;border-top:1px solid var(--border);font-size:14px;color:#8b949e}
+.step{display:inline-block;width:28px;height:28px;line-height:28px;text-align:center;border-radius:50%;background:var(--accent);color:var(--bg);font-weight:700;margin-right:8px}
+
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="langbar"><a href="../en/challenge.html">English</a><a href="challenge.html" class="on">中文</a></div>
+<h1>创始 10 人计划</h1>
+<p><span class="badge b-gold">10 个名额</span> <span class="badge b-green">14 天诚实结果</span></p>
+<p><strong>不是来捧场的——来拆台的，或者证明我们是对的。</strong></p>
+<p>前 10 位在自己的真实 AI 编程环境里运行 MemTether，并提交 14 天诚实报告的人，将获得<strong>创始贡献者</strong>身份：README 署名、功能请求优先处理、与维护者的直接沟通渠道。</p>
+
+<h2>你要做什么</h2>
+<div class="card">
+<ol>
+<li><strong>原样运行</strong> —— <code>pip install memtether &amp;&amp; memtether init</code>，不做任何定制配置。</li>
+<li><strong>用满 14 天</strong> —— 真实工作、真实 agent、真实会话。</li>
+<li><strong>找出不能信任的地方</strong> —— 崩溃、记忆错误、适配器失败，什么都行。</li>
+<li><strong>提交任意诚实结果</strong> —— 好评、差评或混合评价，三种都算数。</li>
+</ol>
+</div>
+
+<h2>我们会公开什么</h2>
+<div class="card">
+<p>每一份提交（无论好坏）都会在 README 中署名公开。发现真 bug 的人以「发现者」署名；一切正常的人以「验证者」署名。</p>
+<p>我们不挑选好评。诚实的失败比表扬更有价值——它告诉我们该修什么。</p>
+</div>
+
+<h2>测试轨道</h2>
+<table>
+<tr><th>轨道</th><th>测试内容</th><th>状态</th></tr>
+<tr><td>1. Claude Code</td><td>MCP 配置 + 跨会话召回</td><td>开放</td></tr>
+<tr><td>2. Cursor</td><td>MCP 配置 + 多项目记忆</td><td>开放</td></tr>
+<tr><td>3. Codex CLI</td><td>MCP + CLI 记忆读写</td><td>开放</td></tr>
+<tr><td>4. Windsurf</td><td>MCP 配置</td><td>开放</td></tr>
+<tr><td>5. Gemini CLI</td><td>MCP 配置</td><td>开放</td></tr>
+<tr><td>6. 多客户端</td><td>跨客户端记忆共享</td><td>开放</td></tr>
+<tr><td>7. 双时间轴审计</td><td>时间线 / 替代链</td><td>开放</td></tr>
+<tr><td>8. 租户隔离</td><td>多租户 0 泄露</td><td>开放</td></tr>
+<tr><td>9. Docker 部署</td><td>docker-compose + api_server</td><td>开放</td></tr>
+<tr><td>10. 全新机器端到端</td><td>干净 venv 全流程</td><td>开放</td></tr>
+</table>
+
+<h2>如何报名</h2>
+<div class="card">
+<p>到 <a href="https://github.com/MemTether/MemTether/issues">MemTether Issues</a> 开一个 issue，标题格式 <code>[Founding 10] &lt;轨道&gt;</code>，附上你的操作系统 / Python / AI 客户端 / 开始日期。我们 24 小时内确认。</p>
+</div>
+
+<h2>规则</h2>
+<div class="card">
+<ul>
+<li>从你的开始日期算 14 天，不延期。</li>
+<li>通过 GitHub issue（公开）提交——诚实就是全部意义。</li>
+<li>10 个名额须在本页上线后 60 天内完成，否则挑战重置。</li>
+<li>创始贡献者获得 README 署名 + issue 优先处理。没有报酬，没有股权。</li>
+<li>维护者保留拒绝非真实使用的权利。</li>
+</ul>
+</div>
+
+<div class="footer">
+MemTether · <a href="https://github.com/MemTether/MemTether">GitHub</a> · <a href="https://pypi.org/project/memtether/">PyPI</a> · Apache-2.0 · <a href="reproduce.html">复现指南</a>
+</div>
+</div>
+</body>
+</html>
