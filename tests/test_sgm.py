@@ -64,6 +64,39 @@ class TestQueryEntities:
         conn.close()
         assert len(results) >= 1 and results[0]['status'] == 'active'
 
+class TestAggregation:
+    def test_counting_produces_sql_count(self, sgm_db):
+        env, py, cwd, db = sgm_db
+        gateway.remember('ComfyUI 的版本是 0.3.2', source='sgmtest')
+        gateway.remember('ComfyUI 的端口是 8188', source='sgmtest')
+        gateway.remember('ComfyUI 的配置文件在 configs', source='sgmtest')
+        import memsearch
+        memsearch.DB = db
+        r = memsearch.search_hybrid('how many ComfyUI', limit=5)
+        agg = r['diag'].get('sgm_aggregation', [])
+        assert any('SQL COUNT' in a and 'ComfyUI' in a for a in agg)
+
+    def test_aggregation_produces_sql_list(self, sgm_db):
+        env, py, cwd, db = sgm_db
+        gateway.remember('ComfyUI 的版本是 0.3.2', source='sgmtest')
+        gateway.remember('ComfyUI 的端口是 8188', source='sgmtest')
+        import memsearch
+        memsearch.DB = db
+        r = memsearch.search_hybrid('list all ComfyUI', limit=5)
+        agg = r['diag'].get('sgm_aggregation', [])
+        assert any('SQL LIST' in a and 'ComfyUI' in a for a in agg)
+
+    def test_aggregation_entities_from_ascii(self, sgm_db):
+        """Counting queries without 的 pattern use extract_ascii_entities."""
+        env, py, cwd, db = sgm_db
+        gateway.remember('ComfyUI supports torch 2.13', source='sgmtest')
+        import memsearch
+        memsearch.DB = db
+        r = memsearch.search_hybrid('how many ComfyUI', limit=5)
+        agg = r['diag'].get('sgm_aggregation', [])
+        assert any('ComfyUI' in a for a in agg)
+
+
 class TestSQLRouting:
     def test_entity_query_boosts_sql_hits(self, sgm_db):
         env, py, cwd, db = sgm_db

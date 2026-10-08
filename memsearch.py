@@ -1785,6 +1785,42 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
                     if _x.get('uid') in _sgm_hits:
                         _x['reason'] = list(_x.get('reason') or []) + ['sql_deterministic']
                         _x['score'] = max(_x.get('score', 0), 1.0)
+            # SGM Phase 3: aggregation queries — COUNT/LIST via deterministic SQL
+            _qtype = detect_question_type(q)
+            _conn_sgm2 = None
+            # combine _query_attrs + extract_ascii_entities for aggregation queries
+            _agg_entities = list(_attrs)
+            from memsearch import extract_ascii_entities as _eae
+            for _ent in _eae(q):
+                if not any(_pair['e'] == _ent for _pair in _agg_entities):
+                    _agg_entities.append({'e': _ent, 'a': ''})
+            if _qtype in ('counting', 'aggregation') and _agg_entities:
+                _conn_sgm2 = _sq3.connect(DB)
+                _agg_lines = []
+                for _pair in _agg_entities:
+                    _e, _a = _pair['e'], _pair.get('a', '')
+                    if _qtype == 'counting':
+                        _csql = ("SELECT COUNT(DISTINCT fe.fact_uid) as cnt "
+                                 "FROM fact_entities fe JOIN facts f ON f.uid = fe.fact_uid "
+                                 "WHERE fe.entity = ? AND f.status = 'active'")
+                        _cparams = [_e]
+                        if _a:
+                            _csql += " AND fe.attr LIKE ?"
+                            _cparams.append(f'%{_a}%')
+                        _cnt = _conn_sgm2.execute(_csql, _cparams).fetchone()[0] if _conn_sgm2 else 0
+                        _agg_lines.append(f"SQL COUNT: {_e}" + (f" ({_a})" if _a else "") + f" = {_cnt}")
+                    elif _qtype == 'aggregation':
+                        _lsql = ("SELECT DISTINCT fe.value, fe.fact_uid "
+                                 "FROM fact_entities fe JOIN facts f ON f.uid = fe.fact_uid "
+                                 "WHERE fe.entity = ? AND f.status = 'active' LIMIT 20")
+                        _lparams = [_e]
+                        _vals = _conn_sgm2.execute(_lsql, _lparams).fetchall() if _conn_sgm2 else []
+                        if _vals:
+                            _agg_lines.append(f"SQL LIST: {_e} -> " + ", ".join(v[0][:50] for v in _vals[:5]))
+                if _agg_lines:
+                    _diag['sgm_aggregation'] = _agg_lines
+            if _conn_sgm2:
+                _conn_sgm2.close()
         except Exception as _sgm_e:
             _diag['sgm_err'] = str(_sgm_e)[:80]
 

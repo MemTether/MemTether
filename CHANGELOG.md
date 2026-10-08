@@ -1,3 +1,15 @@
+## [0.1.0a70] — SGM Phase 3: aggregation queries
+
+### Added — COUNT/LIST via deterministic SQL
+
+- **Counting queries** ("how many X"): `SELECT COUNT(DISTINCT fact_uid)
+  FROM fact_entities WHERE entity = ?` → SQL COUNT hint injected into diag.
+- **Aggregation queries** ("list all X"): `SELECT DISTINCT value FROM
+  fact_entities WHERE entity = ?` → SQL LIST hint with top-5 values.
+- Entity extraction for aggregation uses `extract_ascii_entities` (not just
+  `_query_attrs`) — works for "how many ComfyUI" without the 的 pattern.
+- 3 new tests. Tests: 487 passed, 4 skipped.
+
 ## [0.1.0a69] — Schema-Grounded Memory Phase 1+2
 
 ### Added — SQL-deterministic entity query routing
