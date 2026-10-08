@@ -302,6 +302,20 @@ CREATE TABLE IF NOT EXISTS audit_log (
 --   实为**互补信息**（一个讲配置存在、一个讲当前故障），并不矛盾。
 --   若无复核留痕，这类误报会永久扣治理度分且无人能纠正。
 -- 设计：规则只负责**生成候选**，人工复核结论单独留痕；评分卡据此排除已否定的对。
+CREATE TABLE IF NOT EXISTS fact_entities (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  entity TEXT NOT NULL,
+  attr TEXT,
+  value TEXT,
+  fact_uid TEXT NOT NULL,
+  source TEXT,
+  ts TEXT,
+  valid_from TEXT,
+  valid_to TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_fe_entity ON fact_entities(entity);
+CREATE INDEX IF NOT EXISTS idx_fe_entity_attr ON fact_entities(entity, attr);
+
 CREATE TABLE IF NOT EXISTS conflict_reviews (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   uid_a TEXT,                 -- 无序对，写入时按 uid 字典序归一
@@ -594,8 +608,10 @@ def remember(content, type='fact', source=DEFAULT_SOURCE, scope='shared', subjec
              ts, ts, valid_from or ts, ts, 'native', os.environ.get('MEM_TENANT_ID', 'default')))
         # ★十三修：写入时自动抽取谓词（entity→attr 对）存入 predicate 列
         try:
-            from predicates import store_predicate
+            from predicates import store_predicate, store_entities
             store_predicate(conn, uid, content)
+            # SGM Phase 1: also write structured entities for SQL-deterministic queries
+            store_entities(conn, uid, content, source=source, ts=now())
         except ImportError:
             pass  # predicates.py 不存在时降级为旧行为
         audit(conn, 'remember', uid, source, content[:80])

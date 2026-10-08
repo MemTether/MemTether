@@ -1,3 +1,30 @@
+## [0.1.0a69] — Schema-Grounded Memory Phase 1+2
+
+### Added — SQL-deterministic entity query routing
+
+- **`fact_entities` table**: every `remember` now writes structured
+  (entity, attr) pairs extracted from content — stored as independent rows
+  (not JSON blobs) to enable direct SQL lookup.
+- **Query routing in `search_hybrid()`**: entity-attr queries are routed
+  through `SELECT ... FROM fact_entities JOIN facts WHERE entity = ?` —
+  deterministic results boosted to score 1.0 with `sql_deterministic`
+  reason. Escape path from the r^N multi-session recall problem.
+- `predicates.store_entities()` + `predicates.query_entities()` — write and
+  read paths for the structured entity index.
+- Toggle: `MEM_SGM=0` disables. Default: ON.
+- 8 new tests. Tests: 485 passed, 4 skipped.
+
+### Why
+
+Multi-session recall failure is a probability multiplication: r^N where
+r = per-query recall rate, N = sessions the answer is scattered across.
+Embedding-based retrieval cannot escape this. Structured SQL queries can —
+deterministic lookup returns ALL matching facts regardless of session count.
+
+Reference: xmemory (arXiv:2604.27906) validated the approach (97.1% F1),
+but is a remote SaaS. MemTether is the first local-first, open-source,
+bi-temporal implementation.
+
 ## [0.1.0a68] - 2026-10-08
 
 ### Fixed — fresh-DB crash on first search (black-box audit round 4)

@@ -1745,6 +1745,49 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
         _diag['tag_dedup'] = len(_kept) - len(_final)
     _kept = _final
 
+    # \u2605SGM Phase 2 (2026-10-08): SQL-deterministic entity query routing.
+    # If the query contains extractable entities, run a direct SQL lookup on
+    # fact_entities first — results are deterministic (r^N escape path).
+    _sgm_on = (os.environ.get('MEM_SGM') or '1').strip().lower() not in ('0', 'false', 'no')
+    if _sgm_on and _kept is not None:
+        try:
+            from predicates import _query_attrs
+            _attrs = _query_attrs(q)
+            if _attrs:
+                _conn_sgm = _sq3.connect(DB)
+                _conn_sgm.row_factory = _sq3.Row
+                _sgm_hits = set()
+                for _pair in _attrs:
+                    _sql = ("SELECT fe.fact_uid FROM fact_entities fe "
+                            "JOIN facts f ON f.uid = fe.fact_uid "
+                            "WHERE fe.entity = ? AND f.status = 'active'")
+                    _params = [_pair['e']]
+                    if _pair.get('a'):
+                        _sql += " AND fe.attr LIKE ?"
+                        _params.append(f"%{_pair['a']}%")
+                    for _r in _conn_sgm.execute(_sql, _params).fetchall():
+                        _sgm_hits.add(_r['fact_uid'])
+                _conn_sgm.close()
+                if _sgm_hits:
+                    _sgm_uids = {x.get('uid') for x in (_kept or [])}
+                    _missing = _sgm_hits - _sgm_uids
+                    if _missing:
+                        # pull full records for SQL hits not already in results
+                        for _mu in _missing:
+                            _fr = _conn_sgm.execute(
+                                "SELECT uid, content, type, source, scope, updated_at, q_value, tags "
+                                "FROM facts WHERE uid=? AND status='active'", (_mu,)).fetchone()
+                            if _fr:
+                                _kept.append(dict(_fr) | {'score': 1.0, 'reason': ['sql_deterministic']})
+                        _diag['sgm_sql_hits'] = len(_sgm_hits)
+                # boost existing results that match SQL
+                for _x in _kept:
+                    if _x.get('uid') in _sgm_hits:
+                        _x['reason'] = list(_x.get('reason') or []) + ['sql_deterministic']
+                        _x['score'] = max(_x.get('score', 0), 1.0)
+        except Exception as _sgm_e:
+            _diag['sgm_err'] = str(_sgm_e)[:80]
+
     # \u2605P2-2 wired (2026-10-08): retrieval-side attribute coverage check.
     # predicates.check_attr_coverage was written (十三修) but never called here —
     # "X的Y" queries had no not_answered downweight. Default ON; MEM_PREDICATES=0

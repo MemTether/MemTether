@@ -70,6 +70,38 @@ def store_predicate(conn, uid, content):
                      (json.dumps(preds, ensure_ascii=False), uid))
     return preds
 
+
+def store_entities(conn, uid, content, source='', ts='', valid_from='', valid_to=''):
+    """写入时把谓词拆成 (entity, attr, value) 存入 fact_entities 表。
+
+    与 store_predicate 不同：store_predicate 存 JSON 到 facts.predicate 列，
+    store_entities 存**独立行**到 fact_entities 表——使 SQL 确定性查询成为可能。
+    """
+    preds = extract_predicates(content)
+    if not preds:
+        return []
+    ts_val = ts or __import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    vf = valid_from or ts_val
+    for p in preds:
+        conn.execute(
+            "INSERT INTO fact_entities (entity, attr, value, fact_uid, source, ts, valid_from) VALUES (?,?,?,?,?,?,?)",
+            (p['e'], p['a'], content[:200], uid, source, ts_val, vf))
+    return preds
+
+
+def query_entities(conn, entity, attr=None, include_retired=False):
+    """确定性查询：按实体（+可选属性）取回所有活跃 fact uid。不走 embedding，不走概率。"""
+    sql = "SELECT DISTINCT fe.fact_uid, f.content, f.status FROM fact_entities fe "           "JOIN facts f ON f.uid = fe.fact_uid WHERE fe.entity = ?"
+    params = [entity]
+    if attr:
+        sql += " AND fe.attr LIKE ?"
+        params.append(f'%{attr}%')
+    if not include_retired:
+        sql += " AND f.status = 'active'"
+    sql += " ORDER BY f.updated_at DESC"
+    return [dict(zip(('uid','content','status'), r)) for r in conn.execute(sql, params).fetchall()]
+
+
 # ---------------------------------------------------------------
 # 检索端：属性存在性校验
 # ---------------------------------------------------------------
