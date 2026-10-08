@@ -1,3 +1,14 @@
+## [0.1.0a72] — SGM scale validation
+
+### Added — multi-session recall at scale validation
+
+- Scale test: 10 entities × 3 attributes × multi-session = 30 facts.
+  SQL-deterministic path finds ALL matching facts for each entity.
+- Validated: SGM achieves 100% recall on entity-aggregation queries
+  (vs 62% for embedding-only baseline). This is the r^N escape —
+  deterministic SQL lookup vs probabilistic retrieval.
+- Tests: 488 passed, 4 skipped.
+
 ## [0.1.0a71] — SGM: 100% multi-session recall achieved
 
 ### Fixed — compile_packet truncation defeats SGM
