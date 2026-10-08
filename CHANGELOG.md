@@ -1,3 +1,19 @@
+## [0.1.0a62] - 2026-10-08
+
+### Fixed — Court Playground v2 (live demo)
+
+- **EN/ZH language toggle** with localStorage persistence; all UI strings,
+  placeholders, case-file sections, and chain-status messages localized.
+- **Bug: "Correct" button never worked** — `INSERT INTO supersessions
+  VALUES (?,?,?,?)` had 4 placeholders for 5 values (sql.js threw on every
+  click). Fixed to 5. Nobody had reported it because the demo page had no
+  error surfacing.
+- **Bug: case-file section 4 always threw** — SELECT referenced
+  `verdict_reason`, a column that doesn't exist (actual name: `reason`).
+- Visual polish: gradient bg, hover states, focus rings, scrollable memory
+  list, mobile responsive, EU AI Act callout card, localized badges.
+- Live: https://memtether.github.io/MemTether/court/
+
 ## [0.1.0a61] - 2026-10-08
 
 ### Tests — memsearch retrieval-branch net (10 tests)
