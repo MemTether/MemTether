@@ -1,3 +1,13 @@
+## [0.1.0a55] - 2026-10-08
+
+### Tests — governance 44% -> 57% (v19 target 50% reached)
+
+- 8 new tests: `_canonical` entity normalization (alias table, suffix
+  stripping, bracket/whitespace removal) and `detect_explicit_conflicts`
+  cross-entity polarity logic — positive/negative/newer-wins/suggest-retire,
+  single-polarity no-report, and window exclusion.
+- Tests: 403 passed, 4 skipped.
+
 ## [0.1.0a54] - 2026-10-08
 
 ### Fixed — P2-2 wired: retrieval-side attribute coverage
