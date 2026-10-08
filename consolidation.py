@@ -1,6 +1,11 @@
 """consolidation.py - Background memory consolidation index
-Based on Mnemon (arXiv 2609.36059): consolidation adds +4.4% on LongMemEval-S
-Three index types: topic timelines, value histories, standing instructions
+Based on Mnemon (arXiv 2609.36059) ideas: consolidation adds +4.4% on LongMemEval-S.
+Two shipped index types: value histories, standing instructions.
+
+Honest note (2026-10-08, user decision B): the third index, topic timelines,
+was removed — it JOINed a fact_entities table that no shipped schema creates
+and could never have run against a real database. Re-add it together with the
+write-side entity extraction if that feature is ever built.
 """
 import sqlite3, json, os, sys, re, datetime
 from collections import defaultdict
@@ -13,37 +18,6 @@ def _get_conn():
     conn = sqlite3.connect(db)
     conn.row_factory = sqlite3.Row
     return conn
-
-def build_topic_timelines(db_path=None):
-    conn = _get_conn()
-    entity_map = conn.execute(
-        "SELECT fe.entity_name, fe.fact_uid, f.content, f.type, "
-        "COALESCE(f.updated_at, f.created_at) as ts "
-        "FROM fact_entities fe JOIN facts f ON f.uid = fe.fact_uid "
-        "WHERE f.status = 'active' ORDER BY ts ASC"
-    ).fetchall()
-    topic_timelines = defaultdict(list)
-    for row in entity_map:
-        topic = row["entity_name"]
-        if len(topic) >= 3:
-            topic_timelines[topic].append({
-                "uid": row["fact_uid"], "ts": row["ts"],
-                "type": row["type"], "content": row["content"][:200],
-            })
-    output = {}
-    for topic, timeline in topic_timelines.items():
-        if len(timeline) >= 2:
-            output[topic] = {
-                "count": len(timeline),
-                "first_seen": timeline[0]["ts"],
-                "last_seen": timeline[-1]["ts"],
-                "timeline": timeline[-20:],
-            }
-    out_path = os.path.join(HERE, "topic_index.json")
-    with open(out_path, "w", encoding="utf-8") as f:
-        json.dump(output, f, ensure_ascii=False, indent=2)
-    conn.close()
-    return {"topics": len(output), "total_entries": sum(v["count"] for v in output.values())}
 
 def build_value_histories(db_path=None):
     conn = _get_conn()
@@ -93,26 +67,13 @@ def build_standing_instructions(db_path=None):
 
 def build_all():
     return {
-        "topics": build_topic_timelines(),
         "values": build_value_histories(),
         "instructions": build_standing_instructions(),
     }
 
 def search_index(query, limit=5):
     results = []
-    topic_path = os.path.join(HERE, "topic_index.json")
-    if os.path.exists(topic_path):
-        topics = json.load(open(topic_path, "r", encoding="utf-8"))
-        q_lower = query.lower()
-        for topic, data in topics.items():
-            if topic.lower() in q_lower or any(w in q_lower for w in topic.lower().split()):
-                results.append({
-                    "type": "topic_timeline", "topic": topic,
-                    "count": data["count"], "last_seen": data["last_seen"],
-                    "entries": data["timeline"][-3:],
-                })
-                if len([r for r in results if r["type"] == "topic_timeline"]) >= limit:
-                    break
+
     inst_path = os.path.join(HERE, "standing_instructions.json")
     if os.path.exists(inst_path):
         instructions = json.load(open(inst_path, "r", encoding="utf-8"))

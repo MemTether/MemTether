@@ -1,3 +1,18 @@
+## [0.1.0a60] - 2026-10-08
+
+### Removed — consolidation.build_topic_timelines (user decision B)
+
+- Removed the topic-timelines index: it JOINed a `fact_entities` table that
+  **no shipped schema creates** — the function could never have run against a
+  real database (would raise `no such table`). Deleted the function, its
+  `build_all()` entry, and the `topic_index.json` branch of `search_index()`.
+  Shipped index types are now: **value histories** and **standing
+  instructions** (both tested). Re-add topic timelines together with
+  write-side entity extraction if that feature is ever built.
+- Regression test locks the removal (function absent, `build_all()` has no
+  topics key, stale `topic_index.json` on disk cannot resurrect the path).
+- Tests: 450 passed, 4 skipped.
+
 ## [0.1.0a59] - 2026-10-08
 
 ### Tests — rebuild projection pipeline locked (7 tests)

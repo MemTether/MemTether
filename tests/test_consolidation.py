@@ -5,11 +5,10 @@ v19 misjudged this as a "dead module": memsearch.py:1161 lazily calls
 search_index() (R10b, try/except ImportError guarded). Deleting it would
 silently drop the consolidation recall path. These tests lock its behavior.
 
-Honest scope: build_topic_timelines() JOINs fact_entities — a table that
-does NOT exist in any schema this repo ships (gateway.py creates facts /
-supersessions / tool_assets only). That function would crash on a real DB.
-We do NOT test it here; we test the two index builders that work against
-the real schema, plus search_index() end-to-end.
+2026-10-08 user decision B: build_topic_timelines() was REMOVED — it JOINed
+a fact_entities table that no shipped schema creates (would crash on real DB).
+Shipped index types: value histories, standing instructions. A regression test
+locks the removal.
 """
 import os, sys, json, sqlite3, tempfile
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -74,19 +73,37 @@ def test_build_value_histories_follows_supersession_chains(tmp_path, monkeypatch
     assert 'torch 2.14' in hist[key][0]['new']
 
 
-def test_search_index_matches_topic_and_instruction(tmp_path, monkeypatch):
+def test_search_index_standing_instruction(tmp_path, monkeypatch):
     monkeypatch.setattr(consolidation, 'HERE', str(tmp_path))
-    topics = {'comfyui': {'count': 3, 'first_seen': '2026-10-01', 'last_seen': '2026-10-05',
-                           'timeline': [{'uid': 'u3', 'ts': '2026-10-05', 'type': 'fact', 'content': 'torch 2.13'}]}}
-    json.dump(topics, open(os.path.join(str(tmp_path), 'topic_index.json'), 'w', encoding='utf-8'), ensure_ascii=False)
     insts = [{'uid': 'u1', 'content': 'Always check proxy before git push', 'type': 'decision',
               'source': 'codex', 'ts': '2026-10-01 10:00', 'trigger': 'always'}]
     json.dump(insts, open(os.path.join(str(tmp_path), 'standing_instructions.json'), 'w', encoding='utf-8'), ensure_ascii=False)
-    res = consolidation.search_index('comfyui always', limit=5)
+    res = consolidation.search_index('always', limit=5)
     types = {r['type'] for r in res}
-    assert 'topic_timeline' in types and 'standing_instruction' in types
-    tt = [r for r in res if r['type'] == 'topic_timeline'][0]
-    assert tt['topic'] == 'comfyui' and tt['count'] == 3
+    assert 'standing_instruction' in types
+    si = [r for r in res if r['type'] == 'standing_instruction'][0]
+    assert si['content'] == 'Always check proxy before git push'
+
+
+def test_topic_timelines_removed_regression(tmp_path, monkeypatch):
+    """User decision B (2026-10-08): topic timelines removed — it JOINed a
+    fact_entities table no schema creates. Locks: function absent, build_all
+    has no topics key, search_index never emits topic_timeline type."""
+    assert not hasattr(consolidation, 'build_topic_timelines')
+    monkeypatch.setattr(consolidation, 'HERE', str(tmp_path))
+    regress = str(tmp_path / 'regress.db')
+    monkeypatch.setenv('MEM_DB', regress)
+    import sqlite3 as _sq3
+    _c = _sq3.connect(regress)
+    _c.execute("CREATE TABLE facts (uid TEXT PRIMARY KEY, content TEXT, status TEXT, type TEXT, source TEXT, created_at TEXT, updated_at TEXT)")
+    _c.execute("CREATE TABLE supersessions (id INTEGER PRIMARY KEY, old_uid TEXT, new_uid TEXT, reason TEXT, by_agent TEXT, ts TEXT)")
+    _c.commit(); _c.close()
+    res = consolidation.build_all()
+    assert 'topics' not in res and 'values' in res and 'instructions' in res
+    # even a stale topic_index.json on disk must not resurrect the path
+    json.dump({'x': {'count': 1, 'timeline': []}},
+              open(os.path.join(str(tmp_path), 'topic_index.json'), 'w', encoding='utf-8'))
+    assert not any(r['type'] == 'topic_timeline' for r in consolidation.search_index('x'))
 
 
 def test_search_index_empty_when_no_index_files(tmp_path, monkeypatch):
