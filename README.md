@@ -23,6 +23,14 @@ $ memtether court fact-20261007-abc
 +============================================================+
 ```
 
+## TL;DR
+
+- **Your AI clients forget each other?** Every agent keeps its own memory. MemTether gives them one shared, governed brain via file-level pointers — no cloud, no sync.
+- **Your AI writes things it should not?** Every memory carries a source identity and a hash-chained audit trail. Tamper with the database and the chain detects it — run `python examples/audit_chain_demo.py` to see it turn red.
+- **Your AI changed its mind?** Corrections never delete. Bi-temporal supersession keeps who-changed-what-when-why forever, queryable at any past point in time.
+
+## Documentation
+
 Under the hood: **supersession chains** (corrections never delete),
 **bi-temporal timestamps** (when facts were true vs when the system
 learned them), **human-adjudicated conflict resolution**, and a
@@ -71,13 +79,6 @@ mcp-name: io.github.lanbass869-cell/memtether
 
 ---
 
-## TL;DR
-
-- **Your AI clients forget each other?** Every agent keeps its own memory. MemTether gives them one shared, governed brain via file-level pointers — no cloud, no sync.
-- **Your AI writes things it should not?** Every memory carries a source identity and a hash-chained audit trail. Tamper with the database and the chain detects it — run `python examples/audit_chain_demo.py` to see it turn red.
-- **Your AI changed its mind?** Corrections never delete. Bi-temporal supersession keeps who-changed-what-when-why forever, queryable at any past point in time.
-
-## Documentation
 
 - [Reproduce MemTether](docs/site/en/reproduce.html) - Every claim has a command
 - [Founding 10 Challenge](docs/site/en/challenge.html) - 10 spots, 14 days, honest outcomes
