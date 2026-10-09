@@ -29,6 +29,16 @@ $ memtether court fact-20261007-abc
 - **Your AI writes things it should not?** Every memory carries a source identity and a hash-chained audit trail. Tamper with the database and the chain detects it — run `python examples/audit_chain_demo.py` to see it turn red.
 - **Your AI changed its mind?** Corrections never delete. Bi-temporal supersession keeps who-changed-what-when-why forever, queryable at any past point in time.
 
+Run it yourself:
+
+```text
+$ python examples/audit_chain_demo.py
+写入 25 条记忆（自动生成 2 个审计锚点）...
+篡改前 verify_chain: PASS {'anchors': 2, 'entries_covered': 20}
+模拟攻击者直接改库...
+篡改后 verify_chain: FAIL {'reason': 'chain hash mismatch'}
+✅ 哈希链成功检测到篡改！
+```
 ## Documentation
 
 Under the hood: **supersession chains** (corrections never delete),
