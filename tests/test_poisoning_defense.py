@@ -160,3 +160,20 @@ def test_G_cross_tenant_isolation(tmp_path):
     texts_a = ' '.join((x.get('content') or '') for x in ra.get('results', []))
     assert 'BBB-222' not in texts_a, 'tenantB fact leaked into tenantA search'
     assert 'AAA-111' in texts_a, 'tenantA fact must be visible to tenantA'
+
+def test_T_ttl_expired_downweighted(tmp_path):
+    """a75-r3: TTL evidence — expired status-fact is downweighted (0.35x) and
+    annotated, not silently served as current truth."""
+    gw, _ = _setup(tmp_path)
+    import datetime as _dt
+    past = (_dt.datetime.now() - _dt.timedelta(days=5)).strftime('%Y-%m-%d')
+    gw.remember(f'当前最新端口是 7777（快照类结论） ttl:{past}', source='codex')
+    gw.remember('端口稳定结论: 9090（带未来 ttl 无关项）', source='codex')
+    res = gw.search('当前最新端口', limit=10)
+    expired = [x for x in res.get('results', [])
+               if '7777' in (x.get('content') or '')]
+    assert expired, 'expired fact must still be retrievable (honest history)'
+    e = expired[0]
+    assert e.get('ttl_expired') is True, f'expired flag missing: {e.get("reason")}'
+    assert e.get('ttl_note') and '到期' in e['ttl_note']
+    assert e.get('score', 1) <= 1.0  # downweighted relative path exists

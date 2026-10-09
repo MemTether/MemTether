@@ -50,16 +50,16 @@ arXiv:2605.15338 与 PoisonRecall 的攻击分类学）。
 
 ### 攻击类 → MemTether 防御映射
 
-| 攻击类 | MemTether 对应防御 | 机制 |
+| 攻击类 | MemTether 缓解措施 | 机制 |
 |---|---|---|
 | 覆盖式投毒（改写既有事实） | supersession 链（**法证追溯，非拦截**） | `correct()` 不校验 corrector 身份——任何已注册来源可 correct 任何 fact；防御是事后可审计（旧值保留 + supersessions 边记录 who/when/why），不是事前拦截 |
 | 抹除攻击（删记忆灭迹） | retire 不删除原始行 | `retire()` 只改 `status`——SQLite 行保留（法证可查），但内容从检索层移除（向量+FTS+active 过滤）。对"agent 行为"而言抹除仍会生效；本防御保护的是**历史可审计性**，不是运行时可用性 |
-| 归属伪造 | source 注册表强制 | 未注册来源被降级/拒绝，所有写入强制 1-64 字符来源标识 |
+| 归属伪造 | source 注册表强制（⚠️ **fail-open**） | 开源版默认**无 agents.json → 未注册来源 verbatim 写入**（best-effort bookkeeping，非安全控制）；部署注册表后未注册来源被硬拒 |
 | 事后灭证 | 哈希链锚点 | `audit()` 每批写入自动追加 SHA-256 锚点；**绕过应用层的写入**会被 `verify_chain()` 检出（能同时改写 anchors 表的完全控制攻击者除外，见诚实边界） |
 | 休眠检索（sleeper，已注入后被替代） | 检索层状态过滤 | 默认检索只取 `active`；被替代条目不作为当前事实返回 |
 | **初始事实注入**（新写入即为假） | ⚠️ **无主动拦截** | local-first 已知局限：一旦写入即 active 并可被检索。现有机制只提供事后追溯（audit_log 记录每次 remember 的来源与内容），不做写入前真实性判断。多来源互信属运营层问题 |
 | 跨租户投毒 | tenant 隔离 | 写入默认 `MEM_TENANT_ID`，检索层 `_tenant_filter()` 隔离；跨租户写入需显式设环境变量 |
-| 未经复核的“当前值” | TTL + 时间衰减 | 状态类结论建议带复核截止日，过期自动降权并标注 |
+| 未经复核的“当前值” | TTL + 时间衰减（检索层实现，见 memsearch._parse_ttl） | 状态类结论带 `ttl:YYYY-MM-DD` 后过期自动降权并标注“可能不是当前状态”；实现于检索链，`tests/test_poisoning_defense.py::test_T` 提供证据 |
 
 ### 诚实边界
 

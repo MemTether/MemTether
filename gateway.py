@@ -66,6 +66,7 @@ except Exception:                       # pragma: no cover - 无 hubguard 时照
 #   ★这是默认值，不是限制：每条记忆都仍应显式传 --source（多 agent 归属的前提）。
 # ---------------------------------------------------------------------------
 DEFAULT_SOURCE = os.environ.get('MEM_DEFAULT_SOURCE', 'local')
+_anchor_warned = False  # a75-r3: auto-anchor failure warned-once flag
 
 
 def _hg_fact_line(date10, typ, source, lead):
@@ -474,8 +475,19 @@ def audit(conn, op, target, agent, detail=''):
     try:
         import memory_court as _mc
         _mc.maybe_anchor(conn)
-    except Exception:
-        pass  # anchoring must never block writes; api/court still anchor on demand
+    except Exception as _anch_err:
+        # anchoring must never block writes; api/court still anchor on demand.
+        # a75-r3: fail-SILENT is itself a tamper-detection hole — warn once per
+        # process so operators notice the chain stopped being maintained.
+        global _anchor_warned
+        try:
+            if not _anchor_warned:
+                sys.stderr.write(
+                    '[memtether] audit auto-anchor FAILED (chain not maintained): '
+                    f'{type(_anch_err).__name__}: {str(_anch_err)[:120]}\n')
+                _anchor_warned = True
+        except Exception:
+            pass
 
 
 def _mem0_add(content, user_id='wzj'):
