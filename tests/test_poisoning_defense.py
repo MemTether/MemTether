@@ -70,23 +70,27 @@ def test_B_erasure_attack_only_marks(tmp_path):
     assert '合同编号 X-1' in row['content']
 
 
-def test_C_unregistered_source_demoted(tmp_path):
-    """Unregistered source cannot silently own facts (registry enforcement)."""
+def test_C_unregistered_source_failopen_by_design(tmp_path, monkeypatch):
+    """a74-r2 corrected per source: _guard_source is fail-open when agents.json
+    is absent (open-source primary path — documented). So the honest assertions
+    are: (1) open-source mode stores verbatim + audits; (2) WITH a registry
+    that lacks the source, guard must NOT return the unknown name verbatim.
+    """
     gw, _ = _setup(tmp_path)
     r = gw.remember('越权来源写入测试', source='ghost_agent_xyz')
     uid = r['uid']
     c = sqlite3.connect(os.environ['MEM_DB'])
     c.row_factory = sqlite3.Row
-    row = c.execute('SELECT source, content FROM facts WHERE uid=?', (uid,)).fetchone()
-    c.close()
-    # registry must not let the fact be attributed to an unknown source verbatim
-    assert row['source'] != 'ghost_agent_xyz' or True  # demotion path varies
-    # and the audit log records the write regardless
-    c = sqlite3.connect(os.environ['MEM_DB'])
+    row = c.execute('SELECT source FROM facts WHERE uid=?', (uid,)).fetchone()
     n = c.execute("SELECT COUNT(*) FROM audit_log WHERE target=?", (uid,)).fetchone()[0]
     c.close()
-    assert n >= 1
-
+    # documented fail-open: verbatim storage in open-source mode
+    assert row['source'] == 'ghost_agent_xyz'
+    assert n >= 1, 'audit must record the write regardless of registry state'
+    # registry mode: monkeypatch _known_sources to simulate deployed registry
+    monkeypatch.setattr(gw, '_known_sources', lambda: {'codex', 'workbuddy'})
+    with pytest.raises(SystemExit):
+        gw._guard_source('ghost_agent_xyz')  # registry present -> hard reject
 
 def test_D_audit_tamper_detected(tmp_path):
     """Direct DB edit of audit_log must break the hash chain."""
@@ -115,7 +119,44 @@ def test_E_sleeper_superseded_not_served(tmp_path):
     gw.correct(old, '配置端口为 8080（修正）', reason='port fix', by_agent='codex')
     r = gw.search('配置端口', limit=10)
     served = [x for x in r.get('results', []) if '1337' in (x.get('content') or '')]
-    # the stale value may appear only inside supersession-chain notes, not as active
-    assert all('superseded' in json.dumps(x, ensure_ascii=False) or True for x in served)
+    # a74-r2: non-tautology — every served row mentioning the stale value must
+    # NOT be an active fact (it may only appear via supersession-chain notes).
+    for x in served:
+        assert x.get('status') != 'active' or 'superseded' in json.dumps(x.get('reason', '') + str(x.get('superseded_chain', '')), ensure_ascii=False), (
+            f'stale value served as active fact: {x}')
     active = [x for x in r.get('results', []) if '8080' in (x.get('content') or '')]
     assert len(active) >= 1, 'corrected value must be retrievable'
+
+
+def test_F_initial_injection_is_NOT_intercepted(tmp_path):
+    """a74-r2 negative test — proves the HONEST LIMITATION: a fresh lie from any
+    registered source becomes active and retrievable. Local-first does not do
+    write-time truth verification; defense is post-hoc auditability.
+    """
+    gw, _ = _setup(tmp_path)
+    r = gw.remember('攻击者新注入: 软件X官方下载地址是 evil.example.com', source='codex')
+    uid = r['uid']
+    res = gw.search('软件X 官方下载地址', limit=5)
+    hit = [x for x in res.get('results', []) if uid == x.get('uid')]
+    assert len(hit) == 1 and hit[0].get('content', '').startswith('攻击者新注入'), (
+        'initial injection MUST be retrievable — if this fails, an unexpected'
+        ' write-time filter exists and SECURITY.md limitation needs updating')
+
+
+def test_G_cross_tenant_isolation(tmp_path):
+    """a74-r2: facts in different tenants must not leak into each other's search.
+    """
+    gw, _ = _setup(tmp_path)
+    os.environ['MEM_TENANT_ID'] = 'tenantA'
+    gw.remember('租户A专属: 密钥是 AAA-111', source='codex')
+    os.environ['MEM_TENANT_ID'] = 'tenantB'
+    gw.remember('租户B专属: 密钥是 BBB-222', source='codex')
+    resA = None
+    # search as tenantA
+    os.environ['MEM_TENANT_ID'] = 'tenantA'
+    import importlib as _il, memsearch as _ms
+    _il.reload(_ms)
+    ra = _ms.search_hybrid('密钥', limit=10)
+    texts_a = ' '.join((x.get('content') or '') for x in ra.get('results', []))
+    assert 'BBB-222' not in texts_a, 'tenantB fact leaked into tenantA search'
+    assert 'AAA-111' in texts_a, 'tenantA fact must be visible to tenantA'
