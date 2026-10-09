@@ -78,6 +78,7 @@ CREATE TABLE facts (
 | `conflict_reviews` | 人工冲突裁决（uid_a/uid_b/verdict），已裁决的不再重复报 |
 | `tool_assets` | 工具资产（与 facts 同池检索，有独立 q_value） |
 | `run_events` | 事件队列（incident/retrieval_miss → 反射器提炼） |
+| `fact_entities` | SGM Phase 1：谓词结构化行（entity/attr/value/fact_uid/source/ts/valid_from），写入时自动抽取，供 SQL 确定性查询路由与聚合查询 |
 
 ## 3. 写入链路（gateway.remember）
 
@@ -89,7 +90,7 @@ remember(content, type, source, scope, ...)
   ├─ 精确查重（同 source + 同 content → noop_dup，更新时间戳）
   ├─ 近义去重（向量相似度 ≥0.92 + 文本确认 → 走 absorb 逻辑）
   ├─ INSERT + audit_log
-  ├─ 谓词抽取（extract_predicates → facts.predicate JSON）
+  ├─ 谓词抽取（extract_predicates → facts.predicate JSON + fact_entities 结构化行）
   └─ 向量索引同步（可选 chromadb）
 ```
 
@@ -113,6 +114,8 @@ search_hybrid(query, limit, ...)
   ├─ 时间衰减（30 天半衰期，floor 0.35）
   ├─ Q-Value 加权
   ├─ 属性覆盖校验（"X的Y"问句 → 只提 X 不提 Y 的候选降权 ×0.15）
+  ├─ SGM SQL 路由（"X的Y"/实体查询 → fact_entities 确定性补召回 + score=1.0，MEM_SGM=0 关闭）
+  ├─ SGM 聚合查询（counting/aggregation 题型 → SQL COUNT/LIST 写入 diag.sgm_aggregation）
   ├─ Recall Budget（MEM_RECALL_BUDGET=6000 字符硬上限 + min-max 归一化）
   ├─ 多轮检索（可选，首查分数不足时简化 query 重搜一轮）
   ├─ 三层去重（supersession → content → tag 签名）
@@ -197,7 +200,7 @@ sha256（内容哈希）
 ## 9. 测试与质量
 
 ```
-466 passed, 4 skipped
+488 passed, 4 skipped
 CI: 9 jobs（ubuntu×2 + windows×2 + macos×2 + Docker boot + lint + build）
 ```
 

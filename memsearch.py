@@ -1772,7 +1772,7 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
                         _params.append(f"%{_pair['a']}%")
                     for _r in _conn_sgm.execute(_sql, _params).fetchall():
                         _sgm_hits.add(_r['fact_uid'])
-                _conn_sgm.close()
+                # a74-fix: close moved below injection block — was reused after close
                 if _sgm_hits:
                     _sgm_uids = {x.get('uid') for x in (_kept or [])}
                     _missing = _sgm_hits - _sgm_uids
@@ -1787,6 +1787,8 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
                         # re-sort after SGM Phase 2 injection
                         _kept.sort(key=lambda _x: -_x.get('score', 0.0))
                         _diag['sgm_sql_hits'] = len(_sgm_hits)
+                if _conn_sgm is not None:
+                    _conn_sgm.close()  # a74-fix: deferred close (see comment above)
                 # boost existing results that match SQL
                 for _x in _kept:
                     if _x.get('uid') in _sgm_hits:

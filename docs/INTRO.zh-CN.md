@@ -98,7 +98,7 @@ LongMemEval 500 题全量运行（严格子串匹配口径）：
 
 | 指标 | 数值 |
 |---|---|
-| 测试 | **466 passed, 4 skipped** |
+| 测试 | **488 passed, 4 skipped** |
 | CI | 9 jobs（ubuntu×2 + windows×2 + macos×2 + Docker boot + lint + build）全绿 |
 | 核心模块覆盖率 | memory_court 98% · predicates 95% · consolidation 67% · governance 57% · gateway 54% |
 | 发布 | PyPI · GitHub Release（双附件 + SHA-256）· MCP Registry · Docker |
