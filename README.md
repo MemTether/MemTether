@@ -71,6 +71,12 @@ mcp-name: io.github.lanbass869-cell/memtether
 
 ---
 
+## TL;DR
+
+- **Your AI clients forget each other?** Every agent keeps its own memory. MemTether gives them one shared, governed brain via file-level pointers — no cloud, no sync.
+- **Your AI writes things it should not?** Every memory carries a source identity and a hash-chained audit trail. Tamper with the database and the chain detects it — run `python examples/audit_chain_demo.py` to see it turn red.
+- **Your AI changed its mind?** Corrections never delete. Bi-temporal supersession keeps who-changed-what-when-why forever, queryable at any past point in time.
+
 ## Documentation
 
 - [Reproduce MemTether](docs/site/en/reproduce.html) - Every claim has a command
@@ -337,4 +343,5 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 ---
 
 **If MemTether helps you, please give it a ⭐ on [GitHub](https://github.com/MemTether/MemTether)** — it helps other agents find it.
+
 
