@@ -467,6 +467,15 @@ def _init_fts_triggers():
 def audit(conn, op, target, agent, detail=''):
     conn.execute('INSERT INTO audit_log (op,target,agent,detail,ts) VALUES (?,?,?,?,?)',
                  (op, target, agent, detail[:500], now()))
+    # a74: auto-anchor the audit hash chain every BATCH writes. Previously
+    # anchoring only happened via explicit court CLI / api_server, so CLI+MCP
+    # writes left an unanchored tail = silent tamper window. PoisonRecall-style
+    # erasure attacks exploit exactly that gap.
+    try:
+        import memory_court as _mc
+        _mc.maybe_anchor(conn)
+    except Exception:
+        pass  # anchoring must never block writes; api/court still anchor on demand
 
 
 def _mem0_add(content, user_id='wzj'):
