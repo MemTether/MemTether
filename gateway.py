@@ -1865,6 +1865,11 @@ def _load_governance():
     _spec = _iu.spec_from_file_location('_mt_governance', _p)
     _mod = _iu.module_from_spec(_spec)
     _spec.loader.exec_module(_mod)
+    # a74-fix: governance.py hardcodes DB = HERE/memory.db and ignores MEM_DB.
+    # Without this patch the five governance CLI branches (govern/conflicts/
+    # conflicts_exact/selfcheck/stale) silently read the placeholder repo DB
+    # while remember/rebuild read the MEM_DB — one CLI session, two databases.
+    _mod.DB = DB
     return _mod
 
 
