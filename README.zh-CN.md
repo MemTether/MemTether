@@ -83,3 +83,21 @@ memtether setup claude-code   # 逐个接入
 ## 许可证
 
 [Apache-2.0](LICENSE)
+
+## 评测与诚实边界
+
+我们不掩盖弱点。以下数字全部可复现（复现指南见文档站）：
+
+| 评测 | 口径 | 结果 |
+|---|---|---|
+| LongMemEval-S 500Q（MemTether+EAF） | strict | 60.0%（多会话子集 +11.2pp，配对 p=0.008） |
+| LongMemEval-S 500Q（LangMem 基线，我们复跑） | strict / LLM judge | 21.8% / 6.6%，NOT_FOUND 79.2% |
+| MemDaily（MemSim 官方数据集，纯检索无 LLM judge，k=15） | 答案子串命中 | simple 46.7% · noisy 0%（干扰前导致检索偏移——已知多会话弱点） |
+| 合成多会话 SGM 对照（20 实体×25 会话） | 召回数 | SGM 84% vs embedding 64%；加 300+ 干扰消息后仍 84% vs 64% |
+
+### 已知局限（附可执行证明）
+
+- **初始事实注入无拦截**：local-first 不做写入前真实性判断——任何注册来源写入的新事实立即可被检索。防御是事后可审计（来源归属 + 哈希链 + supersession 法证链），见 `tests/test_poisoning_defense.py::test_F`（负例测试，把这条局限钉进测试）
+- **记忆投毒威胁模型**：针对 persistent memory 的投毒攻击（覆盖/抹除/休眠/跨租户）的完整攻防映射见 [SECURITY.md](SECURITY.md)
+- **审计锚点与数据同库**：防绕过应用层的静默篡改；对拥有全库写权限的攻击者无效（需外部锚点，roadmap）
+- 多会话聚合仍是全行业难点——SGM 的 SQL 确定性路由是我们当前最有效的逃逸路径，但只覆盖「实体→属性」型查询，关系路径型问题（"通过 A 认识 B 的人"）需要多跳推理，尚未解决

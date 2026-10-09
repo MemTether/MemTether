@@ -36,6 +36,15 @@ _ACTION_KEYWORDS = re.compile(
     r'(?:发布完成|全渠道发布|上线完成|跑完|修复完成|写完|做完|制作完成|评测完成|扫描完成|全覆盖完成|全量.*完成|批.*完成|审稿完成|到达|解除)'
 )
 
+def _norm_entity(e):
+    """a75-r4: strip personal-determiner prefixes so '我的上司' and '上司'
+    map to the same entity node (MemDaily/中文口语场景核心归一化)."""
+    for pref in ('我的', '我们的', '我的家', '家里', '我家', '我'):
+        if e.startswith(pref) and len(e) > len(pref) + 1:
+            return e[len(pref):]
+    return e
+
+
 def extract_predicates(content):
     """从中文 content 抽取 (entity, attr) 对，返回 list[dict]。
 
@@ -51,6 +60,9 @@ def extract_predicates(content):
         e, a = m.group('entity'), m.group('attr')
         # 过滤：实体/属性太短或含常见非实体词
         if len(e) < 2 or len(a) < 1 or e in ('我','你','他','她','这','那','其','本'):
+            continue
+        e = _norm_entity(e)
+        if len(e) < 2:
             continue
         key = (e, a)
         if key not in seen:
@@ -141,6 +153,9 @@ def _query_attrs(query):
         if _m2:
             a = a[:_m2.start()]
         if len(e) >= 2 and len(a) >= 1:
+            e = _norm_entity(e)
+            if len(e) < 2:
+                continue
             key = (e, a)
             if key not in seen:
                 seen.add(key)
