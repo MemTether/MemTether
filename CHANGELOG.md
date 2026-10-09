@@ -1,3 +1,55 @@
+
+## [0.1.0a76] — Security hardening, integrity proofs, competition readiness
+
+### Fixed — critical correctness & privacy defects
+
+- **supersession cycle detection**: `correct()` walks the chain and refuses
+  cycles that would make the version history unresolvable
+- **correct() race guard**: concurrent corrections on the same uid no longer
+  fork the chain (two supersessions edges to two active children); loser
+  receives an explicit `not active` error
+- **sink.json scope filter**: private/restricted facts leaked into the
+  projection read by every client — now filtered at the SQL level
+- **rebuild() without WorkBuddy targets**: no longer crashes with IndexError
+  on open-source / CI environments (returns `skipped: no_wb_targets`)
+- **sink.json atomic write**: was bare `open(w)`; now uses hubguard atomic
+  write (tmpfile + os.replace) matching the documented behavior
+
+### Added — memory-poisoning defense evidence
+
+- `SECURITY.md`: full threat model with attack→mitigation mapping
+  (overwrite / erasure / trust forgery / tamper-evidence / sleeper /
+  initial injection / cross-tenant / stale values)
+- `tests/test_poisoning_defense.py`: 8 executable proofs, including a
+  negative test (test_F) that pins the initial-injection limitation
+- `gateway.audit()`: auto-anchors the hash chain every BATCH writes
+  (was only triggered by court CLI / api_server — silent tamper window)
+- `tests/test_r6_integrity.py`: 4 regression locks (cycle, race, privacy,
+  no-wb-targets)
+- `examples/audit_chain_demo.py`: 60-second executable demo — tamper with
+  the audit log, watch `verify_chain()` turn red
+
+### Added — benchmark harnesses
+
+- `_dev/benchmarks/bench_sgm_noisy.py`: 300+ distractor facts — SGM 84%
+  vs embedding 64% recall under noise
+- `_dev/benchmarks/bench_memdaily.py`: MemTether × MemDaily (MemSim,
+  arXiv:2409.20163) official dataset harness — simple 46.7% / noisy 0%
+  (honest first-run numbers, offline protocol)
+
+### Improved — judge-readiness
+
+- README: TL;DR section, audit demo output block, Docker security note,
+  Troubleshooting table, tests count 488 → 523
+- README.zh-CN: 30-second TL;DR + honest-limits pointer
+- fuseeval: 4-judge heterogeneous review pipeline (z-score aggregation,
+  findings ledger, prompt versioning)
+
+### Tests
+
+- 523 passed, 4 skipped (was 488 at a73)
+- gateway.py coverage 54% → 76%
+
 ## [0.1.0a73] — SGM Phase 1 验收 PASS (82.6%)
 
 ### Improved — entity extraction action/keyword patterns

@@ -372,3 +372,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 | `embedding search failed` warning | Optional chromadb/bge models missing — install `pip install memtether[semantic]` or ignore (keyword fallback works) |
 | memory chain FAIL after manual edit | Intentional: the audit hash chain detects direct DB modification. Restore from backup or run `memtether court <uid>` to inspect |
 
+
+## Roadmap
+
+See [ROADMAP.md](ROADMAP.md) for planned work and explicit non-goals.
