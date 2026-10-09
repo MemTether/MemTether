@@ -38,13 +38,15 @@ $ python examples/audit_chain_demo.py
 模拟攻击者直接改库...
 篡改后 verify_chain: FAIL {'reason': 'chain hash mismatch'}
 ✅ 哈希链成功检测到篡改！
+
+> Note: ntries_covered: 20 with 25 writes is expected — the hash chain anchors every 10 audit entries, so the last 5 writes sit in the unanchored tail until the next batch. Tampering with an *anchored* entry is what turns verification red.
 ```
 ## Documentation
 
 Under the hood: **supersession chains** (corrections never delete),
 **bi-temporal timestamps** (when facts were true vs when the system
 learned them), **human-adjudicated conflict resolution**, and a
-**hash-chained audit log** aligned with EU AI Act Article 12
+**hash-chained audit log** designed with EU AI Act Article 12 record-keeping requirements in mind (not certified compliance)
 record-keeping requirements.
 
 One physical SQLite database, shared by every AI client via file-level
@@ -70,7 +72,7 @@ yours — and **auditable**.
 | **MCP server** | ✅ | ✅ | ✅ | ❌ | ✅ |
 | **23+ client adapters** | ✅ auto-detect | ❌ | ❌ | ❌ | ❌ |
 | **Evaluation integrity framework** | ✅ 5 patterns | ❌ | ❌ | ❌ | ❌ |
-| **CI: 9 jobs / 488 tests** | ✅ | ? | ? | ? | ✅ |
+| **CI: 9 jobs / 523 tests** | ✅ | ? | ? | ? | ✅ |
 | **Language** | Python | ? | Rust | ? | Python |
 
 *'Each cell reflects the feature's presence in the project's public documentation as of 2026-10-07. MemTether's differentiator is not any single feature — it's the combination of all governance dimensions in one local-first deployment.'*
@@ -296,7 +298,7 @@ memtether dashboard                    # Web UI
 
 | Test | Result |
 |---|---|
-| pytest | 488 passed, 4 skipped (CI runs full tests/ directory) |
+| pytest | 523 passed, 4 skipped (CI runs full tests/ directory) |
 | hard_bench | 62/62 |
 | e2e_verify | 13/13 |
 | refuse_bench | 26/26 (wordform gate; 09-25 calibration; known blind spot: same-form-different-attribute) |
