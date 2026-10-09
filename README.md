@@ -126,6 +126,8 @@ memtether dashboard
 
 # Docker
 docker-compose up
+
+> **Security note**: the REST API is unauthenticated unless you set MEMTETHER_API_KEY. Only expose port 8080 to trusted networks — on a shared machine, set the key in .env before docker-compose up.
 ```
 
 </details>
@@ -357,4 +359,16 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 **If MemTether helps you, please give it a ⭐ on [GitHub](https://github.com/MemTether/MemTether)** — it helps other agents find it.
 
+
+
+
+## Troubleshooting
+
+| Symptom | Fix |
+|---|---|
+| `no AI client detected` after `memtether init` | Clients in non-standard paths need manual MCP config — see docs/ADAPTERS.md |
+| `database is locked` during writes | WAL mode is default; a long reader may hold the lock — retry after 5s (busy_timeout is set) |
+| `source not registered` on write | Open-source mode is fail-open; a registry file (agents.json) enforces attribution — add your client to agents.json or set `MEM_SOURCE_FALLBACK` |
+| `embedding search failed` warning | Optional chromadb/bge models missing — install `pip install memtether[semantic]` or ignore (keyword fallback works) |
+| memory chain FAIL after manual edit | Intentional: the audit hash chain detects direct DB modification. Restore from backup or run `memtether court <uid>` to inspect |
 
