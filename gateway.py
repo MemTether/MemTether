@@ -676,11 +676,40 @@ def correct(old_uid, new_content, reason, by_agent=DEFAULT_SOURCE, valid_from=No
         nvf = valid_from or ts          # 新事实的 T 轴起点
         # 旧事实标记 superseded
         # ★2026-09-24：旧行 supersede 后清 pin（同 memory_hub）
+        # a75-r6: cycle detection - a supersession cycle makes the version
+        # chain unresolvable (multi-hop expansion walks at most 10 hops then
+        # silently stops). Refuse if old_uid is reachable from new_uid.
+        _seen = set([old_uid])
+        _cur = new_uid
+        _cycle = False
+        while _cur:
+            if _cur in _seen:
+                _cycle = True
+                break
+            _seen.add(_cur)
+            _row = conn.execute(
+                "SELECT superseded_by FROM facts WHERE uid=?",
+                (_cur,)).fetchone()
+            _cur = _row[0] if _row else None
+        if _cycle:
+            conn.rollback()
+            return {"ok": False,
+                    "error": ("supersession cycle refused: %s already "
+                              "transitively supersedes %s"
+                              % (new_uid, old_uid))}
+        # a75-r6: race guard - only supersede a fact that is still active.
+        # Two concurrent correct() calls previously forked the chain (two
+        # supersessions edges pointing to two active children).
         conn.execute("UPDATE facts SET status='superseded', superseded_by=?, valid_to=?, "
                      "invalidated_at=?, updated_at=?, tags=(CASE WHEN lower(COALESCE(tags,'')) LIKE '%pin%' "
                      "THEN trim(replace(replace(',' || tags || ',', ',pin,', ','), ',PIN,', ','), ',') ELSE tags END) "
-                     "WHERE uid=?",
+                     "WHERE uid=? AND status='active'",
                      (new_uid, nvf, ts, ts, old_uid))
+        if conn.execute("SELECT changes()").fetchone()[0] == 0:
+            conn.rollback()
+            return {"ok": False,
+                    "error": ("fact %s is not active (concurrent modification "
+                              "or already superseded)" % old_uid)}
         # 新事实写入
         conn.execute(
             """INSERT INTO facts (uid,type,subject,content,status,source,scope,confidence,
@@ -1377,8 +1406,10 @@ def rebuild():
                 'ts': row['updated_at'] or row['created_at'], 'status': row['status'],
                 'uid': row['uid'], 'confidence': row['confidence'],
             })
-        with open(SINK, 'w', encoding='utf-8') as f:
-            json.dump(sink, f, ensure_ascii=False, indent=2)
+        # a75-r6: atomic write - plain open(w) truncates the file on crash
+        # and lets concurrent readers see a half-written projection.
+        _hg_write(SINK, json.dumps(sink, ensure_ascii=False, indent=2),
+                  tag='rebuild-sink')
 
         # 2) 生成 WorkBuddy MEMORY.md
         #    ★2026-09-17：投影行加「来源」标记（问题②）。图例只在有 hubguard 时加，
