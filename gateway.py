@@ -1399,7 +1399,7 @@ def rebuild():
     try:
         # 1) 生成 sink.json（兼容导出）
         sink = {'fact': [], 'decision': [], 'incident': [], 'experience': [], 'todo': []}
-        for row in conn.execute("SELECT * FROM facts WHERE status='active' ORDER BY updated_at DESC").fetchall():
+        for row in conn.execute("SELECT * FROM facts WHERE status='active' AND scope NOT IN ('private','restricted') ORDER BY updated_at DESC").fetchall():
             typ = row['type'] if row['type'] in sink else 'fact'
             sink[typ].append({
                 'text': row['content'], 'source': row['source'], 'tag': row['tags'] or '',
@@ -1717,6 +1717,14 @@ def rebuild():
         # ★目标列表：不设 MEM_PROJ_PATH 时与原来那一个硬编码路径**完全相同**（行为不变）；
         #   设了就写到隔离路径 —— 否则"想验证 rebuild 的改动"就必然要动线上投影，等于不能安全地测。
         _wb_targets = _proj_targets()
+        if not _wb_targets:
+            # a75-r7: no WorkBuddy projection targets (open-source / CI env).
+            # Skip the WorkBuddy projection instead of crashing — sink.json
+            # still gets written above, so rebuild() remains useful.
+            conn.commit()
+            conn.close()
+            return {'ok': True, 'op': 'rebuild', 'skipped': 'no_wb_targets',
+                    'note': 'no projection targets detected; sink.json only'}
         wb = _wb_targets[0]
         # ★2026-09-17（问题③）：`MEM_PROJ_PATH` 是"我明确要求写到隔离路径"的信号。
         #   没设它 ⇒ 目标就是**线上共享投影**（两个实例共写同一 inode）。
