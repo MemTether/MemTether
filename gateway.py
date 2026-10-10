@@ -516,6 +516,9 @@ def _vec_upsert(uid, content, type_='fact', source=DEFAULT_SOURCE):
         col.upsert(ids=[uid], embeddings=[vec], documents=[content],
                    metadatas=[{'uid': uid, 'type': type_, 'source': source, 'kind': 'fact'}])
         return {'ok': True}
+    except ModuleNotFoundError as e:
+        # chromadb/numpy not installed -> graceful degradation, don't scare strangers
+        return {'skipped': 'no_vector'}
     except Exception as e:
         return {'error': str(e)[:120]}
 
@@ -528,6 +531,8 @@ def _vec_delete(uid):
         col = memsearch._client().get_collection(memsearch.COLLECTION)
         col.delete(ids=[uid])
         return {'ok': True}
+    except ModuleNotFoundError as e:
+        return {'skipped': 'no_vector'}
     except Exception as e:
         return {'error': str(e)[:120]}
 
