@@ -6,10 +6,18 @@
 
 **Your agent remembers things. Who audits what it remembers?**
 
-MemTether is the first memory hub where every fact carries a **verifiable
-evidence chain**: who wrote it, when it took effect, what it superseded,
-which conflicts were adjudicated by a human, and a **tamper-evident hash
-chain** anyone can verify in their browser — no code, no dependencies.
+MemTether is a local-first memory hub for multi-client AI agents. While
+most memory systems compete on retrieval accuracy, MemTether competes on
+**governance**: who wrote each fact, when it took effect, what it
+superseded, which conflicts a human adjudicated, and a **tamper-evident
+hash chain** anyone can verify — no code, no dependencies. Retrieval is
+provided (SGM deterministic SQL routing + hybrid embedding), but it is
+not the headline: agent memory that you can **audit, correct, and trust**
+is.
+
+Coming from mem0, Zep, or Letta? [`examples/mem0_migration.py`](examples/mem0_migration.py)
+shows a complete round-trip migration from a mem0 JSON export — no mem0
+SDK required.
 
 ```bash
 $ memtether court fact-20261007-abc
@@ -41,6 +49,24 @@ $ python examples/audit_chain_demo.py
 
 > Note: ntries_covered: 20 with 25 writes is expected — the hash chain anchors every 10 audit entries, so the last 5 writes sit in the unanchored tail until the next batch. Tampering with an *anchored* entry is what turns verification red.
 ```
+## Migrating from mem0
+
+Already using mem0? [`examples/mem0_migration.py`](examples/mem0_migration.py)
+shows a complete round-trip: mem0 JSON export → MemTether Exchange v1 →
+live retrieval → back to mem0 format. No mem0 SDK required, bi-temporal
+fields honestly marked `temporal_source="backfilled"`.
+
+## Performance (microbenchmark, n=200, local SQLite)
+
+| Operation | p50 | p95 | p99 |
+|---|---|---|---|
+| remember (insert) | 28.7ms | 34.6ms | 117.8ms |
+| search (SGM entity) | 33.1ms | 39.5ms | 41.6ms |
+| search (keyword) | 32.2ms | 35.0ms | 135.0ms |
+| correct (supersede) | 50.8ms | 54.7ms | 54.7ms |
+
+Reproduce: `python _dev/benchmarks/bench_latency.py --n 200`
+
 ## Documentation
 
 Under the hood: **supersession chains** (corrections never delete),
