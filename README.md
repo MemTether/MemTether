@@ -91,9 +91,9 @@ yours — and **auditable**.
 | **Supersession chains** (corrections don't delete) | ✅ enforced | ❌ | ❌ | ✅ | ❌ overwrite |
 | **Evidence chain** (tamper-evident, browser-verifiable) | ✅ court CLI + zip | ❌ | ❌ | ❌ | ❌ |
 | **Human conflict adjudication** (decisions on record) | ✅ conflicts CLI | ❌ | ❌ | ❌ | ❌ |
-| **Bi-temporal** (valid_from ≠ recorded_at) | ✅ 100% coverage | ❌ | ✅ graph | ❌ | ❌ |
+| **Bi-temporal** (valid_from ≠ recorded_at) | ✅ 100% coverage on fact rows | ❌ | ✅ on knowledge-graph edges (not per-fact rows) | ❌ | ❌ |
 | **Source attribution** (who wrote it, enforced) | ✅ registry + reject | ❌ | ❌ | ✅ provenance | ❌ |
-| **File-level pointer** (zero cloud, zero sync daemon) | ✅ | ❌ | ❌ | ❌ | ❌ server |
+| Bi-temporal (per-fact rows) | ✅ | ❌ | ❌ | ❌ | ✅ graph edges only |
 | **Conflict detection** (rule-based + human review) | ✅ candidate generator | ❌ | ❌ | ❌ | ❌ |
 | **MCP server** | ✅ | ✅ | ✅ | ❌ | ✅ |
 | **23+ client adapters** | ✅ auto-detect | ❌ | ❌ | ❌ | ❌ |
@@ -154,6 +154,8 @@ memtether dashboard
 docker-compose up
 
 > **Security note**: the REST API is unauthenticated unless you set MEMTETHER_API_KEY. Only expose port 8080 to trusted networks — on a shared machine, set the key in .env before docker-compose up.
+> **`memtether init` caveat**: auto-detection works for clients in standard install paths. Clients in custom locations may be missed or falsely reported — use `memtether connect verify` to confirm, and see docs/ADAPTERS.md for manual MCP config.
+
 ```
 
 </details>
