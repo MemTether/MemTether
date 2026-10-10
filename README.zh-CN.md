@@ -105,11 +105,13 @@ mcp-name: io.github.lanbass869-cell/memtether
 ## 快速开始
 
 ```bash
-pip install memtether
+pip install memtether -i https://pypi.org/simple/
 memtether init    # 创建数据库 + 自动连接所有检测到的 AI 客户端
 ```
 
 就这样。MemTether 自动检测你机器上的 Claude Code、Cursor、Windsurf、Codex、Gemini CLI 等 23 个客户端，写入 MCP 配置并验证。
+
+> **国内用户**：如果 `pip install memtether` 报 `No matching distribution`，清华镜像可能还没同步最新版。请用官方源：`pip install memtether -i https://pypi.org/simple/`
 
 <details>
 <summary>更多安装选项</summary>

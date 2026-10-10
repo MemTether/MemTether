@@ -125,11 +125,13 @@ mcp-name: io.github.lanbass869-cell/memtether
 ## Quick Start
 
 ```bash
-pip install memtether
+pip install memtether -i https://pypi.org/simple/
 memtether init    # creates DB + connects all detected AI clients
 ```
 
 That's it. MemTether detects Claude Code, Cursor, Windsurf, Codex, Gemini CLI and 18 more clients on your machine, writes MCP config, and verifies.
+
+> **China users**: if `pip install memtether` fails with `No matching distribution`, the Tsinghua mirror may lag behind PyPI. Use: `pip install memtether -i https://pypi.org/simple/`
 
 <details>
 <summary>More install options</summary>
