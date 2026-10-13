@@ -603,6 +603,11 @@ def remember(content, type='fact', source=DEFAULT_SOURCE, scope='shared', subjec
                 got = col.get(ids=[did])
                 if not got['documents']:
                     continue
+                # T1 fix (2026-10-13): near-dup only within same source.
+                _cand_meta = (got.get('metadatas') or [{}])[0] if got.get('metadatas') else {}
+                _cand_src = (_cand_meta.get('source') or '') if isinstance(_cand_meta, dict) else ''
+                if _cand_src and source and _cand_src != source:
+                    continue
                 # P1-2 (2026-10-05): ghost-vector guard.
                 # Vector store can outlive its facts DB (test isolation,
                 # supersede race). If uid is not an active row in THIS facts
