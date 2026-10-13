@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """trigger_detector.py - Proactive Memory Recall Trigger.
 
 System-level automatic memory retrieval: detect known entities in user
@@ -56,7 +56,7 @@ def _load_entity_index(db_path):
         pass
     try:
         rows = conn.execute(
-            "SELECT DISTINCT asset_name FROM tool_assets "
+            "SELECT DISTINCT name AS asset_name FROM tool_assets "
             "WHERE asset_name IS NOT NULL AND length(asset_name) >= 3"
         ).fetchall()
         for r in rows:

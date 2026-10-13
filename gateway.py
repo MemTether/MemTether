@@ -670,6 +670,14 @@ def correct(old_uid, new_content, reason, by_agent=DEFAULT_SOURCE, valid_from=No
         可能与 valid_to 不同；若纠正的是陈年旧事，两个值会明显分离）
     """
     by_agent = _guard_source(by_agent)
+    # F7 fix (2026-10-13): P0-03 sensitive gate — correct() previously
+    # bypassed _sensitive_check, letting full credentials in via new_content.
+    if _SENSITIVE_BLOCK:
+        _hits = _sensitive_check(new_content)
+        if _hits:
+            raise ValueError(
+                '[P0-03] 敏感内容闸门(correct)：新内容含完整凭据 %s，拒绝入库。'
+                % ', '.join(h[0] for h in _hits))
     init_db()
     conn = get_conn()
     try:
@@ -865,6 +873,14 @@ def timeline(uid, max_hops=20):
 def record_tool(name, path=None, entrypoint=None, aliases='', type='local_tool',
                 capabilities='', known_failures='[]', prerequisites='', source=DEFAULT_SOURCE):
     source = _guard_source(source)
+    # F7 fix (2026-10-13): sensitive gate on tool fields too.
+    if _SENSITIVE_BLOCK:
+        for _fld in (known_failures, entrypoint or '', prerequisites or ''):
+            _hits = _sensitive_check(_fld)
+            if _hits:
+                raise ValueError(
+                    '[P0-03] 敏感内容闸门(record_tool)：字段含完整凭据 %s，拒绝入库。'
+                    % ', '.join(h[0] for h in _hits))
     init_db()
     conn = get_conn()
     try:

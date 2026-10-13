@@ -1735,11 +1735,16 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
     _final = []
     for x in _kept:
         _tags = str(x.get('tags', '')).lower().strip()
-        if _tags:
-            _sig = f"{x.get('type', 'fact')}::{_tags}"
-            if _sig in _seen_sig:
-                continue
-            _seen_sig.add(_sig)
+        # F4 fix (2026-10-13): empty tags -> signature degenerates to
+        # 'type::' which would collapse ALL untagged entries of the same
+        # type into one. 75% of active facts have empty tags. Skip them.
+        if not _tags:
+            _final.append(x)
+            continue
+        _sig = f"{x.get('type', 'fact')}::{_tags}"
+        if _sig in _seen_sig:
+            continue
+        _seen_sig.add(_sig)
         _final.append(x)
     if len(_final) < len(_kept):
         _diag['tag_dedup'] = len(_kept) - len(_final)
