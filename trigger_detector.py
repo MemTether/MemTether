@@ -48,9 +48,14 @@ def _load_entity_index(db_path):
             "SELECT DISTINCT entity_name FROM fact_entities "
             "WHERE entity_name IS NOT NULL AND length(entity_name) >= 3"
         ).fetchall()
+        import re as _re
+        _noise = _re.compile(r'^[a-f0-9]{16,}$')  # hash fragments
+        _regex_meta = _re.compile(r'[\[\]\^\$\*\+\?\(\)\|{}\\]')  # contains regex meta-chars
+        _frag = _re.compile(r'^[a-z]{1,2}(-[a-z0-9]{1,4})+$')  # regex char-class fragments like a-za-z0-9
+        _hex = _re.compile(r'^[a-f0-9]{5,}$')  # hex hashes/ids (5+ chars)
         for r in rows:
             e = r[0].strip().lower()
-            if len(e) >= 3 and e not in STOP_WORDS:
+            if len(e) >= 3 and e not in STOP_WORDS and not _noise.match(e) and not _regex_meta.search(e) and not _frag.match(e) and not _hex.match(e):
                 entities.add(e)
     except Exception:
         pass
