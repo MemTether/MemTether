@@ -1741,6 +1741,12 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
         if not _tags:
             _final.append(x)
             continue
+        # T1-deep fix (2026-10-14): pinned entries must never be deduped.
+        # 'pin' is a retention marker ("always keep"), not a content marker.
+        # Two different memories that both have tags='pin' are NOT duplicates.
+        if 'pin' in _tags:
+            _final.append(x)
+            continue
         _sig = f"{x.get('type', 'fact')}::{_tags}"
         if _sig in _seen_sig:
             continue

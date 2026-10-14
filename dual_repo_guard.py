@@ -19,8 +19,11 @@ import io
 import os
 import sys
 
-HUB = r'E:\RUANJIAN\memory_hub'
-MT = r'E:\RUANJIAN\memtether'
+# Derive paths from this file's location (memtether repo root)
+_THIS_DIR = os.path.dirname(os.path.abspath(__file__))
+# memtether is the release repo; memory_hub is the sibling production repo
+HUB = os.environ.get('MEM_HUB_DIR') or os.path.join(os.path.dirname(_THIS_DIR), 'memory_hub')
+MT = _THIS_DIR
 
 # SCHEMA 在 gateway.py 里是字符串常量，用正则抓 CREATE TABLE
 import re
