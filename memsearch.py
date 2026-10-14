@@ -1787,7 +1787,7 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
                 for _pair in _attrs:
                     _sql = ("SELECT fe.fact_uid FROM fact_entities fe "
                             "JOIN facts f ON f.uid = fe.fact_uid "
-                            "WHERE fe.entity = ? AND f.status = 'active'")
+                            "WHERE lower(fe.entity) = lower(?) AND f.status = 'active'")
                     _params = [_pair['e']]
                     if _pair.get('a'):
                         _sql += " AND fe.attr LIKE ?"
@@ -1831,7 +1831,7 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
                 for _pair in _agg_entities:
                     _sql2 = ("SELECT fe.fact_uid FROM fact_entities fe "
                              "JOIN facts f ON f.uid = fe.fact_uid "
-                             "WHERE fe.entity = ? AND f.status = 'active'")
+                             "WHERE lower(fe.entity) = lower(?) AND f.status = 'active'")
                     _params2 = [_pair['e']]
                     for _r2 in _conn_sgm2.execute(_sql2, _params2).fetchall():
                         _sgm2_uids.add(_r2[0])
@@ -1851,7 +1851,7 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
                     if _qtype == 'counting':
                         _csql = ("SELECT COUNT(DISTINCT fe.fact_uid) as cnt "
                                  "FROM fact_entities fe JOIN facts f ON f.uid = fe.fact_uid "
-                                 "WHERE fe.entity = ? AND f.status = 'active'")
+                                 "WHERE lower(fe.entity) = lower(?) AND f.status = 'active'")
                         _cparams = [_e]
                         if _a:
                             _csql += " AND fe.attr LIKE ?"
@@ -1861,7 +1861,7 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
                     elif _qtype == 'aggregation':
                         _lsql = ("SELECT DISTINCT fe.value, fe.fact_uid "
                                  "FROM fact_entities fe JOIN facts f ON f.uid = fe.fact_uid "
-                                 "WHERE fe.entity = ? AND f.status = 'active' LIMIT 20")
+                                 "WHERE lower(fe.entity) = lower(?) AND f.status = 'active' LIMIT 20")
                         _lparams = [_e]
                         _vals = _conn_sgm2.execute(_lsql, _lparams).fetchall() if _conn_sgm2 else []
                         if _vals:
