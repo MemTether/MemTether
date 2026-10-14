@@ -23,7 +23,7 @@ import sqlite3
 _ATTR_PATTERN = re.compile(
     # ★2026-10-08 fix: allow whitespace around 的 — 'Clash 的端口' never matched
     # without it (retrieval-side _QUERY_ATTR already had \s*; write-side didn't).
-    r'(?P<entity>[\w\u4e00-\u9fff\-\.][\w\u4e00-\u9fff\-\. ]{1,20}?[\w\u4e00-\u9fff\-\.])\s*的\s*(?P<attr>[\w\u4e00-\u9fff\-\.]{1,15}?)(?:是|在|为|了|$|[^\\w\\u4e00-\\u9fff])'
+    r'(?P<entity>(?:(?!的)[\w\u4e00-\u9fff\-\. ]){2,22})\s*的\s*(?P<attr>[\w\u4e00-\u9fff\-\.]{1,15}?)(?:是|在|为|了|$|[^\\w\\u4e00-\\u9fff])'
 )
 # 「X支持Y」「X有Y」模式
 _SUPPORT_PATTERN = re.compile(

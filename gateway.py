@@ -504,8 +504,17 @@ def _mem0_add(content, user_id='wzj'):
 
 
 def _vec_upsert(uid, content, type_='fact', source=DEFAULT_SOURCE):
-    """把事实同步进 ChromaDB facts_active 向量索引（2026-09-13 自动同步）。失败不阻塞。"""
+    """把事实同步进 ChromaDB facts_active 向量索引。失败不阻塞。
+
+    FIX 10 (2026-10-14): skip if rebuild lock is held to avoid racing
+    with delete_collection. Skipped entries caught by consistency gate.
+    """
     try:
+        _gate_lock = os.path.join(HUB, '.gate_rebuild.lock')
+        if os.path.exists(_gate_lock):
+            sys.stderr.write(
+                '[vec_upsert] rebuild in progress, skipping uid=%s\n' % uid[:28])
+            return {'skipped': 'rebuild_in_progress'}
         sys.path.insert(0, HUB)
         import memsearch
         if memsearch.is_generic_garbage(content):

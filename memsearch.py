@@ -1613,6 +1613,12 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
             _thr = float(_thr_raw)
         except ValueError:
             _thr = 0.3
+        # FIX 17 (2026-10-14): threshold must account for rerank status.
+        # Without rerank, score_raw is RRF-scale (0.02-0.1) which is always < 0.3.
+        # With rerank, score_raw is blend-scale (0.3-0.6) which may exceed 0.3.
+        # If rerank was not applied (failed or adaptive=False), use a lower threshold.
+        if _diag.get('rerank_ok') is not True:
+            _thr = min(_thr, 0.05)  # RRF-scale threshold when no rerank
         if _top1 < _thr:
             # 字符级停用字集合：token 的每个字都在集合里 → 整个 token 是虚词，丢掉。
             # 比词级更鲁棒（能过滤"怎么弄/怎么样/那个/随便/帮我"等任意组合）。

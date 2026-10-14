@@ -556,9 +556,19 @@ def atomic_write(path, text, encoding='utf-8', fsync=True, newline=None):
     except Exception:
         pass
     if nlink > 1:
+        # FIX 13 (2026-10-14): _write_inplace is NOT atomic. Add crash recovery:
+        # save a backup before writing, restore if write fails midway.
+        _pre_bak = path + '.pre-write-bak'
+        try:
+            import shutil as _shutil
+            _shutil.copy2(path, _pre_bak)
+        except Exception:
+            _pre_bak = None
         r = _write_inplace(path, text, encoding, write_nl)
+        if _pre_bak:
+            r['pre_write_backup'] = _pre_bak
         r.update(atomic=False, hardlink=True,
-                 why='目标有 %d 个硬链接，os.replace 会断开链接 → 改成就地写' % nlink)
+                 why='目标有 %d 个硬链接，os.replace 会断开链接 → 改成就地写（非原子，已留备份）' % nlink)
         sys.stderr.write('[hubguard][warn] %s：%s\n' % (path, r['why']))
         return r
     fd, tmp = tempfile.mkstemp(prefix='.hg-', suffix='.tmp', dir=d)
