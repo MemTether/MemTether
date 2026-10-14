@@ -1,4 +1,65 @@
 
+
+## [0.1.0a80] — Deep audit: 21 bug fixes from full line-by-line code review
+
+### Fixed — correctness & reliability
+
+- **correct() rejects dead entries**: correcting a superseded/retired fact
+  no longer creates a duplicate active entry (was silently reviving dead facts)
+- **near-dup respects source boundaries**: the same content written by two
+  different agents (e.g. `codex` and `openclaw`) is no longer collapsed into
+  one entry — each source stores independently by design
+- **fact_entities schema alignment**: production table had 2 columns
+  (`fact_uid`, `entity_name`) but predicates.py expected 8; `ALTER TABLE`
+  added missing columns and migrated 21,168 existing rows
+- **predicates multi-word entity**: "Claude Code的MCP配置路径" now extracts
+  `entity='Claude Code'` (was `'Code'` due to space boundary loss)
+- **predicates attr truncation**: attr stops at 是/在/为/了 instead of
+  consuming the rest of the sentence
+- **predicates entity excludes 的**: the character 的 is no longer matched
+  inside entity names, fixing over-matching in Chinese text
+
+### Fixed — performance & reliability
+
+- **NREM trigger async**: `_maybe_nrem_trigger()` no longer blocks `remember()`
+  for up to 120 seconds (runs in a daemon thread)
+- **MCP tool_add auto-rebuild opt-in**: `gateway.rebuild()` after every write
+  is now opt-in (`MEM_AUTO_REBUILD=1`); default avoids seconds-long blocking
+  on large databases
+- **index consistency gate async**: rebuild runs in a background thread with
+  a cross-process file lock (`.gate_rebuild.lock`) instead of blocking writes
+- **_vec_upsert rebuild race guard**: skips upsert when rebuild lock is held
+  (skipped entries caught by consistency gate on next write)
+
+### Fixed — search quality
+
+- **Layer 3 dedup exempts pinned entries**: two different memories with
+  `tags='pin'` are no longer collapsed (pin is a retention marker, not a
+  content marker); 75% of active facts have empty tags and were already exempt
+- **four-factor sem saturation**: procedure type boost (×1.5) no longer
+  pushes the sem factor to the 1.0 ceiling (divisor changed 0.1→0.15)
+- **vec_ok requires actual hits**: a successful ChromaDB query returning
+  0 valid results (all ghost UIDs) no longer reports `vec_ok=True`
+- **FTS5 quote safety**: double quotes in query tokens are stripped before
+  FTS5 MATCH (both primary and fallback paths)
+
+### Fixed — security & tooling
+
+- **trust.py env value gap documented**: env values are not hashed (matching
+  the Electron client); a malicious env value would not invalidate trust —
+  now explicitly documented as a known trade-off
+- **R1 write-back audit trail**: `use_count` bumps from search retrieval
+  now leave an `audit_log` entry (was a bare SQL UPDATE with no trace)
+- **gate.py readback field**: the `readback` field in sync_rules() compared
+  against the wrong string on CRLF files (always showed FAIL)
+- **dual_repo_guard relative paths**: HUB/MT paths are no longer hardcoded
+  to `E:\RUANJIAN\` — derived from `__file__` with env override
+
+### Changed
+
+- Version bumped to `0.1.0a80`
+- Test count: 538 collected (was 523 in README)
+
 ## [0.1.0a76] — Security hardening, integrity proofs, competition readiness
 
 ### Fixed — critical correctness & privacy defects

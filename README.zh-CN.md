@@ -85,7 +85,7 @@ $ python examples/audit_chain_demo.py
 | **MCP server** | ✅ | ✅ | ✅ | ❌ | ✅ |
 | **23+ 客户端适配器** | ✅ 自动检测 | ❌ | ❌ | ❌ | ❌ |
 | **评测诚信框架** | ✅ 5 patterns | ❌ | ❌ | ❌ | ❌ |
-| **CI: 9 jobs / 523 tests** | ✅ | ? | ? | ? | ✅ |
+| **CI: 9 jobs / 538 tests** | ✅ | ? | ? | ? | ✅ |
 
 *各单元格反映截至 2026-10-07 该项目公开文档中的功能现状。MemTether 的差异化不是任何单项功能——是所有治理维度在同一个 local-first 部署中的组合。*
 
