@@ -327,6 +327,30 @@ memtether dashboard                    # Web UI
 </details>
 
 <details>
+<summary>LoCoMo (1986 questions, full run via <a href="https://github.com/ProsusAI/MemEval">MemEval</a> harness, 2026-10-14)</summary>
+
+| System | Token F1 (LoCoMo) |
+|---|---|
+| PropMem | 0.605 |
+| OpenClaw | 0.557 |
+| Full Context | 0.542 |
+| **MemTether** | **0.523** |
+| Hindsight | 0.489 |
+| Graphiti | 0.416 |
+| Memory-R1 | 0.389 |
+| SimpleMem | 0.358 |
+| Mem0 | 0.344 |
+| MemU | 0.299 |
+
+MemTether ranks **4/10** on token F1 — ahead of Graphiti, mem0, SimpleMem, MemU
+and Hindsight, behind proposition-indexed PropMem and chunk-based OpenClaw.
+Per-category: multi-hop 0.556, open-domain 0.820, factual 0.357, temporal 0.264,
+inferential 0.206. Reproduce: see `_dev/memeval/src/agents_memory/systems/memtether.py`
+(adapter) and `scripts/run_full_benchmark.py --systems memtether`.
+
+</details>
+
+<details>
 <summary>Test suite</summary>
 
 | Test | Result |
