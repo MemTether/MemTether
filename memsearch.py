@@ -1043,7 +1043,8 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
             if uid in active:
                 vec_rank[uid] = i
                 vec_sim[uid] = round(1 - dist, 4)
-        _diag['vec_ok'] = True          # ★只有走到这里才算向量路真的可用
+        # FIX 12 (2026-10-14): vec_ok requires actual hits
+        _diag['vec_ok'] = len(vec_rank) > 0
     except StorePathMismatch:
         # P0-04：闸门错误必须冒泡，绝不能被当成"向量路失败"降级吞掉。
         raise
@@ -1284,7 +1285,7 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
     
     # Apply four-factor to each candidate
     for x in out:
-        _sem = min(1.0, x.get('score', 0) / 0.1)  # RRF score normalize to [0,1]
+        _sem = min(1.0, x.get('score', 0) / 0.15)  # RRF score normalize; /0.15 because proc_boost 1.5x can push max RRF to ~0.12
         _rec = _rec_memx(x.get('updated_at', ''))
         _freq = _freq_memx(x.get('use_count', 0))
         _imp = _TYPE_IMP.get(x.get('type', 'fact'), 0.5)

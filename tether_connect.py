@@ -265,9 +265,13 @@ def _register_sources(adapters, hub_dir, dry_run, active_ids=None):
         return [Change(t, "replace", "新增来源 %s（预演）" % ", ".join(added))]
     bak = agents_json + ".bak-" + time.strftime("%Y%m%d-%H%M%S")
     shutil.copy2(agents_json, bak)
-    with open(agents_json, "w", encoding="utf-8", newline="\n") as f:
+    # FIX 14 (2026-10-14): follow existing newline style (don't force LF on CRLF files)
+    with open(agents_json, "rb") as f:
+        _raw = f.read()
+    _nl = "\r\n" if _raw.count(b"\r\n") > _raw.count(b"\n") - _raw.count(b"\r\n") else "\n"
+    with open(agents_json, "w", encoding="utf-8", newline=_nl) as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
-        f.write("\n")
+        f.write(_nl)
     return [Change(t, "replace", "新增来源 %s（备份 %s）" % (", ".join(added), os.path.basename(bak)))]
 
 
