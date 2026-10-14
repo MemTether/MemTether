@@ -54,7 +54,7 @@ try:
         from importlib.metadata import version as _meta_version
         __version__ = _meta_version("memtether")
 except Exception:
-    __version__ = "0.1.0a80"
+    __version__ = "0.1.0a80.post1"
 
 DATA_DIR = os.environ.get("MEMTETHER_HOME") or os.path.join(
     os.path.expanduser("~"), ".memtether")
@@ -1167,6 +1167,7 @@ def main(argv=None):
 
 if __name__ == "__main__":
     sys.exit(main())
+
 
 
 
