@@ -30,7 +30,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "memtether"
-version = "0.1.0a80.post1"
+version = "0.1.0a80.post2"
 description = "Cross-client memory hub for AI agents — one physical memory, many clients"
 readme = "README.md"
 license = {text = "Apache-2.0"}
@@ -137,5 +137,6 @@ target-version = "py310"
 [tool.ruff.lint]
 select = ["E", "F", "W"]
 ignore = ["E501"]
+
 
 
