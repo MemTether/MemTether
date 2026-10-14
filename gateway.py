@@ -40,6 +40,7 @@ import json
 import time
 import sqlite3
 import hashlib
+import re
 import argparse
 from pathlib import Path
 
@@ -674,6 +675,28 @@ def remember(content, type='fact', source=DEFAULT_SOURCE, scope='shared', subjec
         conn.close()
 
 
+# FIX (2026-10-14): _SENSITIVE_PATTERNS/_SENSITIVE_BLOCK/_sensitive_check
+# were missing from this file (existed only in memory_hub gateway.py).
+# Adding them here to fix NameError when correct()/record_tool() is called.
+_SENSITIVE_PATTERNS = [
+    (re.compile(r'sk-[A-Za-z0-9_\-]{20,}'), 'API key'),
+    (re.compile(r'ghp_[A-Za-z0-9]{36,}'), 'GitHub token'),
+    (re.compile(r'gho_[A-Za-z0-9]{36,}'), 'GitHub OAuth token'),
+    (re.compile(r'AKIA[0-9A-Z]{16}'), 'AWS access key'),
+    (re.compile(r'glpat-[A-Za-z0-9\-]{20,}'), 'GitLab token'),
+    (re.compile(r'xoxb-[0-9A-Za-z\-]{20,}'), 'Slack bot token'),
+]
+_SENSITIVE_BLOCK = os.environ.get('MEM_SENSITIVE_GATE', '1') != '0'
+
+def _sensitive_check(content):
+    hits = []
+    for pat, label in _SENSITIVE_PATTERNS:
+        m = pat.search(content)
+        if m:
+            hits.append((label, m.group(0)[:8] + '...'))
+    return hits
+
+
 def correct(old_uid, new_content, reason, by_agent=DEFAULT_SOURCE, valid_from=None):
     """用户纠正：旧事实 supersede，新事实 active。
 
@@ -684,6 +707,7 @@ def correct(old_uid, new_content, reason, by_agent=DEFAULT_SOURCE, valid_from=No
         可能与 valid_to 不同；若纠正的是陈年旧事，两个值会明显分离）
     """
     by_agent = _guard_source(by_agent)
+
     # F7 fix (2026-10-13): P0-03 sensitive gate — correct() previously
     # bypassed _sensitive_check, letting full credentials in via new_content.
     if _SENSITIVE_BLOCK:
