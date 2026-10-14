@@ -689,6 +689,9 @@ def correct(old_uid, new_content, reason, by_agent=DEFAULT_SOURCE, valid_from=No
         old = conn.execute("SELECT * FROM facts WHERE uid=?", (old_uid,)).fetchone()
         if not old:
             return {'ok': False, 'error': 'old uid not found: %s' % old_uid}
+        if old['status'] not in ('active',):
+            return {'ok': False, 'error': 'old uid is not active (status=%s, cannot correct a dead entry)' % old['status'],
+                    'uid': old_uid, 'status': old['status']}
         new_uid = _uid('fact', new_content + by_agent)
         ts = now()
         nvf = valid_from or ts          # 新事实的 T 轴起点

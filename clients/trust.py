@@ -47,7 +47,14 @@ CONFIG = "mcp.json"
 
 
 def hash_of(entry: dict) -> str:
-    """按客户端算法算 server 条目的信任 hash。"""
+    """按客户端算法算 server 条目的信任 hash。
+
+    ⚠ SECURITY NOTE (2026-10-14): env VALUES are NOT hashed — only env KEYS are.
+    This matches the Electron client's algorithm exactly (changing an env value
+    does NOT invalidate trust). If an attacker modifies an env value to point
+    to a malicious binary, the trust record remains valid. Mitigation: the
+    command field IS hashed, so the binary path can't be silently changed via env.
+    """
     cmd = entry.get("command", "")
     args = [str(a) for a in (entry.get("args") or [])]
     env = entry.get("env") or {}

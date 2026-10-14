@@ -1103,9 +1103,11 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
         _fts_db.row_factory = _sq3.Row
         # FTS5 trigram: 把查询按空格拆成 token，逐个匹配再合并分数
         # trigram 要求每个 token >= 3 字符；过短的 token 退回整句查询
-        _fts_tokens = [t for t in q.replace('"', ' ').split() if len(t) >= 3]
+        # FIX 4 (2026-10-14): strip double quotes from tokens to prevent FTS5 syntax break.
+        # FTS5 doesn't support escaping quotes inside quoted strings — replace with space.
+        _fts_tokens = [t.replace('"', ' ').strip() for t in q.replace('"', ' ').split() if len(t) >= 3]
         if not _fts_tokens and len(q.strip()) >= 3:
-            _fts_tokens = [q.strip()]
+            _fts_tokens = [q.replace('"', ' ').strip()]
         _fts_scores = {}
         for _tok in _fts_tokens:
             _fts_q = '"' + _tok.replace('"', '') + '"'  # P7: strip embedded quotes
