@@ -531,6 +531,30 @@ def _cmd_court(args):
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
 
+    if args.anchor_external:
+        import memory_court as mc
+        p, payload = mc.anchor_external(conn)
+        if p is None:
+            print(f"  MEMORY COURT: nothing to anchor -- {payload}")
+            conn.close(); return 1
+        print("=" * 60)
+        print(f"  EXTERNAL ANCHOR WRITTEN: {p}")
+        print(f"    anchor_id={payload['anchor_id']} last_log_id={payload['last_log_id']}")
+        print(f"    chain_hash={payload['chain_hash'][:24]}...")
+        print("=" * 60)
+        conn.close(); return 0
+
+    if args.verify_external:
+        import memory_court as mc
+        ok, detail = mc.verify_external(conn)
+        print("=" * 60)
+        if ok:
+            print(f"  MEMORY COURT EXTERNAL: PASS - {detail.get('anchors',0)} anchor(s), {detail.get('entries_covered',0)} covered, external={detail.get('external')}")
+        else:
+            print(f"  MEMORY COURT EXTERNAL: FAIL - {detail.get('reason')}")
+        print("=" * 60)
+        conn.close(); return 0 if ok else 1
+
     if args.verify:
         import memory_court as mc
         ok, detail = mc.verify_chain(conn)
@@ -1141,6 +1165,10 @@ def main(argv=None):
     sp_ct.add_argument("uid", nargs="?", default=None)
     sp_ct.add_argument("--verify", action="store_true")
     sp_ct.add_argument("--export", metavar="ZIP", default=None)
+    sp_ct.add_argument("--anchor-external", action="store_true",
+                       help="Force-anchor and export head hash to ~/.memtether/external_anchors/")
+    sp_ct.add_argument("--verify-external", action="store_true",
+                       help="verify_chain + compare head anchor against newest external file")
     sp_ct.set_defaults(func=_cmd_court)
     sp_dl = sub.add_parser("download-models", help="Download local embedding models for semantic search (bge-small-zh ~46MB / bge-m3-int8 ~560MB)")
     sp_dl.add_argument("--profile", default="bge-m3-int8", help="Model profile (bge-small-zh or bge-m3-int8)")

@@ -18,6 +18,8 @@ Design notes:
   out of scope for the local-first product).
 """
 import hashlib
+import json
+import datetime
 import os
 import sqlite3
 import time
@@ -127,3 +129,83 @@ def verify_row_in_anchor(conn, uid_or_log_id):
     if row is None:
         return False, "no such audit_log entry"
     return row[0] <= last, f"covered by anchor (last_log_id={last})" if row[0] <= last else "not yet anchored"
+
+# ---------------------------------------------------------------------
+# External anchor (2026-10-14, a81): file-system trust anchor
+# ---------------------------------------------------------------------
+# The in-DB anchor proves rows were not EDITED relative to the anchor,
+# but an attacker who can rewrite the whole DB can also rewrite the
+# audit_anchors table. The external anchor writes the head chain hash
+# to a file OUTSIDE the DB (default ~/.memtether/external_anchors/),
+# so a full-DB rewrite no longer matches the external checkpoint.
+
+EXTERNAL_ANCHOR_DIR = os.path.join(
+    os.environ.get('MEMTETHER_HOME', os.path.expanduser('~/.memtether')),
+    'external_anchors')
+
+
+def _external_path(ts=None, out_dir=None):
+    d = out_dir or EXTERNAL_ANCHOR_DIR
+    os.makedirs(d, exist_ok=True)
+    ts = ts or datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
+    return os.path.join(d, 'anchor-%s.json' % ts)
+
+
+def anchor_external(conn, out_dir=None):
+    """Force-anchor, then write the head anchor hash to an external file.
+
+    Returns (path, anchor_dict) or (None, reason) if there is nothing to anchor.
+    """
+    maybe_anchor(conn, force=True)
+    row = conn.execute(
+        "SELECT id, last_log_id, chain_hash, entries_hashed, ts "
+        "FROM audit_anchors ORDER BY id DESC LIMIT 1").fetchone()
+    if row is None:
+        return None, "no anchors exist — nothing to export"
+    aid, last_log_id, chain_hash, n_rows, ts = row
+    payload = {
+        "anchor_id": aid,
+        "last_log_id": last_log_id,
+        "chain_hash": chain_hash,
+        "entries_hashed": n_rows,
+        "anchored_at": ts,
+        "exported_at": datetime.datetime.now().isoformat(timespec='seconds'),
+    }
+    safe_ts = str(ts).replace(':', '').replace(' ', '-').replace('/', '')
+    p = _external_path(ts=safe_ts, out_dir=out_dir)
+    with open(p, 'w', encoding='utf-8') as f:
+        json.dump(payload, f, ensure_ascii=False, indent=2)
+    return p, payload
+
+
+def verify_external(conn, out_dir=None):
+    """verify_chain + compare head anchor against the newest external file.
+
+    Returns (ok, detail). If no external file exists, falls back to
+    verify_chain with a note (first-run state).
+    """
+    ok, detail = verify_chain(conn)
+    if not ok:
+        return False, detail
+    d = out_dir or EXTERNAL_ANCHOR_DIR
+    if not os.path.isdir(d):
+        return True, {**detail, 'external': 'no external anchor file yet (run anchor-external)'}
+    files = sorted(f for f in os.listdir(d) if f.startswith('anchor-') and f.endswith('.json'))
+    if not files:
+        return True, {**detail, 'external': 'no external anchor file yet (run anchor-external)'}
+    newest = os.path.join(d, files[-1])
+    try:
+        ext = json.load(open(newest, encoding='utf-8'))
+    except Exception as e:
+        return False, {'reason': 'external anchor file unreadable: %s' % e, 'file': newest}
+    head = conn.execute(
+        "SELECT chain_hash FROM audit_anchors ORDER BY id DESC LIMIT 1").fetchone()
+    head_hash = head[0] if head else None
+    if ext.get('chain_hash') != head_hash:
+        return False, {
+            'reason': 'external anchor mismatch — the DB head anchor does not '
+                      'match the latest external checkpoint (full-DB rewrite?)',
+            'external_file': newest,
+            'external_hash': ext.get('chain_hash'),
+            'db_head_hash': head_hash}
+    return True, {**detail, 'external': 'PASS vs %s' % os.path.basename(newest)}
