@@ -75,6 +75,14 @@ REQUIRED_DATA_FILES = {
     'dashboard.html': 'memtether_assets',
 }
 
+# Root-level dev tools that are intentionally NOT shipped in the wheel.
+# They require the full repo checkout (dual-repo paths, project judge report
+# writing, git context) and are meaningless as installed modules.
+NON_WHEEL_DEV_TOOLS = {
+    'dual_repo_guard',  # compares two local repo checkouts — needs both paths
+    'proj_judge',       # writes PROJ-JUDGE-REPORT.md into the repo — needs repo
+}
+
 NON_PACKAGED_PYW = {
     'hidden_run': '计划任务的无窗口运行器（Windows 专用；用户按需从仓库取用）',
 }
@@ -115,6 +123,8 @@ def tracked_root_modules():
         name = line[:-3] if line.endswith('.py') else line
         if name.startswith('_'):
             continue                      # 本仓库约定：临时脚本以 _ 开头，不进包
+        if name in NON_WHEEL_DEV_TOOLS:
+            continue                      # dev tools kept out of the wheel on purpose
         mods.add(name)
     return mods
 
