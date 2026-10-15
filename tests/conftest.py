@@ -62,3 +62,10 @@ def sample_fact(tmp_db):
     conn.commit()
     conn.close()
     return uid
+
+import os as _os_bk
+import tempfile as _tf_bk
+
+_bk = _os_bk.path.join(_tf_bk.mkdtemp(prefix='mt_bk_'), 'backups')
+_os_bk.makedirs(_bk, exist_ok=True)
+_os_bk.environ.setdefault('MEMTETHER_BACKUP_HOME', _bk)

@@ -113,10 +113,16 @@ def backup(path: str, stamp: str, client_id: str) -> str:
     """把 path 备份到 ~/.memtether/backups/<stamp>/<client_id>/<文件名>。返回备份路径。"""
     if not os.path.exists(path):
         return ""
-    flat = os.path.abspath(path).replace(":", "").replace("\\", "_").replace("/", "_")
+    flat = os.path.abspath(path).replace(":", "").replace(os.sep, "_").replace("/", "_")
     dst_dir = os.path.join(BACKUP_ROOT, stamp, client_id)
     os.makedirs(dst_dir, exist_ok=True)
     dst = os.path.join(dst_dir, flat)
+    if len(dst) >= 260:
+        # Windows MAX_PATH: long flat names exceed the 260-char limit.
+        # Fall back to short hash-based name (unique per source path).
+        import hashlib
+        short = hashlib.sha256(flat.encode("utf-8")).hexdigest()[:16] + "_" + os.path.basename(path)
+        dst = os.path.join(dst_dir, short)
     shutil.copy2(path, dst)
     return dst
 
