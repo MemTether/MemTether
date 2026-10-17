@@ -363,6 +363,85 @@ TOOLS = [
         },
     },
     {
+        "name": "correct_memory",
+        "description": (
+            "纠正一条记忆：旧事实被 superseded（保留历史，不物理删除），新事实转为 active。"
+            "用于发现记忆内容错误时的显式更正；会自动给旧事实记负向 Q-Value。"
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "old_uid": {"type": "string", "description": "要纠正的记忆 uid（search_memory 结果里取）"},
+                "new_content": {"type": "string", "description": "纠正后的完整新内容（第一句写结论）"},
+                "reason": {"type": "string", "description": "纠正原因（简短）"},
+                "source": {"type": "string", "description": "操作者来源；不传则自动识别"},
+                "valid_from": {"type": "string", "description": "可选：新事实的 T 轴起点（YYYY-MM-DD 或完整时间）"},
+            },
+            "required": ["old_uid", "new_content"],
+        },
+    },
+    {
+        "name": "retire_memory",
+        "description": (
+            "退役一条记忆/工具：status→retired，双时间轴记账（valid_to+invalidated_at=现在）。"
+            "用于确认某条记忆/资产已过时失效；会自动给该条记负向 Q-Value。"
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "uid": {"type": "string", "description": "要退役的记忆 uid"},
+                "reason": {"type": "string", "description": "退役原因"},
+                "source": {"type": "string", "description": "操作者来源；不传则自动识别"},
+            },
+            "required": ["uid"],
+        },
+    },
+    {
+        "name": "pin_memory",
+        "description": (
+            "钉住/取消钉住一条记忆（tags 加/去 pin）。被钉住的条目无条件进入投影，"
+            "不参与『最近 N 条』时间竞争。不带 uid 调用 = 列出当前全部已钉住条目。"
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "uid": {"type": "string", "description": "记忆 uid；省略=只读列出全部已钉住"},
+                "off": {"type": "boolean", "default": False, "description": "true=取消钉住"},
+            },
+        },
+    },
+    {
+        "name": "as_of_query",
+        "description": (
+            "双时间轴 as-of 查询：『在某个时间点，什么是真的（T轴）/系统知道什么（T'轴）』。"
+            "kind=valid 用 valid_from/valid_to；kind=known 用 recorded_at/invalidated_at。"
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "at": {"type": "string", "description": "时间点（YYYY-MM-DD 或完整时间；空=现在）"},
+                "kind": {"type": "string", "enum": ["valid", "known"], "default": "valid"},
+                "type": {"type": "string", "description": "可选：按记忆类型过滤"},
+                "source": {"type": "string", "description": "可选：按来源过滤"},
+                "limit": {"type": "integer", "default": 50, "description": "最多返回条数"},
+            },
+        },
+    },
+    {
+        "name": "timeline",
+        "description": (
+            "沿替代链（superseded_by）还原一条记忆的完整演化史（最多 20 跳）。"
+            "用于回答『这条结论是怎么变的』。"
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "uid": {"type": "string", "description": "记忆 uid（可以是链上任何一环）"},
+            },
+            "required": ["uid"],
+        },
+    },
+    {
         "name": "feedback",
         "description": "回写 Q-Value 信号：告诉中枢某条记忆是否被采纳。",
         "inputSchema": {
@@ -658,17 +737,10 @@ def tool_search(args):
             })
         else:
             out.append({"text": str(it)[:400]})
-    # A1: auto-bump use_count for search hits
-    try:
-        _conn = gateway.get_conn()
-        for _it in out:
-            _uid = _it.get("uid", "")
-            if _uid:
-                _conn.execute("UPDATE facts SET use_count = use_count + 1 WHERE uid = ?", (_uid,))
-        _conn.commit()
-        _conn.close()
-    except Exception:
-        pass
+    # A1 removed (2026-10-17, audit F2): use_count is already bumped by
+    # memsearch.search_hybrid R1 write-back (MEM_BUMP!=0, default on).
+    # This block double-counted (+2 per MCP search) and bypassed the
+    # explicit-bump audit contract (gateway.bump_qvalue).
     payload = {"engine": r.get("engine"), "count": len(out), "results": out}
     if r.get("auto_triggered"):
         payload["auto_context"] = r.get("auto_context")
@@ -718,11 +790,105 @@ def tool_feedback(args):
         return _text(r)
     except Exception as e:
         return _err("feedback 失败: %s: %s" % (type(e).__name__, e))
+def tool_correct(args):
+    old_uid = (args.get("old_uid") or "").strip()
+    new_content = (args.get("new_content") or "").strip()
+    if not old_uid or not new_content:
+        return _err("缺少 old_uid 或 new_content")
+    reason = (args.get("reason") or "").strip() or "corrected via MCP"
+    agent = (args.get("source") or "").strip() or _default_source()
+    valid_from = (args.get("valid_from") or "").strip() or None
+    try:
+        r = _quiet(gateway.correct, old_uid, new_content, reason,
+                   by_agent=agent, valid_from=valid_from)
+    except Exception as e:
+        return _err("correct 失败: %s: %s" % (type(e).__name__, e))
+    if not r or not r.get("ok"):
+        return _err("correct 被拒绝: %s" % (r or "unknown"))
+    return _text({"ok": True, "old_uid": r.get("old_uid"),
+                  "new_uid": r.get("new_uid"), "op": r.get("op")})
+
+
+def tool_retire(args):
+    uid = (args.get("uid") or "").strip()
+    if not uid:
+        return _err("缺少 uid")
+    reason = (args.get("reason") or "").strip() or "retired via MCP"
+    agent = (args.get("source") or "").strip() or _default_source()
+    try:
+        r = _quiet(gateway.retire, uid, reason, by_agent=agent)
+    except Exception as e:
+        return _err("retire 失败: %s: %s" % (type(e).__name__, e))
+    if not r or not r.get("ok"):
+        return _err("retire 被拒绝: %s" % (r or "unknown"))
+    return _text({"ok": True, "uid": r.get("uid"), "op": r.get("op")})
+
+
+def tool_pin(args):
+    uid = (args.get("uid") or "").strip() or None
+    on = not bool(args.get("off", False))
+    try:
+        r = _quiet(gateway.set_pin, uid, on)
+    except Exception as e:
+        return _err("pin 失败: %s: %s" % (type(e).__name__, e))
+    if not r or not r.get("ok"):
+        return _err("pin 被拒绝: %s" % (r or "unknown"))
+    # 只读列出时投影无变化；写操作提示 rebuild
+    out = {"ok": True}
+    if uid is None:
+        out["pinned_count"] = r.get("pinned_count", 0)
+        out["items"] = r.get("items", [])[:20]
+    else:
+        out["uid"] = r.get("uid")
+        out["pinned"] = r.get("pinned", on)
+        out["note"] = "投影需 gateway.rebuild() 后才反映 pin 变化"
+    return _text(out)
+
+
+def tool_asof(args):
+    at = (args.get("at") or "").strip() or None
+    kind = (args.get("kind") or "valid").strip()
+    ftype = (args.get("type") or "").strip() or None
+    source = (args.get("source") or "").strip() or None
+    try:
+        limit = max(1, min(200, int(args.get("limit", 50))))
+    except (TypeError, ValueError):
+        limit = 50
+    try:
+        r = _quiet(gateway.as_of, at, kind=kind, ftype=ftype,
+                   source=source, limit=limit)
+    except Exception as e:
+        return _err("as_of 失败: %s: %s" % (type(e).__name__, e))
+    if not isinstance(r, dict) or "rows" not in r:
+        return _err("as_of 返回异常: %s" % (r or "unknown"))
+    return _text(r)
+
+
+def tool_timeline(args):
+    uid = (args.get("uid") or "").strip()
+    if not uid:
+        return _err("缺少 uid")
+    try:
+        r = _quiet(gateway.timeline, uid)
+    except Exception as e:
+        return _err("timeline 失败: %s: %s" % (type(e).__name__, e))
+    if not isinstance(r, list):
+        return _err("timeline 返回异常: %s" % (r or "unknown"))
+    if not r:
+        return _err("uid 不存在或链为空: %s" % uid)
+    return _text({"ok": True, "chain_length": len(r), "chain": r})
+
+
 HANDLERS = {
     "add_memories": tool_add,
     "search_memory": tool_search,
     "list_memories": tool_list,
     "feedback": tool_feedback,
+    "correct_memory": tool_correct,
+    "retire_memory": tool_retire,
+    "pin_memory": tool_pin,
+    "as_of_query": tool_asof,
+    "timeline": tool_timeline,
 }
 
 

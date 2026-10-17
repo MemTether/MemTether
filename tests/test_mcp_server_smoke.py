@@ -103,6 +103,118 @@ class TestMCPServerSmoke:
         text = json.dumps(r2["result"], ensure_ascii=False)
         assert "alpha-7741" in text, text
 
+    def test_governance_tools_registered(self, server):
+        """P0-1: correct/retire/pin/as_of/timeline must be exposed via MCP."""
+        server.request("initialize", {"protocolVersion": "2024-11-05",
+                                       "capabilities": {},
+                                       "clientInfo": {"name": "smoke", "version": "0"}}, id=1)
+        r = server.request("tools/list", {}, id=2)
+        names = {t["name"] for t in r["result"]["tools"]}
+        for expected in ("correct_memory", "retire_memory", "pin_memory",
+                         "as_of_query", "timeline"):
+            assert expected in names, names
+
+    def test_correct_memory_roundtrip(self, server):
+        """correct_memory supersedes old uid and activates a new one."""
+        server.request("initialize", {"protocolVersion": "2024-11-05",
+                                       "capabilities": {},
+                                       "clientInfo": {"name": "smoke", "version": "0"}}, id=1)
+        r = server.request("tools/call", {
+            "name": "add_memories",
+            "arguments": {"content": "correct-probe original version one",
+                           "source": "mcp_smoke", "type": "fact"}}, id=3)
+        uid = json.loads(r["result"]["content"][0]["text"])["uid"]
+        r2 = server.request("tools/call", {
+            "name": "correct_memory",
+            "arguments": {"old_uid": uid,
+                           "new_content": "correct-probe fixed version two",
+                           "reason": "smoke test", "source": "mcp_smoke"}}, id=4)
+        assert "error" not in r2, r2
+        payload = json.loads(r2["result"]["content"][0]["text"])
+        assert payload["ok"] is True, payload
+        assert payload["op"] == "supersede", payload
+        assert payload["new_uid"] != uid
+
+    def test_retire_memory(self, server):
+        server.request("initialize", {"protocolVersion": "2024-11-05",
+                                       "capabilities": {},
+                                       "clientInfo": {"name": "smoke", "version": "0"}}, id=1)
+        r = server.request("tools/call", {
+            "name": "add_memories",
+            "arguments": {"content": "retire-probe to be retired",
+                           "source": "mcp_smoke", "type": "fact"}}, id=3)
+        uid = json.loads(r["result"]["content"][0]["text"])["uid"]
+        r2 = server.request("tools/call", {
+            "name": "retire_memory",
+            "arguments": {"uid": uid, "reason": "smoke test",
+                           "source": "mcp_smoke"}}, id=4)
+        assert "error" not in r2, r2
+        payload = json.loads(r2["result"]["content"][0]["text"])
+        assert payload["ok"] is True, payload
+        assert payload["op"] == "retired", payload
+
+    def test_pin_list_and_toggle(self, server):
+        server.request("initialize", {"protocolVersion": "2024-11-05",
+                                       "capabilities": {},
+                                       "clientInfo": {"name": "smoke", "version": "0"}}, id=1)
+        r = server.request("tools/call", {
+            "name": "add_memories",
+            "arguments": {"content": "pin-probe always keep me",
+                           "source": "mcp_smoke", "type": "fact"}}, id=3)
+        uid = json.loads(r["result"]["content"][0]["text"])["uid"]
+        r2 = server.request("tools/call", {
+            "name": "pin_memory", "arguments": {"uid": uid}}, id=4)
+        assert "error" not in r2, r2
+        assert json.loads(r2["result"]["content"][0]["text"])["pinned"] is True
+        # list-only mode
+        r3 = server.request("tools/call", {
+            "name": "pin_memory", "arguments": {}}, id=5)
+        assert "error" not in r3, r3
+        listing = json.loads(r3["result"]["content"][0]["text"])
+        assert listing["pinned_count"] >= 1, listing
+        # unpin
+        r4 = server.request("tools/call", {
+            "name": "pin_memory", "arguments": {"uid": uid, "off": True}}, id=6)
+        assert json.loads(r4["result"]["content"][0]["text"])["pinned"] is False
+
+    def test_timeline_chain(self, server):
+        server.request("initialize", {"protocolVersion": "2024-11-05",
+                                       "capabilities": {},
+                                       "clientInfo": {"name": "smoke", "version": "0"}}, id=1)
+        r = server.request("tools/call", {
+            "name": "add_memories",
+            "arguments": {"content": "timeline-probe v1",
+                           "source": "mcp_smoke", "type": "fact"}}, id=3)
+        uid1 = json.loads(r["result"]["content"][0]["text"])["uid"]
+        r2 = server.request("tools/call", {
+            "name": "correct_memory",
+            "arguments": {"old_uid": uid1, "new_content": "timeline-probe v2",
+                           "reason": "chain", "source": "mcp_smoke"}}, id=4)
+        uid2 = json.loads(r2["result"]["content"][0]["text"])["new_uid"]
+        r3 = server.request("tools/call", {
+            "name": "timeline", "arguments": {"uid": uid1}}, id=5)
+        assert "error" not in r3, r3
+        payload = json.loads(r3["result"]["content"][0]["text"])
+        assert payload["chain_length"] >= 2, payload
+        assert payload["chain"][0]["uid"] == uid1
+        assert payload["chain"][-1]["uid"] == uid2
+
+    def test_as_of_known_axis(self, server):
+        server.request("initialize", {"protocolVersion": "2024-11-05",
+                                       "capabilities": {},
+                                       "clientInfo": {"name": "smoke", "version": "0"}}, id=1)
+        server.request("tools/call", {
+            "name": "add_memories",
+            "arguments": {"content": "asof-probe recorded now",
+                           "source": "mcp_smoke", "type": "fact"}}, id=3)
+        r = server.request("tools/call", {
+            "name": "as_of_query",
+            "arguments": {"kind": "known", "limit": 20}}, id=4)
+        assert "error" not in r, r
+        payload = json.loads(r["result"]["content"][0]["text"])
+        assert payload["count"] >= 1, payload
+        assert any("asof-probe" in row["content"] for row in payload["rows"]), payload
+
     def test_server_stays_alive_after_invalid_method(self, server):
         """Robustness: an unknown method must not kill the server."""
         r1 = server.request("bogus/method", {}, id=9)
