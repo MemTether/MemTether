@@ -1032,6 +1032,65 @@ def _search_like_legacy(query, limit=10, mem0=False):
         conn.close()
 
 
+
+
+def record_recipe(task_patterns, steps, preferred_tool=None, output_paths=None,
+                  known_pitfalls=None, fallback_tools=None, source=DEFAULT_SOURCE):
+    """P0-2 (2026-10-18): 写入/更新一条任务配方（recipes 表唯一写入口）。
+
+    task_patterns: 逗号分隔触发词（resolve_task 按 LIKE 匹配）
+    steps:         list[str]，每步一条命令/动作
+    preferred_tool: 可选，首选工具 uid
+    output_paths:  list[str] 产物路径
+    known_pitfalls: list[str] 已知坑
+    fallback_tools: list[str] 备用工具 uid
+
+    uid 稳定 = _uid('recipe', primary_pattern)：同 primary 触发词重复写入 = 更新而非堆叠。
+    """
+    source = _guard_source(source)
+    if isinstance(task_patterns, str):
+        patterns = [t.strip() for t in task_patterns.split(',') if t.strip()]
+    else:
+        patterns = [str(t).strip() for t in (task_patterns or []) if str(t).strip()]
+    if not patterns:
+        return {'ok': False, 'error': 'task_patterns must contain at least 1 pattern'}
+    if not steps or not [s for s in steps if str(s).strip()]:
+        return {'ok': False, 'error': 'steps must be non-empty'}
+    primary = patterns[0]
+    # P0-2 fix: _uid embeds a timestamp -> same pattern would create a NEW row
+    # every write (defeats upsert). Stable uid = md5(primary) only.
+    uid = 'recipe-' + hashlib.md5(primary.encode('utf-8')).hexdigest()[:16]
+    steps_json = json.dumps([str(s) for s in steps], ensure_ascii=False)
+    op_json = json.dumps([str(p) for p in (output_paths or [])], ensure_ascii=False)
+    pit_json = json.dumps([str(p) for p in (known_pitfalls or [])], ensure_ascii=False)
+    fb_json = json.dumps([str(f) for f in (fallback_tools or [])], ensure_ascii=False)
+    init_db()
+    conn = get_conn()
+    try:
+        existing = conn.execute("SELECT uid FROM recipes WHERE uid=?", (uid,)).fetchone()
+        if existing:
+            conn.execute(
+                """UPDATE recipes SET task_patterns=?, preferred_tool=?, steps=?,
+                   output_paths=?, known_pitfalls=?, fallback_tools=?,
+                   last_success_at=?, updated_at=? WHERE uid=?""",
+                (','.join(patterns), preferred_tool, steps_json, op_json, pit_json,
+                 fb_json, now(), now(), uid))
+            audit(conn, 'record_recipe_update', uid, source, primary)
+            conn.commit()
+            return {'ok': True, 'uid': uid, 'op': 'update'}
+        conn.execute(
+            """INSERT INTO recipes (uid,task_patterns,preferred_tool,steps,output_paths,
+               known_pitfalls,fallback_tools,last_success_at,source,created_at,updated_at)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+            (uid, ','.join(patterns), preferred_tool, steps_json, op_json,
+             pit_json, fb_json, now(), source, now(), now()))
+        audit(conn, 'record_recipe', uid, source, primary)
+        conn.commit()
+        return {'ok': True, 'uid': uid, 'op': 'insert'}
+    finally:
+        conn.close()
+
+
 def resolve_task(task):
     """按任务名返回完整执行配方。"""
     init_db()
@@ -2042,6 +2101,15 @@ def main():
 
     rk = sub.add_parser('resolve_task'); rk.add_argument('task')
 
+    # P0-2 (2026-10-18): recipes 写入 API（此前只能手工 SQL）
+    rc = sub.add_parser('record_recipe'); rc.add_argument('task_patterns')
+    rc.add_argument('--steps', required=True, help='JSON 数组，每步一条命令')
+    rc.add_argument('--preferred-tool', default=None)
+    rc.add_argument('--output-paths', default=None, help='JSON 数组')
+    rc.add_argument('--known-pitfalls', default=None, help='JSON 数组')
+    rc.add_argument('--fallback-tools', default=None, help='JSON 数组')
+    rc.add_argument('--source', default=DEFAULT_SOURCE)
+
     # 记忆自动闭环
     ev = sub.add_parser('event'); ev.add_argument('--type', required=True); ev.add_argument('--run-id', required=True)
     ev.add_argument('--agent', default=None); ev.add_argument('--payload-file', required=True)
@@ -2119,6 +2187,20 @@ def main():
                                      a.capabilities, a.known_failures, source=a.source), ensure_ascii=False))
     elif a.cmd == 'resolve_task':
         print(json.dumps(resolve_task(a.task), ensure_ascii=False))
+    elif a.cmd == 'record_recipe':
+        try:
+            _steps = json.loads(a.steps)
+        except Exception as e:
+            print(json.dumps({'ok': False, 'error': '--steps must be JSON array: %s' % e}))
+            sys.exit(1)
+        _jp = lambda s: (json.loads(s) if s else None)
+        print(json.dumps(record_recipe(
+            a.task_patterns, _steps,
+            preferred_tool=a.preferred_tool,
+            output_paths=_jp(a.output_paths),
+            known_pitfalls=_jp(a.known_pitfalls),
+            fallback_tools=_jp(a.fallback_tools),
+            source=a.source), ensure_ascii=False))
     elif a.cmd == 'event':
         with open(a.payload_file, encoding='utf-8') as f:
             payload = json.load(f)

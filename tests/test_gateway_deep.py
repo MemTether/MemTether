@@ -181,3 +181,47 @@ class TestSearchScope:
             (x.get('content', '') if isinstance(x, dict) else str(x))
             for x in rows)
         assert 'private' not in contents
+
+class TestRecordRecipe:
+    """P0-2 (2026-10-18): recipes write API + idempotency."""
+
+    def test_insert_and_resolve(self, tmp_path):
+        db, gw = _setup(tmp_path)
+        r = gw.record_recipe('test task, 测试任务',
+                             ['step one', 'step two'],
+                             known_pitfalls=['pit one'],
+                             source='codex')
+        assert r['ok'] and r['op'] == 'insert'
+        out = gw.resolve_task('test task')
+        assert out['recipe'] is not None
+        assert json.loads(out['recipe']['steps']) == ['step one', 'step two']
+        assert out['known_pitfalls'] == ['pit one']
+
+    def test_idempotent_upsert(self, tmp_path):
+        db, gw = _setup(tmp_path)
+        r1 = gw.record_recipe('same task', ['v1'], source='codex')
+        r2 = gw.record_recipe('same task', ['v2'], source='codex')
+        assert r1['op'] == 'insert'
+        assert r2['op'] == 'update'
+        assert r1['uid'] == r2['uid']
+        conn = sqlite3.connect(db)
+        n = conn.execute('SELECT COUNT(*) FROM recipes').fetchone()[0]
+        conn.close()
+        assert n == 1
+
+    def test_empty_patterns_rejected(self, tmp_path):
+        db, gw = _setup(tmp_path)
+        r = gw.record_recipe('', ['s'], source='codex')
+        assert not r['ok']
+
+    def test_empty_steps_rejected(self, tmp_path):
+        db, gw = _setup(tmp_path)
+        r = gw.record_recipe('task', [], source='codex')
+        assert not r['ok']
+
+    def test_multi_pattern_primary_uid(self, tmp_path):
+        db, gw = _setup(tmp_path)
+        r1 = gw.record_recipe('primary pat, secondary', ['s'], source='codex')
+        # different primary -> different uid (new row), correct behavior
+        r2 = gw.record_recipe('secondary, primary pat', ['s'], source='codex')
+        assert r1['uid'] != r2['uid']
