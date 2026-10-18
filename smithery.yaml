@@ -1,0 +1,19 @@
+# Smithery configuration for MemTether
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    properties:
+      MEM_DB:
+        type: string
+        description: Path to the SQLite memory database
+        default: ~/.memtether/memory.db
+    required: []
+  commandFunction: |-
+    (config) => ({
+      "command": "python",
+      "args": ["-m", "mcp_server"],
+      "env": {
+        "MEM_DB": config.MEM_DB || "~/.memtether/memory.db"
+      }
+    })

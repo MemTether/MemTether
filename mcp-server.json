@@ -2,7 +2,7 @@
   "name": "memtether",
   "display_name": "MemTether",
   "description": "Cross-client AI memory hub. SQLite + FTS5 + Bi-temporal + Source Attribution. Local-first, no cloud. 23 client adapters.",
-  "version": "0.1.0a15",
+  "version": "0.1.0a81",
   "mcp_version": "1.0",
   "server": {
     "command": "python",
@@ -16,16 +16,40 @@
   },
   "tools": [
     {
-      "name": "search_memory",
-      "description": "Search the shared memory hub"
+      "name": "add_memories",
+      "description": "Write a memory to the shared hub"
     },
     {
-      "name": "add_memories",
-      "description": "Write new memories to the hub"
+      "name": "search_memory",
+      "description": "Search the shared memory hub (hybrid: keyword + vector + BM25)"
     },
     {
       "name": "list_memories",
-      "description": "List recent memories"
+      "description": "List recent active memories"
+    },
+    {
+      "name": "feedback",
+      "description": "Write back Q-Value feedback for a memory"
+    },
+    {
+      "name": "correct_memory",
+      "description": "Correct a memory (supersede old, create new)"
+    },
+    {
+      "name": "retire_memory",
+      "description": "Retire a memory or tool"
+    },
+    {
+      "name": "pin_memory",
+      "description": "Pin/unpin a memory to always include in projection"
+    },
+    {
+      "name": "as_of_query",
+      "description": "Bi-temporal as-of query (what was true/known at a time)"
+    },
+    {
+      "name": "timeline",
+      "description": "Walk the supersession chain for a memory"
     }
   ],
   "repository": "https://github.com/MemTether/MemTether",
