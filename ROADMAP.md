@@ -5,11 +5,19 @@ planned, in progress, and deliberately out of scope.
 
 ## Near-term (next minor release)
 
-- [ ] External hash-chain anchoring (append-only file or RFC-3161 TSA)
-      to close the same-database anchor limitation
+- [x] External hash-chain anchoring (c0bb0b5 — `court --anchor-external` / `--verify-external`)
 - [ ] Auto-anchor performance benchmark (currently unmeasured)
-- [ ] SGM 2-hop relation queries (`A 的学校 的 城市` style chains)
-- [ ] English predicate extraction (currently Chinese `的`-pattern only)
+- [x] SGM 2-hop relation queries (19e97d0 — bridge-entity expansion with term-quality filter)
+- [x] Predicate extraction quality rebuild (5d45504 — prose-junk 56%→0%, multi-word entities fixed)
+
+## Completed (a81)
+
+- [x] MCP governance tools (correct/retire/pin/as_of/timeline) — 33b73d7
+- [x] recipes write API + stable-uid upsert + 7 seeded recipes — d583667
+- [x] Predicate extraction quality rebuild (prose-junk 56%→0%) — 5d45504
+- [x] Smithery login + MCP directories (Registry/Glama/Smithery/DevHunt/Uneed/LibHunt)
+- [x] Dynamic rebuild quota — 15741e9
+- [x] Governance tests 11→27, proj_judge 96/100 — c2dff94
 
 ## Mid-term
 
