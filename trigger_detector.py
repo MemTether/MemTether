@@ -161,6 +161,7 @@ def reset_cache():
     _ENTITY_INDEX_TS = 0
 
 
+if __name__ == "__main__":
     os.environ["MEM_DB"] = r"E:\RUANJIAN\memory_hub\memory.db"
     import random, string
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
