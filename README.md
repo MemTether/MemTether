@@ -116,6 +116,19 @@ mcp-name: io.github.lanbass869-cell/memtether
 
 </div>
 
+
+<p align="center">
+<b><a href="#-quick-start">Install</a></b> ·
+<b><a href="#-memory-operations">Usage</a></b> ·
+<b><a href="#-why-memtether">Why MemTether</a></b> ·
+<b><a href="#-benchmarks">Benchmarks</a></b> ·
+<b><a href="#-architecture">Architecture</a></b> ·
+<b><a href="#-security">Security</a></b> ·
+<b><a href="#-faq">FAQ</a></b>
+</p>
+
+---
+
 ---
 
 
@@ -299,6 +312,22 @@ memtether export-md --out ./backup     # Export as markdown
 memtether dashboard                    # Web UI
 ```
 
+The same operations work via **MCP** — your AI agent can govern memory directly:
+
+```bash
+# Via MCP: correct_memory / retire_memory / pin_memory / as_of_query / timeline
+# Your agent calls these tools — no CLI needed:
+
+# Agent corrects a fact (supersedes old, creates new)
+→ correct_memory(old_uid="fact-xxx", new_content="Deploy to 9090", reason="port changed")
+
+# Agent queries what the system knew last Tuesday
+→ as_of_query(at="2026-10-15", kind="known")
+
+# Agent walks the full audit chain
+→ timeline(uid="fact-xxx")
+```
+
 The same operations are available via **MCP** (`correct_memory`, `retire_memory`,
 `pin_memory`, `as_of_query`, `timeline`) — agents can govern memory without CLI.
 
@@ -381,6 +410,25 @@ inferential 0.206. Reproduce: see `_dev/memeval/src/agents_memory/systems/memtet
 - **Scope isolation**: `shared` / `private` / `restricted`
 - **Concurrency**: Hubguard file lock + atomic write (WAL mode)
 - **SQL**: All parameterized. No f-string SQL
+
+---
+
+### Why not just markdown files?
+
+Agents work well with markdown, and `memtether export-md` gives you that. But
+raw markdown files can't answer "who wrote this, when was it true, what did it
+replace?" — and they can't enforce source attribution or detect tampering.
+
+| | Plain markdown | MemTether |
+|---|---|---|
+| Who wrote this fact? | ❌ not tracked | ✅ source + timestamp |
+| What did it replace? | ❌ overwritten | ✅ supersession chain |
+| Is this the current truth? | ❌ grep returns all versions | ✅ status + valid_from/valid_to |
+| Can someone tamper silently? | ✅ (no protection) | ❌ hash chain detects it |
+| Concurrent write safety | ❌ last-write-wins | ✅ Hubguard file lock |
+| Retrieval | grep (exact match only) | SGM + vector + BM25 + rerank |
+
+Export to markdown anytime — but keep the governed database as the source of truth.
 
 ---
 
