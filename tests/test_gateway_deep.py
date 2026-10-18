@@ -225,3 +225,50 @@ class TestRecordRecipe:
         # different primary -> different uid (new row), correct behavior
         r2 = gw.record_recipe('secondary, primary pat', ['s'], source='codex')
         assert r1['uid'] != r2['uid']
+
+class TestDynamicQuota:
+    """P2-9 (2026-10-18): rebuild quota scales with type count."""
+
+    def test_dynamic_quota_scales(self, tmp_path, monkeypatch):
+        db, gw = _setup(tmp_path)
+        monkeypatch.setattr(gw, 'HG', None)
+        conn = sqlite3.connect(db)
+        args = []
+        for j in range(2000):
+            uid = f'fact-bulk-{j:05d}-xxxxxxxx'
+            ts = '2026-10-18 00:00:00'
+            args.append((uid, 'fact', 'user', f'bulk fact entry number {j} uniquebulk',
+                         'active', 'codex', 'shared', 0.8, '', ts, ts, ts, ts, 'native'))
+        conn.executemany(
+            """INSERT INTO facts (uid,type,subject,content,status,source,scope,confidence,tags,
+               created_at,updated_at,valid_from,recorded_at,temporal_source)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", args)
+        conn.commit()
+        conn.close()
+        proj = str(tmp_path / 'MEMORY.md')
+        monkeypatch.setenv('MEM_PROJ_PATH', proj)
+        monkeypatch.setenv('MEM_SINK_PATH', str(tmp_path / 'sink.json'))
+        r = gw.rebuild()
+        assert (r.get('facts_listed') or 0) > 45, r.get('facts_listed')
+
+    def test_static_quota_fallback(self, tmp_path, monkeypatch):
+        db, gw = _setup(tmp_path)
+        monkeypatch.setattr(gw, 'HG', None)
+        conn = sqlite3.connect(db)
+        args = []
+        for j in range(2000):
+            uid = f'fact-bulk2-{j:05d}-xxxxxxxx'
+            ts = '2026-10-18 00:00:00'
+            args.append((uid, 'fact', 'user', f'bulk fact entry number {j} uniquebulk2',
+                         'active', 'codex', 'shared', 0.8, '', ts, ts, ts, ts, 'native'))
+        conn.executemany(
+            """INSERT INTO facts (uid,type,subject,content,status,source,scope,confidence,tags,
+               created_at,updated_at,valid_from,recorded_at,temporal_source)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", args)
+        conn.commit()
+        conn.close()
+        monkeypatch.setenv('MEM_PROJ_PATH', str(tmp_path / 'MEMORY.md'))
+        monkeypatch.setenv('MEM_SINK_PATH', str(tmp_path / 'sink.json'))
+        monkeypatch.setenv('MEM_PROJ_STATIC_QUOTA', '1')
+        r = gw.rebuild()
+        assert (r.get('facts_listed') or 0) <= 50, r.get('facts_listed')

@@ -1558,7 +1558,20 @@ def rebuild():
         #    → incident / experience **被整体丢弃**（实测 216 条 active 里 70 条永远进不了投影，
         #      其中包括 ACL 拒写的坑、判驱动/判病毒的方法论、会话卡顿真因 —— 恰恰是最该被记住的）。
         #    另外注入侧会按体积截断，所以顺序必须"新→旧"，这样截断只丢最老的。
-        _QUOTA = (('decision', 40), ('incident', 20), ('fact', 45), ('experience', 25))
+        # ★P2-9 (2026-10-18): 配额动态化——静态配额在 active 数远超配额时
+        # 绝大多数记忆永远进不了投影（实测 fact 45 vs 1022 = 95% 不可见）。
+        # 动态规则 = max(静态基数, 该类型 active 数 × 5%)，保证配额随库增长。
+        # MEM_PROJ_STATIC_QUOTA=1 可回退旧行为（评测对照用）。
+        if os.environ.get('MEM_PROJ_STATIC_QUOTA') == '1':
+            _QUOTA = (('decision', 40), ('incident', 20), ('fact', 45), ('experience', 25))
+        else:
+            _QUOTA = []
+            for _typ, _base in (('decision', 40), ('incident', 20), ('fact', 45), ('experience', 25)):
+                _n = conn.execute(
+                    "SELECT COUNT(*) FROM facts WHERE status='active' AND type=?",
+                    (_typ,)).fetchone()[0]
+                _QUOTA.append((_typ, max(_base, int(_n * 0.05))))
+            _QUOTA = tuple(_QUOTA)
         _picked = []
         for _typ, _q in _QUOTA:
             # 🔴 2026-09-15 四修：remember() 写入时不填 updated_at（只有 supersede 才更新它），
