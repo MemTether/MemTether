@@ -41,6 +41,29 @@
 - MCP smoke: 5 new governance round-trips (10 total)
 
 
+## [0.1.0a79] — Persona testing + graceful vector degradation
+
+### Fixed
+
+- **vec upsert/delete without chromadb**: returns `skipped` instead of raising
+  ModuleNotFoundError — no scary warning for users without vector extras
+- **README**: PyPI official index fallback + China mirror lag note
+
+### Added
+
+- **8 user personas tested**: concurrent writes, crash recovery, 10K scale,
+  English user, PII privacy, Windows beginner, multi-client detection, Docker
+
+
+## [0.1.0a78] — zh-CN README rewrite + version alignment
+
+### Changed
+
+- **Full zh-CN README rewrite** (5KB → 10.4KB, matches EN structure)
+- reproduce.html links a43 EAF artifact bundle
+- Version bump after a74–a77 (8 real bug fixes, 23 new tests, 3 benchmarks)
+
+
 ## [0.1.0a80] — Deep audit: 21 bug fixes from full line-by-line code review
 
 ### Fixed — correctness & reliability
