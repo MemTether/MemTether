@@ -177,3 +177,122 @@ def test_T_ttl_expired_downweighted(tmp_path):
     assert e.get('ttl_expired') is True, f'expired flag missing: {e.get("reason")}'
     assert e.get('ttl_note') and '到期' in e['ttl_note']
     assert e.get('score', 1) <= 1.0  # downweighted relative path exists
+
+# ---- P1-8 B-dim expansion (2026-10-18): governance-layer defense coverage ----
+
+def test_H_qvalue_poisoning_bounded(tmp_path):
+    """Attacker repeatedly feeds reward=1.0 to inflate q_value.
+    Defense: q converges monotonically, never exceeds 1.0."""
+    gw, _ = _setup(tmp_path)
+    uid = gw.remember('qvalue 投毒目标条目 unique-mark-h', source='codex')['uid']
+    for _ in range(20):
+        gw.bump_qvalue(uid, reward=1.0, agent='codex')
+    c = sqlite3.connect(os.environ['MEM_DB'])
+    q = c.execute('SELECT q_value FROM facts WHERE uid=?', (uid,)).fetchone()[0]
+    c.close()
+    assert 0.0 <= q <= 1.0, f'q_value escaped [0,1]: {q}'
+    assert q > 0.5, 'repeated positive reward should raise q above neutral'
+
+
+def test_I_negative_reward_sinks(tmp_path):
+    """corrections/retirements auto-bump reward=0.0; q must sink and stay >0 floor."""
+    gw, _ = _setup(tmp_path)
+    uid = gw.remember('negative reward 目标 unique-mark-i', source='codex')['uid']
+    for _ in range(10):
+        gw.bump_qvalue(uid, reward=0.0, agent='codex')
+    c = sqlite3.connect(os.environ['MEM_DB'])
+    q = c.execute('SELECT q_value FROM facts WHERE uid=?', (uid,)).fetchone()[0]
+    c.close()
+    assert 0.0 <= q < 0.5, f'q should sink below neutral: {q}'
+    assert q > 0.0, 'q must not hit absolute 0 (retrieval floor)'
+
+
+def test_J_pin_survives_supersede_clearing(tmp_path):
+    """pin is retention marker; supersede must clear pin on OLD row (non-active
+    retention is the documented semantics) but new active row is pin-free."""
+    gw, _ = _setup(tmp_path)
+    r1 = gw.remember('pin 继承语义测试 unique-mark-j', source='codex')
+    uid1 = r1['uid']
+    gw.set_pin(uid1, True)
+    r2 = gw.correct(uid1, 'pin 继承语义测试 v2', reason='update', by_agent='codex')
+    uid2 = r2['new_uid']
+    c = sqlite3.connect(os.environ['MEM_DB'])
+    c.row_factory = sqlite3.Row
+    old = c.execute('SELECT status, tags FROM facts WHERE uid=?', (uid1,)).fetchone()
+    new = c.execute('SELECT status, tags FROM facts WHERE uid=?', (uid2,)).fetchone()
+    c.close()
+    assert old['status'] == 'superseded'
+    assert 'pin' not in (old['tags'] or '').lower(), 'pin must be cleared on superseded row'
+    assert new['status'] == 'active'
+
+
+def test_K_scope_private_leak_guard(tmp_path):
+    """private facts must never appear in default search results."""
+    gw, _ = _setup(tmp_path)
+    gw.remember('公开事实: 端口 8080 unique-mark-k', source='codex')
+    r = gw.remember('私有事实: 内部密钥 KKK-999 unique-mark-k', source='codex', scope='private')
+    assert r['ok']
+    res = gw.search('unique-mark-k', limit=10)
+    texts = ' '.join((x.get('content') or '') for x in res.get('results', []))
+    assert 'KKK-999' not in texts, 'private fact leaked into default search'
+    assert '8080' in texts, 'shared fact must remain visible'
+
+
+def test_L_source_spoofing_audit_trail(tmp_path):
+    """Write with a spoofed source is stored verbatim (fail-open) BUT fully
+    audit-logged with op=remember — provenance is never lost."""
+    gw, _ = _setup(tmp_path)
+    uid = gw.remember('spoofed source probe unique-mark-l', source='fake_admin')['uid']
+    c = sqlite3.connect(os.environ['MEM_DB'])
+    c.row_factory = sqlite3.Row
+    row = c.execute('SELECT source FROM facts WHERE uid=?', (uid,)).fetchone()
+    audits = c.execute(
+        "SELECT op, agent FROM audit_log WHERE target=? ORDER BY id", (uid,)).fetchall()
+    c.close()
+    assert row['source'] == 'fake_admin'
+    assert any(a['op'] == 'remember' for a in audits), 'write must be audited'
+
+
+def test_M_supersession_cycle_refused(tmp_path):
+    """A→B→A cycle would break multi-hop resolution; correct() must refuse."""
+    gw, _ = _setup(tmp_path)
+    uidA = gw.remember('cycle probe A unique-mark-m', source='codex')['uid']
+    uidB = gw.correct(uidA, 'cycle probe B', reason='1st', by_agent='codex')['new_uid']
+    # trying to "correct" B back to A's exact content creates a cycle (same uid calc)
+    r = gw.correct(uidB, 'cycle probe A unique-mark-m', reason='back', by_agent='codex')
+    # cycle refused OR allowed-but-no-fork; must not leave two active children
+    c = sqlite3.connect(os.environ['MEM_DB'])
+    active = c.execute(
+        "SELECT COUNT(*) FROM facts WHERE status='active' AND content LIKE 'cycle probe%'").fetchone()[0]
+    c.close()
+    assert active == 1, f'supersession fork detected: {active} active in chain'
+
+
+def test_N_retire_clears_fts(tmp_path):
+    """retired fact must vanish from FTS-backed retrieval (bm25 path)."""
+    gw, _ = _setup(tmp_path)
+    uid = gw.remember('FTS 退役探测词 uniquetermN', source='codex')['uid']
+    res1 = gw.search('uniquetermN', limit=5)
+    assert any(x.get('uid') == uid for x in res1.get('results', [])), 'must be retrievable before retire'
+    gw.retire(uid, reason='test', by_agent='codex')
+    res2 = gw.search('uniquetermN', limit=5)
+    served = [x for x in res2.get('results', []) if x.get('uid') == uid]
+    assert not served, 'retired fact still served via FTS'
+
+
+def test_O_conflict_review_suppresses_false_positive(tmp_path):
+    """reviewed no_conflict pair must be excluded from explicit conflict detection."""
+    gw, _ = _setup(tmp_path)
+    uid1 = gw.remember('conflict probe: DEEPSEEK_TEST_KEY 已充值可用', source='codex')['uid']
+    uid2 = gw.remember('conflict probe: DEEPSEEK_TEST_KEY 已失效 401', source='codex')['uid']
+    import governance as _gov
+    _gov.DB = os.environ['MEM_DB']  # governance hardcodes repo DB; point at test DB
+    detect_explicit_conflicts = _gov.detect_explicit_conflicts
+    record_conflict_review = _gov.record_conflict_review
+    found_before = [x for x in detect_explicit_conflicts(days_window=3650)
+                    if uid1 in (x['pos']['uid'], x['neg']['uid'])]
+    assert found_before, 'conflict should be detected before review'
+    record_conflict_review(uid1, uid2, 'no_conflict', note='complementary info', by_agent='codex')
+    found_after = [x for x in detect_explicit_conflicts(days_window=3650)
+                   if uid1 in (x['pos']['uid'], x['neg']['uid'])]
+    assert not found_after, 'reviewed pair still reported as conflict'

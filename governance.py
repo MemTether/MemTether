@@ -588,6 +588,13 @@ def detect_explicit_conflicts(days_window=90):
                     'keep': _neg['uid'] if _newer == 'neg' else _pos['uid'],
                     'suggest_retire_side': 'pos' if _newer == 'neg' else 'neg',
                     'detection': 'generic_polarity'})
+    # P1-8 fix (2026-10-18): the reviewed-pair filter above ran BEFORE the generic
+    # polarity layer appended more candidates — the same reviewed uid pair leaked
+    # back in under different entity names (generic_polarity). Apply the filter
+    # once more after the generic layer so a human 'no_conflict' verdict is final.
+    _reviewed = reviewed_no_conflict()
+    out = [x for x in out
+           if frozenset((x['pos']['uid'], x['neg']['uid'])) not in _reviewed]
     out.sort(key=lambda x: x['entity'])
     return out
 

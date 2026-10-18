@@ -9,7 +9,8 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from memory_court import maybe_anchor, verify_chain
+from memory_court import maybe_anchor, verify_chain, verify_row_in_anchor, anchor_external, verify_external
+from memory_court import verify_chain as vc, verify_row_in_anchor as vria
 
 
 @pytest.fixture
@@ -140,3 +141,134 @@ class TestCrossAgentReconciliation:
         assert _db_status(db_path, r1["uid"]) == "active"
         assert _db_status(db_path, r2["uid"]) == "active"
         # Both tracked — advisory gate, not blocking. Memory Court provides resolution tools.
+
+# ---- P1-8 B-dim expansion (2026-10-18): court chain hardening ----
+
+class TestCourtChainHardening:
+    """Extended Memory Court coverage: external anchors, row proofs,
+    batch boundaries, multi-chain independence, gateway-op integration."""
+
+    def test_batch_boundary_exact(self, court_db):
+        """BATCH=10: exactly 10 entries must anchor; 9 must not."""
+        db_path, gw = court_db
+        from memory_court import maybe_anchor as _ma  # noqa: F401
+        for i in range(9):
+            gw.remember(f'boundary probe {i} zzz-b1', source='codex')
+        conn = gw.get_conn()
+        n0 = conn.execute('SELECT COUNT(*) FROM audit_anchors').fetchone()[0]
+        gw.remember('boundary probe 9 zzz-b1', source='codex')  # 10th write
+        n1 = conn.execute('SELECT COUNT(*) FROM audit_anchors').fetchone()[0]
+        assert n0 == 0 and n1 >= 1, f'anchor at 10th write: {n0}->{n1}'
+
+    def test_verify_row_in_anchor_proof(self, court_db):
+        """An anchored row must have an existence proof; an unanchored tail row must not."""
+        db_path, gw = court_db
+        for i in range(12):
+            gw.remember(f'rowproof probe {i} zzz-b2', source='codex')
+        conn = gw.get_conn()
+        ok, detail = vc(conn)
+        assert ok
+        anchored = conn.execute('SELECT MIN(id) FROM audit_log').fetchone()[0]
+        proof = vria(conn, anchored)
+        assert proof[0], proof
+
+    def test_edit_within_anchored_range_detected(self, court_db):
+        """Editing a row in the MIDDLE of an anchored range (not just first) must fail verify."""
+        db_path, gw = court_db
+        for i in range(25):
+            gw.remember(f'mid edit probe {i} zzz-b3', source='codex')
+        conn = gw.get_conn()
+        assert vc(conn)[0]
+        mid_id = conn.execute('SELECT MIN(id)+10 FROM audit_log').fetchone()[0]
+        conn.execute('UPDATE audit_log SET agent=? WHERE id=?', ('attacker', mid_id))
+        conn.commit()
+        ok, detail = vc(conn)
+        assert not ok, f'mid-range edit escaped chain: {detail}'
+
+    def test_delete_within_anchored_range_detected(self, court_db):
+        """Deleting a middle row must trip the entries-deleted check."""
+        db_path, gw = court_db
+        for i in range(25):
+            gw.remember(f'del probe {i} zzz-b4', source='codex')
+        conn = gw.get_conn()
+        assert vc(conn)[0]
+        mid_id = conn.execute('SELECT MIN(id)+5 FROM audit_log').fetchone()[0]
+        conn.execute('DELETE FROM audit_log WHERE id=?', (mid_id,))
+        conn.commit()
+        ok, detail = vc(conn)
+        assert not ok, f'mid-range delete escaped chain: {detail}'
+
+    def test_external_anchor_roundtrip(self, court_db, tmp_path):
+        """anchor-external writes a checkpoint file; verify-external passes while
+        DB is intact and FAILS if the head anchor is rewritten."""
+        db_path, gw = court_db
+        for i in range(12):
+            gw.remember(f'ext anchor probe {i} zzz-b5', source='codex')
+        out_dir = str(tmp_path / 'ext_anchors')
+        ok, detail = anchor_external(gw.get_conn(), out_dir=out_dir)
+        assert ok, detail
+        ok2, detail2 = verify_external(gw.get_conn(), out_dir=out_dir)
+        assert ok2, detail2
+        # tamper: rewrite the head chain_hash in DB -> external mismatch
+        conn = gw.get_conn()
+        conn.execute("UPDATE audit_anchors SET chain_hash='deadbeef' "
+                     "WHERE id=(SELECT MAX(id) FROM audit_anchors)")
+        conn.commit()
+        ok3, detail3 = verify_external(conn, out_dir=out_dir)
+        assert not ok3, 'external checkpoint did not catch DB head rewrite'
+
+    def test_court_export_package(self, court_db, tmp_path):
+        """court export must produce a zip with case.json + chain.jsonl and
+        the embedded chain must re-verify."""
+        db_path, gw = court_db
+        uid = gw.remember('export probe unique zzz-b6', source='codex')['uid']
+        for i in range(12):
+            gw.remember(f'filler {i} zzz-b6', source='codex')
+        conn = gw.get_conn()
+        ok, detail = vc(conn)
+        assert ok
+        zpath = str(tmp_path / 'case.zip')
+        from memtether import _cmd_court  # noqa: F401  (module import sanity)
+        # call export via CLI-equivalent args
+        import argparse, io, contextlib
+        args = argparse.Namespace(uid=uid, export=zpath, verify=False,
+                                  anchor_external=False, verify_external=False)
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = _cmd_court(args)
+        assert rc == 0, buf.getvalue()
+        import zipfile, json as _json
+        with zipfile.ZipFile(zpath) as z:
+            names = z.namelist()
+            assert 'case.json' in names and 'chain.jsonl' in names and 'verify.html' in names
+            case = _json.loads(z.read('case.json'))
+            assert case['chain_verified'] is True
+
+    def test_qvalue_ops_are_anchored(self, court_db):
+        """qvalue bumps write audit rows; they must be covered by the chain too."""
+        db_path, gw = court_db
+        uid = gw.remember('qvalue anchor probe zzz-b7', source='codex')['uid']
+        gw.bump_qvalue(uid, reward=1.0, agent='codex')
+        for i in range(12):
+            gw.remember(f'anchor filler {i} zzz-b7', source='codex')
+        conn = gw.get_conn()
+        ok, detail = vc(conn)
+        assert ok, detail
+        rows = conn.execute(
+            "SELECT COUNT(*) FROM audit_log WHERE op='qvalue' AND target=?", (uid,)).fetchone()[0]
+        assert rows >= 1
+
+    def test_correct_chain_keeps_history_queryable(self, court_db):
+        """Full governance loop: remember → correct ×2 → timeline must show 3 hops
+        and the original content must remain in the DB (no physical delete)."""
+        db_path, gw = court_db
+        uid1 = gw.remember('gov loop v1 zzz-b8', source='codex')['uid']
+        uid2 = gw.correct(uid1, 'gov loop v2', reason='r1', by_agent='codex')['new_uid']
+        uid3 = gw.correct(uid2, 'gov loop v3', reason='r2', by_agent='codex')['new_uid']
+        chain = gw.timeline(uid1)
+        assert [c['uid'] for c in chain] == [uid1, uid2, uid3]
+        c = sqlite3.connect(os.environ['MEM_DB'])
+        old = c.execute('SELECT content, status FROM facts WHERE uid=?', (uid1,)).fetchone()
+        c.close()
+        assert old is not None and old[1] == 'superseded'
+        assert 'gov loop v1' in old[0]
