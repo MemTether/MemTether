@@ -85,7 +85,7 @@ $ python examples/audit_chain_demo.py
 | **MCP server** | ✅ | ✅ | ✅ | ❌ | ✅ |
 | **23+ 客户端适配器** | ✅ 自动检测 | ❌ | ❌ | ❌ | ❌ |
 | **评测诚信框架** | ✅ 5 patterns | ❌ | ❌ | ❌ | ❌ |
-| **CI: 9 jobs / 538 tests** | ✅ | ? | ? | ? | ✅ |
+| **CI: 9 jobs / 567 tests** | ✅ | ? | ? | ? | ✅ |
 
 *各单元格反映截至 2026-10-07 该项目公开文档中的功能现状。MemTether 的差异化不是任何单项功能——是所有治理维度在同一个 local-first 部署中的组合。*
 
@@ -244,7 +244,7 @@ Gemini CLI ─────┤                  ├─── WorkBuddy
 | 治理 | Supersession + 双时间轴 + 冲突检测 | 永不删除 |
 | 并发 | Hubguard（文件锁 + 原子写） | 跨进程安全 |
 | 安全 | memtether_guard (OWASP LLM01/02/06) | 投毒防御 |
-| API | FastAPI REST (12 端点) + MCP server (4 工具) | 任意语言 |
+| API | FastAPI REST (12 端点) + MCP server (9 工具) | 任意语言 |
 | 打包 | PyPI + Docker + 23 客户端适配器 | pip install memtether |
 
 </details>

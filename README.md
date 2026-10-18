@@ -98,7 +98,7 @@ yours — and **auditable**.
 | **MCP server** | ✅ | ✅ | ✅ | ❌ | ✅ |
 | **23+ client adapters** | ✅ auto-detect | ❌ | ❌ | ❌ | ❌ |
 | **Evaluation integrity framework** | ✅ 5 patterns | ❌ | ❌ | ❌ | ❌ |
-| **CI: 9 jobs / 538 tests** | ✅ | ? | ? | ? | ✅ |
+| **CI: 9 jobs / 567 tests** | ✅ | ? | ? | ? | ✅ |
 | **Language** | Python | ? | Rust | ? | Python |
 
 *'Each cell reflects the feature's presence in the project's public documentation as of 2026-10-07. MemTether's differentiator is not any single feature — it's the combination of all governance dimensions in one local-first deployment.'*
@@ -261,7 +261,7 @@ Gemini CLI ─────┤                  ├─── WorkBuddy
 | Governance | Supersession + bi-temporal + conflict detection | Never delete |
 | Concurrency | Hubguard (file lock + atomic write) | Cross-process safe |
 | Security | memtether_guard (OWASP LLM01/02/06) | Poisoning defense |
-| API | FastAPI REST (12 endpoints) + MCP server (4 tools) | Any language |
+| API | FastAPI REST (12 endpoints) + MCP server (9 tools) | Any language |
 | Packaging | PyPI + Docker + 23 client adapters | pip install memtether |
 
 </details>
@@ -293,7 +293,16 @@ memtether search "theme" --list        # L0: one-line + uid
 memtether search "theme"               # Full content
 memtether correct <uid> "Updated"      # Supersede, never delete
 memtether timeline <uid>               # Audit chain
+memtether pin <uid>                    # Keep in projection
 memtether stats
+memtether export-md --out ./backup     # Export as markdown
+memtether dashboard                    # Web UI
+```
+
+The same operations are available via **MCP** (`correct_memory`, `retire_memory`,
+`pin_memory`, `as_of_query`, `timeline`) — agents can govern memory without CLI.
+
+```bash
 memtether export-md --out ./backup     # Export as markdown
 memtether dashboard                    # Web UI
 ```
@@ -355,7 +364,7 @@ inferential 0.206. Reproduce: see `_dev/memeval/src/agents_memory/systems/memtet
 
 | Test | Result |
 |---|---|
-| pytest | 538 passed, 4 skipped (CI runs full tests/ directory) |
+| pytest | 567 passed, 4 skipped (CI runs full tests/ directory) |
 | hard_bench | 62/62 |
 | e2e_verify | 13/13 |
 | refuse_bench | 26/26 (wordform gate; 09-25 calibration; known blind spot: same-form-different-attribute) |
