@@ -1816,6 +1816,62 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
                     if _x.get('uid') in _sgm_hits:
                         _x['reason'] = list(_x.get('reason') or []) + ['sql_deterministic']
                         _x['score'] = max(_x.get('score', 0), 1.0)
+            # ★P1-6 SGM 2-hop (2026-10-18): bridge-entity expansion.
+            # Direct facts D (Phase 2) → co-occurring term-quality bridges →
+            # facts sharing context without mentioning query entities directly.
+            # Only ADDs candidates, scored below 1-hop (0.5 vs 1.0).
+            if _attrs and _kept is not None:
+                try:
+                    from predicates import _is_solid_entity as _p_solid
+                    _re_ascii_term = re.compile(r'[A-Za-z][A-Za-z0-9._\-]*(?: [A-Za-z0-9._\-]+)*')
+                    _re_verbish = re.compile(r'(借用|手工|维护|完成|修复|写完|跑完|做完|使用|执行|运行|启动|部署|清理|删除|验证|克隆|复制|上传|下载|推送|提交|审稿|评测|扫描)')
+
+                    def _is_term_bridge(e):
+                        if not _p_solid(e):
+                            return False
+                        if _re_ascii_term.fullmatch(e):
+                            return True
+                        return len(e) <= 8 and not _re_verbish.search(e)
+
+                    _q_ents = [p['e'].lower() for p in _attrs if p.get('e')]
+                    if _q_ents:
+                        _conn_2h = _sq3.connect(DB)
+                        _conn_2h.row_factory = _sq3.Row
+                        _ph = ','.join('?' * len(_q_ents))
+                        _direct = set(r[0] for r in _conn_2h.execute(
+                            "SELECT DISTINCT fe.fact_uid FROM fact_entities fe "
+                            "WHERE lower(fe.entity) IN (" + _ph + ")",
+                            _q_ents).fetchall())
+                        _bridges = {}
+                        for _uid in list(_direct)[:50]:
+                            for r in _conn_2h.execute(
+                                    "SELECT DISTINCT entity_name FROM fact_entities WHERE fact_uid=?",
+                                    (_uid,)):
+                                _e = r[0]
+                                if _e.lower() not in _q_ents and _is_term_bridge(_e):
+                                    _bridges[_e] = _bridges.get(_e, 0) + 1
+                        _top = sorted(_bridges, key=lambda e: -_bridges[e])[:5]
+                        if _top:
+                            _ph2 = ','.join('?' * len(_top))
+                            _hop2 = set(r[0] for r in _conn_2h.execute(
+                                "SELECT DISTINCT fe.fact_uid FROM fact_entities fe "
+                                "WHERE lower(fe.entity) IN (" + _ph2 + ") "
+                                "AND fe.fact_uid NOT IN (" + _ph + ")",
+                                _top + _q_ents).fetchall()) - _direct
+                            _sgm_uids2 = {x.get('uid') for x in (_kept or [])}
+                            _missing2 = _hop2 - _sgm_uids2
+                            for _mu2 in list(_missing2)[:10]:
+                                _fr2 = _conn_2h.execute(
+                                    "SELECT uid, content, type, source, scope, updated_at, q_value, tags "
+                                    "FROM facts WHERE uid=? AND status='active'", (_mu2,)).fetchone()
+                                if _fr2:
+                                    _kept.append(dict(_fr2) | {'score': 0.5, 'reason': ['sgm_2hop']})
+                            if _missing2:
+                                _kept.sort(key=lambda _x: -_x.get('score', 0.0))
+                                _diag['sgm_2hop'] = len(_missing2)
+                        _conn_2h.close()
+                except Exception as _e2h:
+                    _diag['sgm_2hop_err'] = str(_e2h)[:80]
             # SGM Phase 3: aggregation queries — COUNT/LIST via deterministic SQL
             _qtype = detect_question_type(q)
             _conn_sgm2 = None
