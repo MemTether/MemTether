@@ -1,4 +1,45 @@
 
+## [0.1.0a81] — Governance tooling, SGM 2-hop, predicate quality rebuild
+
+### Added
+
+- **MCP governance tools** (`correct_memory` / `retire_memory` / `pin_memory` /
+  `as_of_query` / `timeline`): the five governance functions were CLI-only; agents can
+  now correct, retire, pin, and run bi-temporal queries over MCP
+- **`record_recipe` write API + CLI**: recipes table previously had no write
+  path (manual SQL only); stable-uid upsert (same primary pattern = update);
+  7 high-frequency recipes seeded from real operations
+- **SGM 2-hop bridge expansion**: direct-hit facts co-occur with bridge
+  entities; facts sharing those bridges join the candidate pool at RRF level
+  (score 0.5, below 1-hop); `_diag["sgm_2hop"]` observable
+- **predicate extraction quality rebuild**: prose-junk entities 56%→0% on the
+  full active corpus; multi-word English entities ("Claude Code") now extract
+  cleanly; `_FUNCT_WORDS` filter + tail-ASCII recovery + split SUPPORT patterns
+- **dynamic rebuild quota**: `max(static_base, 5% of type active count)` —
+  with 1,022 active facts the old static 45 quota hid 95% of memory;
+  `MEM_PROJ_STATIC_QUOTA=1` restores old behavior
+- **external hash-chain anchor** (`court --anchor-external` / `--verify-external`)
+
+### Fixed
+
+- **search use_count double-count**: MCP `tool_search` bumped `use_count` while
+  memsearch R1 write-back already had (+2 per search); A1 block removed
+- **governance reviewed-pair leak**: a human `no_conflict` verdict was applied
+  only to the exact-match layer; the generic polarity layer re-reported the
+  same uid pair under different entity names — filter now runs after both layers
+- **trigger_detector reset_cache/__main__ merge**: `reset_cache()` had swallowed
+  the `if __name__` self-test block (both repos had the same defect)
+- **OSSF Scorecard CI**: scorecard-action v2.4.0 pulled from gcr.io (image
+  abandoned) → v2.4.2 (ghcr.io); CI green again
+- **record_recipe idempotency**: `_uid()` embeds a timestamp so the same
+  pattern created a new row per write; stable `recipe-md5(primary)[:16]` now
+
+### Tests
+
+- governance layer coverage 11→27 (court hardening ×8 + poisoning defense ×8);
+  **proj_judge 96/100** (A30+B27+C24+D15)
+- MCP smoke: 5 new governance round-trips (10 total)
+
 
 ## [0.1.0a80] — Deep audit: 21 bug fixes from full line-by-line code review
 
