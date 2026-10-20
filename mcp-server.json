@@ -2,7 +2,7 @@
   "name": "memtether",
   "display_name": "MemTether",
   "description": "Cross-client AI memory hub. SQLite + FTS5 + Bi-temporal + Source Attribution + layered recall (L0/L1/L2) + deterministic profiles. Local-first, no cloud. 23 client adapters.",
-  "version": "0.1.0a82",
+  "version": "0.1.0a83",
   "mcp_version": "1.0",
   "server": {
     "command": "python",

@@ -324,6 +324,8 @@ memtether export-md --out ./backup     # Export as markdown
 memtether backup                       # Point-in-time DB backup
 memtether reconcile --dry-run          # SQLite <-> vector drift report
 memtether import-docs ./docs           # Cold-start from a directory
+memtether remember-batch mems.json     # Batch write from JSON
+memtether demo                         # Generate a synthetic demo DB (no real data)
 memtether dashboard                    # Web UI
 ```
 
