@@ -1,17 +1,17 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.lanbass869-cell/memtether",
-  "description": "Cross-client AI memory hub: agents share one SQLite memory.db via file-level pointers.",
+  "description": "Cross-client AI memory hub: agents share one SQLite memory.db via file-level pointers. Layered recall (L0/L1/L2), deterministic user profiles, supersession-based corrections, bi-temporal queries, tamper-evident audit chain. Zero cloud, zero LLM required.",
   "repository": {
     "url": "https://github.com/MemTether/MemTether",
     "source": "github"
   },
-  "version": "0.1.0a81",
+  "version": "0.1.0a82",
   "packages": [
     {
       "registryType": "pypi",
       "identifier": "memtether",
-      "version": "0.1.0a73",
+      "version": "0.1.0a82",
       "transport": {
         "type": "stdio"
       },

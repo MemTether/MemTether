@@ -1,3 +1,28 @@
+## [0.1.0a83] — Documentation and registry surfaces aligned with reality
+
+### Fixed
+
+- **PyPI project page** shipped a broken first-screen image: the README's
+  `assets/demo.gif` is a repo-relative path and PyPI does not resolve those.
+  Both READMEs now use a `<picture>` + `onerror` fallback to the raw GitHub
+  URL (GitHub keeps the relative path, PyPI falls back automatically). This
+  fallback existed once before and was lost in a later rewrite.
+- `server.json` (MCP Registry source) declared version 0.1.0a81 with a
+  package version of 0.1.0a73 — nine releases behind. Both are now 0.1.0a83
+  and the description mentions the a82 capabilities.
+- `mcp-server.json` listed 9 tools but was missing `profile`, and its version
+  was 0.1.0a81. Now 10 tools in the same order as `mcp_server.TOOLS`, version
+  0.1.0a83.
+- README's "Memory Operations" block documented 14 of the 20 CLI subcommands;
+  `backup`, `conflicts`, `demo`, `import-docs`, `provenance`, `reconcile`,
+  `remember-batch`, and `retire` were missing.
+
+### Note
+
+The PyPI long description is the README verbatim, so the stale "9 tools /
+12 endpoints" text on pypi.org could not be fixed without a release. This
+release publishes the corrected README.
+
 ## [0.1.0a82] — Layered recall (L0/L1/L2) + deterministic subject profile
 
 ### Added

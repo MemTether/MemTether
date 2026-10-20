@@ -1,8 +1,8 @@
 {
   "name": "memtether",
   "display_name": "MemTether",
-  "description": "Cross-client AI memory hub. SQLite + FTS5 + Bi-temporal + Source Attribution. Local-first, no cloud. 23 client adapters.",
-  "version": "0.1.0a81",
+  "description": "Cross-client AI memory hub. SQLite + FTS5 + Bi-temporal + Source Attribution + layered recall (L0/L1/L2) + deterministic profiles. Local-first, no cloud. 23 client adapters.",
+  "version": "0.1.0a82",
   "mcp_version": "1.0",
   "server": {
     "command": "python",
@@ -28,10 +28,6 @@
       "description": "List recent active memories"
     },
     {
-      "name": "feedback",
-      "description": "Write back Q-Value feedback for a memory"
-    },
-    {
       "name": "correct_memory",
       "description": "Correct a memory (supersede old, create new)"
     },
@@ -50,6 +46,14 @@
     {
       "name": "timeline",
       "description": "Walk the supersession chain for a memory"
+    },
+    {
+      "name": "profile",
+      "description": "Deterministic subject representation (counts, time span, high-confidence facts, L0 digest). Zero LLM."
+    },
+    {
+      "name": "feedback",
+      "description": "Write back Q-Value feedback for a memory"
     }
   ],
   "repository": "https://github.com/MemTether/MemTether",

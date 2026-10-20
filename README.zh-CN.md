@@ -1,6 +1,12 @@
 <div align="center">
 
-<img src="assets/demo.gif" width="100%" alt="MemTether — 跨客户端 AI 记忆演示"/>
+<!-- PyPI 不解析仓库内相对路径图片，故 src 保持相对（GitHub 用），
+     并用 onerror 回退到 raw GitHub 绝对 URL。缺了它 PyPI 项目页首屏就是碎图。 -->
+<picture>
+  <source srcset="https://raw.githubusercontent.com/MemTether/MemTether/main/assets/demo.gif">
+  <img src="assets/demo.gif" width="100%" alt="MemTether — 跨客户端 AI 记忆演示"
+       onerror="this.onerror=null;this.src='https://raw.githubusercontent.com/MemTether/MemTether/main/assets/demo.gif'"/>
+</picture>
 
 # MemTether — AI 记忆法庭
 

@@ -1,6 +1,14 @@
 <div align="center">
 
-<img src="assets/demo.gif" width="100%" alt="MemTether — cross-client AI memory in action"/>
+<!-- PyPI does not resolve repo-relative image paths, so the primary src stays
+     relative for GitHub and an onerror fallback points at the raw GitHub URL.
+     Without this the PyPI project page shows a broken image as its first
+     screen (this fallback existed once and was lost in a later rewrite). -->
+<picture>
+  <source srcset="https://raw.githubusercontent.com/MemTether/MemTether/main/assets/demo.gif" media="(min-width: 0px)">
+  <img src="assets/demo.gif" width="100%" alt="MemTether — cross-client AI memory in action"
+       onerror="this.onerror=null;this.src='https://raw.githubusercontent.com/MemTether/MemTether/main/assets/demo.gif'"/>
+</picture>
 
 # MemTether — The AI Memory Court
 
@@ -302,15 +310,24 @@ memtether setup codex
 
 ```bash
 memtether remember "User prefers dark theme" --source claude-code
-memtether search "theme" --list        # L0: one-line + uid
-memtether search "theme"               # Full content
+memtether search "theme" --layer L0    # First sentence only
+memtether search "theme" --layer L1    # First 3 sentences
+memtether search "theme"               # Full content (L2, default)
+memtether profile --subject user       # What we know about this user
 memtether correct <uid> "Updated"      # Supersede, never delete
-memtether timeline <uid>               # Audit chain
-memtether pin <uid>                    # Keep in projection
+memtether retire <uid> --reason "..."  # Retire (content preserved)
+memtether provenance <uid>             # Full audit trail for one fact
+memtether conflicts --stats            # Review conflict candidates
+memtether court --verify               # Verify the audit hash chain
 memtether stats
 memtether export-md --out ./backup     # Export as markdown
+memtether backup                       # Point-in-time DB backup
+memtether reconcile --dry-run          # SQLite <-> vector drift report
+memtether import-docs ./docs           # Cold-start from a directory
 memtether dashboard                    # Web UI
 ```
+
+Run `memtether --help` for the full list (20 subcommands).
 
 The same operations work via **MCP** — your AI agent can govern memory directly:
 
