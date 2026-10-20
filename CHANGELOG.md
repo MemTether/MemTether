@@ -1,3 +1,42 @@
+## [0.1.0a82] — Layered recall (L0/L1/L2) + deterministic subject profile
+
+### Added
+
+- **Layered recall**: every search can now return the same hit at three depths,
+  so an agent scans cheap one-liners first and only pays for full text on the
+  hits it wants.
+  - `memsearch.content_layers()` / `apply_layers()`: deterministic split,
+    zero LLM, zero new tables. L2 (the default) stays byte-identical to the
+    previous behaviour.
+  - `gateway.search(..., layer='L0'|'L1'|'L2')` and
+    `memtether search "q" --layer L0`.
+  - Measured on a 2,221-fact production DB (limit=5): L0 costs **10%** of L2's
+    characters, L1 **44%**.
+- **Deterministic subject profile** (`gateway.profile()`): counts by
+  type/source, time span, high-confidence count, top facts by q_value+recency,
+  and an L0 digest ready to paste into a system prompt. Zero LLM calls by
+  design — the same DB always yields the same profile, and every line traces
+  back to a uid.
+  - CLI: `memtether profile --subject user [--json]`
+  - MCP: `profile` tool (9 → 10 tools)
+
+### Fixed
+
+- `cluster_semantic()` returned `[]` for empty input but a `(clusters, vecs)`
+  tuple otherwise, so `clusters, vecs = ...` crashed on an empty DB.
+- The degraded (token-merge) search fallback now also applies layers; the first
+  version applied them before the merge, so all three layers silently no-op'd.
+- `governance` query functions crashed with `no such table: facts` on a fresh
+  DB (`python governance.py conflicts` on a brand-new install). Added an
+  idempotent bootstrap that reuses gateway's SCHEMA.
+- `governance.DB` ignored `MEM_DB`, so direct importers (api_server, tests,
+  external scripts) read the repo placeholder DB while remember/rebuild read
+  `MEM_DB` — one session, two databases.
+- `_load_entity_index()` selected a non-existent `entity_name` column; the
+  resulting OperationalError was swallowed, leaving the facts side of the
+  entity index permanently empty. (The release-repo test for this module had
+  been green the whole time because its fixture built a table matching the bug.)
+
 
 ## [0.1.0a81] — Governance tooling, SGM 2-hop, predicate quality rebuild
 
