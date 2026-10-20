@@ -326,10 +326,42 @@ The same operations work via **MCP** — your AI agent can govern memory directl
 
 # Agent walks the full audit chain
 → timeline(uid="fact-xxx")
+
+# Agent asks "what do we already know about this user?"
+→ profile(subject="user")          # deterministic, no LLM, fully traceable
 ```
 
 The same operations are available via **MCP** (`correct_memory`, `retire_memory`,
-`pin_memory`, `as_of_query`, `timeline`) — agents can govern memory without CLI.
+`pin_memory`, `as_of_query`, `timeline`, `profile`) — agents can govern memory
+without CLI.
+
+### Layered recall (L0 / L1 / L2)
+
+Every search can return the same hit at three depths, so an agent scans cheap
+one-liners first and only pays for full text on the hits it actually wants:
+
+```bash
+memtether search "deploy port" --layer L0   # first sentence only (~1 line)
+memtether search "deploy port" --layer L1   # first 3 sentences
+memtether search "deploy port"              # L2 = full text (default)
+```
+
+Measured on a 2,200-fact production DB (limit=5): L0 costs **10%** of L2's
+characters, L1 **44%**. The split is a pure deterministic function — no LLM, no
+hallucination, and `L2` is byte-identical to the pre-layer behaviour.
+
+### Deterministic user profile
+
+```bash
+memtether profile --subject user           # human-readable
+memtether profile --subject user --json    # machine-readable
+```
+
+Aggregates everything known about one subject (counts by type/source, time span,
+high-confidence facts, an L0 digest you can paste straight into a system prompt).
+Unlike supermemory's `get_profile` or honcho's `get_representation`, this runs
+**zero LLM calls** — the same DB always yields the same profile, and every line
+traces back to a `uid`.
 
 ```bash
 memtether export-md --out ./backup     # Export as markdown

@@ -997,6 +997,34 @@ def _cmd_dashboard(args):
 
 
 
+def _cmd_profile(args: argparse.Namespace) -> int:
+    """确定性 subject 表征（对标 supermemory get_profile / honcho
+    get_representation）。零 LLM：同一份库永远得到同一份结果，可逐条回溯 uid。"""
+    if getattr(args, "tenant", None):
+        os.environ["MEM_TENANT_ID"] = args.tenant
+    import gateway as _gw
+    _gw.init_db()
+    prof = _gw.profile(subject=args.subject, scope=getattr(args, "scope", None),
+                       max_facts=getattr(args, "max", 200) or 200)
+    if getattr(args, "json", False):
+        import json
+        print(json.dumps(prof, ensure_ascii=False, indent=2))
+        return 0
+    if prof.get("empty"):
+        print("subject %r 没有任何 active 记忆。" % prof["subject"])
+        return 0
+    print("=== 表征：%s ===" % prof["subject"])
+    print("  条数 %d（%s）" % (prof["total"],
+          ", ".join("%s=%d" % kv for kv in sorted(prof["counts"].items()))))
+    print("  时间跨度 %s → %s" % (prof["oldest"], prof["newest"]))
+    print("  来源 %s" % ", ".join("%s=%d" % kv for kv in sorted(prof["sources"].items())))
+    print("  高置信(>=0.9) %d 条" % prof["high_confidence_count"])
+    print()
+    print("  --- L0 摘要（可直接插入 system prompt）---")
+    print(prof["l0_digest"])
+    return 0
+
+
 def _cmd_provenance(args: argparse.Namespace) -> None:
     """Show the full provenance audit trail for a fact."""
     import sqlite3, json
@@ -1182,6 +1210,13 @@ def main(argv=None):
     sp_import.add_argument("--type", default="fact", help="Memory type")
     sp_import.add_argument("--max-size", type=int, default=100000, help="Max file size in bytes")
     sp_import.set_defaults(func=_cmd_import_docs)
+    sp = sub.add_parser("profile", help="Deterministic user/subject representation (no LLM)")
+    sp.add_argument("--subject", default="user", help="Subject id (default: user)")
+    sp.add_argument("--scope", default=None, help="Optional scope filter")
+    sp.add_argument("--max", type=int, default=200)
+    sp.add_argument("--json", action="store_true", help="Machine-readable output")
+    sp.set_defaults(func=_cmd_profile)
+
     sp = sub.add_parser("provenance", help="Show full audit trail for a fact (supersession chain + source + timestamps)")
     sp.add_argument("uid", help="Fact UID to trace")
     sp.set_defaults(func=_cmd_provenance)

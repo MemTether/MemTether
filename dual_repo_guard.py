@@ -56,7 +56,10 @@ WHITELIST = {
                                '_hg_fact_line', '_count_tagged', '_load_governance',
                                '_detect_interference', '_bg_rebuild', '_cos_sim',
                                '_count_active_facts', '_sensitive_check',
-                               '_bg_nrem', '_bg_rebuild_with_lock', '_release_gate_lock'},
+                               '_bg_nrem', '_bg_rebuild_with_lock', '_release_gate_lock',
+                               'capture_signal', 'capture_from_user_message',
+                               'capture_from_tool_result', 'get_recent_signals',
+                               '_ensure_signal_table'},
     ('gateway', 'fn', 'mt'): {'_hg_write', '_init_fts_triggers', '_proj_targets',
                               '_tenant_filter'},
     ('memsearch', 'fn', 'hub'): set(),
@@ -64,7 +67,7 @@ WHITELIST = {
                                 'extract_answer_hints'},
     ('governance', 'fn', 'hub'): set(),
     ('governance', 'fn', 'mt'): {'_topic_tokens'},
-    ('mcp_server', 'fn', 'hub'): {'_reset_idle_timer'},
+    ('mcp_server', 'fn', 'hub'): {'_reset_idle_timer', 'tool_capture_signal'},
     ('mcp_server', 'fn', 'mt'): {'_load_signatures', '_match_signature',
                                  '_proc_cmdline', '_proc_image_path', '_read_mem'},
 }
@@ -98,8 +101,13 @@ def main():
             th = _tables(hub_p)
             tm = _tables(mt_p)
             if th != tm:
-                problems.append('gateway SCHEMA tables differ: hub-only=%s mt-only=%s'
-                                % (sorted(th - tm), sorted(tm - th)))
+                # hub-only by design: error_signals 是错误捕获系统的表，发布版不需要
+                hub_only_ok = {'error_signals'}
+                real_hub_only = (th - tm) - hub_only_ok
+                real_mt_only = tm - th
+                if real_hub_only or real_mt_only:
+                    problems.append('gateway SCHEMA tables differ: hub-only=%s mt-only=%s'
+                                    % (sorted(real_hub_only), sorted(real_mt_only)))
     print('=' * 72)
     print('dual_repo_guard 比对结果')
     print('=' * 72)

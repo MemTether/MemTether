@@ -511,8 +511,27 @@ def _vec_upsert(uid, content, type_='fact', source=DEFAULT_SOURCE):
     with delete_collection. Skipped entries caught by consistency gate.
     """
     try:
+        # ★2026-10-19 修正（实测 stale 锁事故，与 hub 同源）：
+        #   原判据是 `os.path.exists()`，而 rebuild 若被硬杀则 unlink 永不执行，
+        #   留下**没人持锁**的 stale 文件。实测后果：该文件存在 >1 天，
+        #   `_vec_upsert` 全部走 skip 分支，新写入的记忆**静默不进向量索引**；
+        #   而 consistency gate 的 drift < tolerance 判定"没问题"，不触发 rebuild。
+        #   正确判据是「能否拿到 msvcrt 锁」—— 锁是内核级状态，进程死了自动释放。
         _gate_lock = os.path.join(HUB, '.gate_rebuild.lock')
-        if os.path.exists(_gate_lock):
+        _held = False
+        try:
+            import msvcrt as _ms
+            _fd = os.open(_gate_lock, os.O_CREAT | os.O_RDWR)
+            try:
+                _ms.locking(_fd, _ms.LK_NBLCK, 1)
+                _ms.locking(_fd, _ms.LK_UNLCK, 1)   # 探测完立即释放
+            finally:
+                os.close(_fd)
+        except OSError:
+            _held = True     # 抢不到锁 = 真有人在重建
+        except Exception:
+            _held = os.path.exists(_gate_lock)   # 非 Windows 兜底：退回文件探测
+        if _held:
             sys.stderr.write(
                 '[vec_upsert] rebuild in progress, skipping uid=%s\n' % uid[:28])
             return {'skipped': 'rebuild_in_progress'}
@@ -832,6 +851,106 @@ def _norm_at(at):
     return at
 
 
+def _rev_str(s):
+    """把字符串变成一个"越大越排前"的可比较键（用于元组排序里模拟 reverse）。
+
+    做法：按字符码位取补，保证 'z' < 'a'（即字典序反转），且同长度可比。
+    """
+    return ''.join(chr(0x10FFFF - ord(c)) for c in (s or ''))
+
+
+def profile(subject='user', scope=None, max_facts=200, include_retired=False):
+    """把某个 subject 的 active 记忆聚合成一份**确定性表征**（零 LLM、零幻觉）。
+
+    ★2026-10-19 全网功能对标产物。对标对象：
+      - supermemory (31.3K★) `get_profile` —— "~50ms user profiles"
+      - honcho (7.7K★) `get_representation` —— "contextualized snapshot
+        insertable into a system prompt"
+    两者都是「对某个 user/peer 的持续表征」。MemTether 此前只有 subject
+    字段（能按 subject 过滤）但没有「聚合出表征」的入口。
+
+    ★为什么用确定性聚合而不是 LLM 蒸馏：
+      项目公理是"禁花架子 + 禁 AI 幻觉"。LLM 总结会引入编造风险，
+      且让 profile 的内容不可复现（同一次查询两次不同结果）。
+      确定性聚合 = 同一份库永远得到同一份 profile，可逐条回溯到 uid。
+
+    返回：
+      {
+        'subject': str,
+        'counts': {type: n},
+        'newest': 'YYYY-MM-DD', 'oldest': 'YYYY-MM-DD',
+        'top_facts': [ {uid, type, confidence, q_value, created_at, lead} ],  # 按 q_value+recency
+        'high_confidence': [...],   # confidence >= 0.9
+        'recently_corrected': [...],# 近 30 天有新版本的
+        'sources': {source: n},
+        'l0_digest': str,           # 所有 L0 拼接（可直接插入 system prompt）
+      }
+    """
+    init_db()
+    conn = get_conn()
+    try:
+        sql = ("SELECT uid, type, content, confidence, q_value, source, created_at, "
+               "updated_at FROM facts WHERE subject=?")
+        args = [subject]
+        if not include_retired:
+            sql += " AND status='active'"
+        if scope:
+            sql += " AND scope=?"
+            args.append(scope)
+        sql += " ORDER BY COALESCE(NULLIF(updated_at,''), created_at) DESC LIMIT ?"
+        args.append(max_facts)
+        rows = [dict(r) for r in conn.execute(sql, args).fetchall()]
+        if not rows:
+            # 空结果也要保持与非空返回**同一套键**，否则调用方要写
+            #   p.get('total', 0) 这种防御代码（第一版就漏了 total，实测踩到）
+            return {'subject': subject, 'counts': {}, 'sources': {},
+                    'newest': None, 'oldest': None, 'total': 0,
+                    'top_facts': [], 'high_confidence_count': 0,
+                    'l0_digest': '', 'empty': True}
+
+        counts, sources = {}, {}
+        for r in rows:
+            counts[r['type']] = counts.get(r['type'], 0) + 1
+            sources[r['source']] = sources.get(r['source'], 0) + 1
+
+        dates = sorted((r['created_at'] or '')[:10] for r in rows if r['created_at'])
+        # top_facts：q_value 优先，同分看 recency（与投影/检索同口径）
+        def _rank(r):
+            # 字符串不能取负 → 用 reverse 排序 + 元组（q_value 降序、时间降序）
+            return (-(r['q_value'] if r['q_value'] is not None else 0.5),
+                    _rev_str(r['updated_at'] or r['created_at'] or ''))
+        top = sorted(rows, key=_rank)[:10]
+        hi = [r for r in rows if (r['confidence'] or 0) >= 0.9][:10]
+
+        # L0 摘要：用 memsearch 的确定性分层，保证与检索侧同一把尺子
+        l0s = []
+        try:
+            sys.path.insert(0, HUB)
+            import memsearch as _ms
+            for r in top:
+                l0s.append('- ' + _ms.content_layers(r['content'])['L0'])
+        except Exception:
+            for r in top:
+                l0s.append('- ' + (r['content'] or '')[:80])
+
+        return {
+            'subject': subject,
+            'counts': counts,
+            'sources': sources,
+            'newest': dates[-1] if dates else None,
+            'oldest': dates[0] if dates else None,
+            'total': len(rows),
+            'top_facts': [{'uid': r['uid'], 'type': r['type'],
+                           'confidence': r['confidence'], 'q_value': r['q_value'],
+                           'created_at': (r['created_at'] or '')[:10],
+                           'lead': (r['content'] or '')[:80]} for r in top],
+            'high_confidence_count': len(hi),
+            'l0_digest': '\n'.join(l0s),
+        }
+    finally:
+        conn.close()
+
+
 def as_of(at, kind='valid', ftype=None, subject=None, source=None, limit=200):
     """双时间轴 as-of 查询：回答"在某个时间点，什么是真的 / 系统知道什么"。
 
@@ -948,14 +1067,22 @@ def record_tool(name, path=None, entrypoint=None, aliases='', type='local_tool',
         conn.close()
 
 
-def search(query, limit=10, mem0=False):
+def search(query, limit=10, mem0=False, layer='L2', l1_sentences=3):
     """混合检索（2026-09-13 升级版）：质量门禁 + 向量 + ASCII精确 + 融合排序。
     经 Astra 多轮协作确认；8 条回归查询 8/8 通过（旧 LIKE 版仅 4/8）。
-    失败时自动退化到旧 LIKE 检索。"""
+    失败时自动退化到旧 LIKE 检索。
+
+    ★2026-10-19 新增 layer 参数（对标 OpenViking L0/L1/L2 分层）：
+      layer='L2'（缺省）= 全文，与旧行为逐字节一致
+      layer='L0' = 每条只回首句结论（一行），适合"先扫一遍"
+      layer='L1' = 每条回前 N 句（默认 3 句），适合"判断要不要展开"
+      无论哪层，结果都带 layers={'L0','L1','L2_len'} 元数据，可再按需升级深度。
+    """
     try:
         sys.path.insert(0, HUB)
         import memsearch
-        r = memsearch.search_hybrid(query, limit=limit)
+        r = memsearch.search_hybrid(query, limit=limit, layer=layer,
+                                    l1_sentences=l1_sentences)
         if r.get('results'):
             return {'ok': True, 'query': r['query'], 'results': r['results'], 'semantic': r['results'], 'engine': 'hybrid', 'all_unanswered': r.get('all_unanswered', False)}
         #    ——不是抛异常。旧实现把空结果直接当结果返回，调用方会误判「中枢里没有这条记忆」。
@@ -978,6 +1105,17 @@ def search(query, limit=10, mem0=False):
             if _merged:
                 r['results'] = list(_merged.values())[:limit]
                 _why += ' + 拆词合并'
+    # ★2026-10-19：降级路径（含上面的拆词合并）同样要挂分层元数据，
+    #   否则 layer 参数在 fallback 下静默失效。必须放在拆词合并**之后**：
+    #   合并会整体替换 r['results']，放在前面会被覆盖掉。
+    if layer in ('L0', 'L1') and r.get('results'):
+        try:
+            sys.path.insert(0, HUB)
+            import memsearch as _ms_fb
+            r['results'] = _ms_fb.apply_layers(r['results'], layer=layer,
+                                               l1_sentences=l1_sentences)
+        except Exception:
+            pass
     r['engine'] = 'like_fallback (%s)' % _why
     return r
 
@@ -1161,7 +1299,16 @@ def _llm_json(prompt, system='', model='deepseek', temperature=0.1, max_tokens=2
         body = {'model': mname, 'messages': msgs, 'temperature': temperature, 'max_tokens': max_tokens}
         req = urllib.request.Request(base, data=json.dumps(body).encode(),
                                      headers={'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json'})
-        r = urllib.request.urlopen(req, timeout=120)
+        try:
+            r = urllib.request.urlopen(req, timeout=120)
+        except urllib.error.HTTPError as _he:
+            _code = getattr(_he, 'code', 0)
+            # ★2026-10-19：区分「key 失效」与「临时故障」。401/403 是**永久**失败
+            #   （deepseek key 09-15 已失效，中枢有 active 记录），重试无意义
+            #   → 用 _fatal 标记让上层 process_events 走 skip 而不是 failed。
+            if _code in (401, 403):
+                return {'_error': 'auth_failed_%d' % _code, '_fatal': True}
+            return {'_error': 'http_%d' % _code, '_fatal': False}
         d = json.loads(r.read().decode())
         content = d['choices'][0]['message']['content']
         # 剥离可能包裹的 ```json ... ``` 代码块
@@ -1172,7 +1319,7 @@ def _llm_json(prompt, system='', model='deepseek', temperature=0.1, max_tokens=2
                 content = content[:-3]
         return json.loads(content)
     except Exception as e:
-        return {'_error': str(e)[:200]}
+        return {'_error': str(e)[:200], '_fatal': False}
 
 
 _REFLECT_SYSTEM = (
@@ -1256,7 +1403,10 @@ def auto_reflect(run_id, payload, model='deepseek'):
               + json.dumps(payload, ensure_ascii=False)[:8000])
     res = _llm_json(prompt, system=_REFLECT_SYSTEM, model=model)
     if res is None or '_error' in res:
-        return {'ok': False, 'error': (res or {}).get('_error', 'llm_failed')}
+        # ★2026-10-19：把 _fatal 透传出去，否则上层无法区分「key 失效」与「临时故障」
+        #   （实测漏传导致 process_events 仍标 failed，重试计数白涨）。
+        return {'ok': False, 'error': (res or {}).get('_error', 'llm_failed'),
+                '_fatal': bool((res or {}).get('_fatal'))}
     memories = res.get('memories', [])
     written = []
     for m in memories:
@@ -1282,6 +1432,13 @@ def process_events(limit=10):
                     conn.execute("UPDATE run_events SET status='processed', processed_at=? WHERE id=?",
                                  (now(), row['id']))
                     out['processed'] += 1
+                elif r.get('_fatal'):
+                    # ★2026-10-19：key 失效（401/403）是**永久**失败，不是"待重试"。
+                    #   旧行为标 failed + retry_count++，每跑一次 process_events
+                    #   就多一条 failed 记录且永远不会好（实测 3 条 failed 全是这个原因）。
+                    conn.execute("UPDATE run_events SET status='skipped', error=?, processed_at=? WHERE id=?",
+                                 ((r.get('error') or '')[:200], now(), row['id']))
+                    out['skipped'] += 1
                 else:
                     conn.execute("UPDATE run_events SET status='failed', error=?, retry_count=retry_count+1 WHERE id=?",
                                  ((r.get('error') or '')[:200], row['id']))
@@ -1570,7 +1727,7 @@ def rebuild():
                 _n = conn.execute(
                     "SELECT COUNT(*) FROM facts WHERE status='active' AND type=?",
                     (_typ,)).fetchone()[0]
-                _QUOTA.append((_typ, max(_base, int(_n * 0.05))))
+                _QUOTA.append((_typ, max(_base, int(_n * 0.03))))
             _QUOTA = tuple(_QUOTA)
         _picked = []
         for _typ, _q in _QUOTA:
@@ -1703,18 +1860,41 @@ def rebuild():
         _floor_n = int(os.environ.get('MEM_PROJ_TYPE_FLOOR', '2'))
         _floor_idx = []
         if _floor_n > 0:
-            _seen_typ = {}
+            # ★2026-10-19：floor 选每类最短的 N 条（而非最新 N 条）——
+            #   最新的往往 400+ chars，预算不足时全部跳过 = 类型饿死。
+            #   选最短的保证至少有代表进投影。
+            import re as _re_mod
+            def _lead_len(_txt):
+                t = _re_mod.sub(r'^【[^】]*】', '', (_txt or '').strip()).strip()
+                m = _re_mod.search(r'[。；;！!？?\n]', t)
+                if m and m.start() < 200:
+                    return m.start()
+                return min(len(t), 200)
+            _by_type = {}
             for _i, _p in enumerate(_picked):
-                if _seen_typ.get(_p[1], 0) < _floor_n:
-                    _seen_typ[_p[1]] = _seen_typ.get(_p[1], 0) + 1
-                    _floor_idx.append(_i)
+                _by_type.setdefault(_p[1], []).append(_i)
+            for _typ, _idxs in _by_type.items():
+                _sorted = sorted(_idxs, key=lambda _i: _lead_len(_picked[_i][2]['content']))
+                _floor_idx.extend(_sorted[:_floor_n])
         _floor_set = set(_floor_idx)
         # ★pin 条目排在最前（先于类型保底）—— 它们是"必须一直在"的定义类结论。
         _pin_idx = [i for i, p in enumerate(_picked)
                     if 'pin' in (p[2]['tags'] or '').lower()]
         _pin_set = set(_pin_idx)
+        # ★E2：NREM summary 排在 pin 之后
+        _nrem_idx = [i for i, p in enumerate(_picked)
+                     if 'nrem_consolidated' in (p[2]['tags'] or '').lower()]
+        # ★2026-10-19：NREM cap — 74条NREM summary可吃掉全部预算导致类型饿死
+        _NREM_CAP = 5
+        if len(_nrem_idx) > _NREM_CAP:
+            _nrem_idx = _nrem_idx[:_NREM_CAP]  # 已按时间倒序，取最新
+        _nrem_set = set(_nrem_idx)
         _fill_order = [(i, _picked[i]) for i in _pin_idx]
-        _fill_order += [(i, _picked[i]) for i in _floor_idx if i not in _pin_set]
+        # ★2026-10-19：floor 放在 today 之前——today+pin 可吃掉全部预算，
+        #   导致 incident/procedure 类型饿死（实测 floor 排在 today 后面时全部被跳过）
+        _fill_order += [(i, _picked[i]) for i in _floor_idx
+                        if i not in _pin_set]
+        _fill_order += [(i, _picked[i]) for i in _nrem_idx if i not in _pin_set]
         # ★2026-09-23 十修（新闻带内短条优先）：纯全局短优会把类型比例打乱（实测 fact9/dec11），
         #   纯逐条短优则会丢掉最新条目（实测最新 2 条缺 2 条）。
         #   折中：每一类内部先切成“新闻带”（默认每 25 条一带，带内按时间倒序索引切），

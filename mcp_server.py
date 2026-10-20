@@ -442,6 +442,23 @@ TOOLS = [
         },
     },
     {
+        "name": "profile",
+        "description": (
+            "把某个 subject（用户/agent/项目）的 active 记忆聚合成一份**确定性表征**，"
+            "可直接插入 system prompt。零 LLM：同一份库永远得到同一份结果，可逐条回溯 uid。"
+            "用于回答『关于这个用户我已经知道什么』。"
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "subject": {"type": "string", "default": "user", "description": "subject id"},
+                "scope": {"type": "string", "default": "", "description": "可选 scope 过滤"},
+                "max": {"type": "integer", "default": 200, "description": "最多聚合多少条"},
+            },
+            "required": [],
+        },
+    },
+    {
         "name": "feedback",
         "description": "回写 Q-Value 信号：告诉中枢某条记忆是否被采纳。",
         "inputSchema": {
@@ -892,6 +909,28 @@ HANDLERS = {
 }
 
 
+def tool_profile(args):
+    """确定性 subject 表征（对标 supermemory get_profile / honcho
+    get_representation）。零 LLM，可复现，可逐条回溯 uid。"""
+    subject = (args.get("subject") or "user").strip() or "user"
+    scope = (args.get("scope") or "").strip() or None
+    try:
+        mx = max(1, min(500, int(args.get("max", 200))))
+    except (TypeError, ValueError):
+        mx = 200
+    try:
+        r = _quiet(gateway.profile, subject=subject, scope=scope, max_facts=mx)
+    except Exception as e:
+        return _err("profile 失败: %s: %s" % (type(e).__name__, e))
+    if not isinstance(r, dict):
+        return _err("profile 返回异常")
+    if r.get("empty"):
+        return _text({"subject": subject, "empty": True, "total": 0,
+                      "l0_digest": "", "note": "该 subject 没有任何 active 记忆"})
+    return _text(r)
+
+
+
 def handle(req):
     mid = req.get("id")
     method = req.get("method")
@@ -965,3 +1004,13 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+# ★2026-10-19：profile 工具的 handler 在此处注册（而非上面的 HANDLERS 字典）。
+#   原因：HANDLERS 字典在模块级、位于所有 tool_* 定义**之前**执行，
+#   在那里写 "profile": tool_profile 会直接 NameError（实测踩到）。
+#   这里所有 tool_* 已定义完，动态注入安全且不改变工具清单顺序语义。
+try:
+    HANDLERS["profile"] = tool_profile
+except NameError:
+    pass

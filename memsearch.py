@@ -839,6 +839,113 @@ def extract_answer_hints(question_type, query, results):
     return '[E-AFAG answer candidates - cite verbatim]\n\n' + '\n'.join(hints)
 
 
+# ==================== L0/L1/L2 分层召回（2026-10-19，对标 OpenViking）====================
+# 动机（全网功能对标 2026-10-19 实测）：OpenViking(volcengine 40.3K★) 的差异化是
+#   「虚拟文件系统 + 每目录生成 abstract(L0)/overview(L1)/正文(L2)，
+#     agent 先扫摘要再决定读什么」。MemTether 当时只有"整条 content 全量返回"，
+#     2200 条库每次检索都灌全文 → 注入槽位浪费、agent 无法快速判断相关性。
+# 本模块补上同一能力，但**不引入新表/新存储**（复用 content 本身做确定性切分）：
+#   L0 = 首句结论（去【】前缀后到第一个句读）—— 一行，用于"扫"
+#   L1 = 前 N 句拼接（默认 3 句，约 200 字）—— 用于"判断要不要展开"
+#   L2 = 全文 —— 用于"确认真的是这条"
+# 设计约束：
+#   ① 纯函数、确定性（同一 content 永远切出同一分层），零 LLM 成本、零幻觉
+#   ② 只加字段不删字段（原有 content 字段保持 = L2），向后兼容
+#   ③ layer 参数缺省 'L2' = 与旧行为逐字节一致（不破坏任何现有调用方/测试）
+_LAYER_SENT_RE = re.compile(r'[。！？;\n]')
+
+
+# ★2026-10-19 二次修正（实测 L0 可判别性不足后补）：
+#   本库记忆的典型形态是 `标题(2026-10-19,source=codex)：真正的结论...`。
+#   只剥 【标签】 不够 —— `标题(日期,source=xxx)：` 这段元信息会把 L0 的
+#   120 字预算吃光，导致 L0 里全是日期/来源/文件名，没有结论。
+#   实测（生产库 3 查询）："stale 锁 向量索引" 的 top1 L0 =
+#     "全面体检第2轮11项发现(2026-10-19,source=codex)：A两仓gateway.py漂移..."
+#   → 真正答案（stale锁那条）被挤到 top2，L0 起不到"扫一眼就定位"的作用。
+#   修法：L0/L1 切分前，先把「标题(…)：」或「标题：」这类元信息前缀剥掉。
+#   ★只剥**行首第一个**冒号前的部分，且要求括号内容像元信息（含日期/source/路径），
+#     以防把 "注意：xxx" 这类正常冒号句误剥。
+_META_PREFIX_RE = re.compile(
+    r'^[^：:\n]{0,80}?'                      # 标题（不含冒号，长度受限）
+    r'[(（][^)）\n]{0,120}[)）]'              # 一个括号块 = 元信息典型形态
+    r'[^：:\n]{0,40}'                        # 括号后到冒号前的残余（如 "：结论" 前的字）
+    r'[：:]\s*')
+
+
+def _strip_meta_prefix(t):
+    """剥掉行首的 `标题(日期,source=x)：` 元信息前缀（仅一次，幂等）。
+
+    ★2026-10-19 收紧（第一版过度剥离，实测踩到）：
+      第一版在括号块之外还兜底剥"普通 标题："，结果把
+        `【标签】普通结论：后面的内容` → `后面的内容`（丢了主题词"普通结论"）
+        `注意：这个冒号不应该被剥掉` → `这个冒号不应该被剥掉`（丢了"注意"）
+      L0 的价值在于**一行就能判断相关性**，把主题词剥掉反而更差。
+      故收紧为：**仅当行首存在括号块**（`(...)` 或 `（...）`）时才认为那是
+      元信息前缀。没有括号块的一律不剥 —— 宁可多几个字，不可丢主题词。
+    """
+    m = _META_PREFIX_RE.match(t)
+    if m:
+        return t[m.end():].strip()
+    return t
+
+
+def content_layers(content, l1_sentences=3, l0_cap=120):
+    """把一条记忆切成 L0/L1/L2 三层。返回 dict，原有 content 字段不受影响。
+
+    L0/L1 会先剥掉行首元信息前缀（`标题(日期,source=x)：`），
+    保证 120 字预算花在**结论**上而不是日期/来源/文件名上。
+    L2 永远是原文，逐字节不变。
+    """
+    t = re.sub(r'^【[^】]*】', '', (content or '').strip()).strip()
+    t = _strip_meta_prefix(t)
+    # L0：首句（到第一个句读），超长则按 l0_cap 硬截
+    m = _LAYER_SENT_RE.search(t)
+    l0 = (t[:m.start()] if m and m.start() > 0 else t[:l0_cap]).strip()
+    if len(l0) > l0_cap:
+        l0 = l0[:l0_cap].rstrip() + '…'
+    if not l0:
+        l0 = '(空)'
+    # L1：前 N 句
+    sents, buf = [], []
+    for ch in t:
+        buf.append(ch)
+        if ch in '。！？;\n':
+            sents.append(''.join(buf).strip())
+            buf = []
+            if len(sents) >= l1_sentences:
+                break
+    if buf and len(sents) < l1_sentences:
+        sents.append(''.join(buf).strip())
+    l1 = ' '.join(s for s in sents if s).strip() or l0
+    if len(l1) > 400:
+        l1 = l1[:400].rstrip() + '…'
+    return {'L0': l0, 'L1': l1, 'L2': content or ''}
+
+
+def apply_layers(results, layer='L2', l1_sentences=3):
+    """给检索结果挂上分层字段。
+
+    layer='L0' → content 被替换成 L0（一行结论），另附 L1/L2 长度供调用方判断
+    layer='L1' → content 被替换成 L1
+    layer='L2' → 不动 content（旧行为，逐字节一致）
+    每条结果额外带 layers={'L0':..,'L1':..,'L2_len':..}，调用方可自行升级深度。
+    """
+    if not results:
+        return results
+    out = []
+    for x in results:
+        full = x.get('content', '') or ''
+        lay = content_layers(full, l1_sentences=l1_sentences)
+        y = dict(x)
+        y['layers'] = {'L0': lay['L0'], 'L1': lay['L1'], 'L2_len': len(full)}
+        if layer == 'L0':
+            y['content'] = lay['L0']
+        elif layer == 'L1':
+            y['content'] = lay['L1']
+        out.append(y)
+    return out
+
+
 def compile_packet(results, max_items=16, max_chars=12000):
     """Coverage-first packet compilation.
     Based on Auditable Memory (arXiv 2609.38021) Stage 3.
@@ -897,7 +1004,8 @@ def compile_packet(results, max_items=16, max_chars=12000):
 def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
                   rerank_w=0.4, rerank_model=None,
                   adaptive=True, adaptive_thr=0.6,
-                  decay=True, qvalue=None, _round=0):
+                  decay=True, qvalue=None, _round=0, layer='L2',
+                  l1_sentences=3):
     """混合检索：质量门禁 + 向量 + ASCII精确 + RRF 融合 + cross-encoder 精排。
 
     use_rerank : 是否启用 cross-encoder 精排（agentmemory V4 的核心增益项）
@@ -1987,7 +2095,12 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
             _diag['packet_compiled'] = True
             _diag['packet_size'] = len(_kept)
 
-    return {'query': q, 'results': _kept[:limit], 'diag': _diag}
+    # ★2026-10-19：L0/L1/L2 分层（对标 OpenViking abstract/overview/full）。
+    #   layer='L2'（缺省）时 apply_layers 只加 layers 元数据、不改 content
+    #   ⇒ 与旧行为逐字节一致，不破坏任何现有调用方与测试。
+    _out = apply_layers(_kept[:limit], layer=layer, l1_sentences=l1_sentences)
+    _diag['layer'] = layer
+    return {'query': q, 'results': _out, 'diag': _diag}
 
 
 if __name__ == '__main__':

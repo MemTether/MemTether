@@ -39,7 +39,12 @@ import sqlite3
 import datetime as dt
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-DB = os.path.join(HERE, 'memory.db')
+# a74-fix 补全（2026-10-19 功能对标实测）：原先硬编码 HERE/memory.db，
+# 导致**直接** `import governance` 的调用方（api_server / tests / 外部脚本）
+# 连到仓库里那份占位库，而 remember/rebuild 读 MEM_DB —— 一次会话两个库。
+# gateway._load_governance() 只给走 CLI 的那五条分支打了补丁（_mod.DB = DB），
+# 补不齐其它 import 路径。根因修法：本模块自己认 MEM_DB，与 gateway 同源。
+DB = os.environ.get('MEM_DB') or os.path.join(HERE, 'memory.db')
 
 # 默认操作者标识（中性值 local；单机/自建环境可用 MEM_DEFAULT_SOURCE 覆盖）
 DEFAULT_SOURCE = os.environ.get('MEM_DEFAULT_SOURCE', 'local')
@@ -292,6 +297,7 @@ def find_self_contradictions(rows=None):
     """
     conn = None
     if rows is None:
+        _ensure_tables()
         conn = sqlite3.connect(DB)
         conn.row_factory = sqlite3.Row
         rows = conn.execute("SELECT uid, type, content, updated_at, source FROM facts "
@@ -330,6 +336,42 @@ def find_self_contradictions(rows=None):
     return out
 
 
+def _ensure_tables():
+    """Idempotent schema bootstrap (2026-10-19 fix).
+
+    This module can be invoked standalone (`python governance.py conflicts`) or on a
+    brand-new DB. Previously each query function did `sqlite3.connect(DB)` and then
+    immediately SELECTed from `facts`, so on a DB with no tables it raised
+    `OperationalError: no such table: facts`.
+
+    Reproduced during the 2026-10-19 capability audit: fresh temp DB +
+    find_conflicts() -> crash.
+
+    Prefers gateway.init_db() (single source of truth for SCHEMA, so we do not keep a
+    second copy of DDL that can drift); falls back to creating only the `facts` table
+    this module needs, so the module stays usable standalone.
+    """
+    try:
+        import gateway as _gw
+        _gw.init_db()
+        return
+    except Exception:
+        pass
+    conn = sqlite3.connect(DB)
+    try:
+        conn.execute("CREATE TABLE IF NOT EXISTS facts ("
+                     "id INTEGER PRIMARY KEY AUTOINCREMENT, uid TEXT UNIQUE, type TEXT, "
+                     "subject TEXT, content TEXT NOT NULL, status TEXT DEFAULT 'active', "
+                     "superseded_by TEXT, valid_from TEXT, valid_to TEXT, "
+                     "recorded_at TEXT, invalidated_at TEXT, temporal_source TEXT, "
+                     "source TEXT, scope TEXT DEFAULT 'shared', confidence REAL DEFAULT 0.8, "
+                     "tags TEXT, created_at TEXT, updated_at TEXT, "
+                     "q_value REAL DEFAULT 0.5, use_count INTEGER DEFAULT 0)")
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def find_conflicts(days_window=30, min_shared=1):
     """找疑似冲突（**启发式·供人工复核，不作自动判定**）。
 
@@ -346,6 +388,7 @@ def find_conflicts(days_window=30, min_shared=1):
 
     返回 [{a, b, shared, why, weight}]，按可信度降序。
     """
+    _ensure_tables()
     conn = sqlite3.connect(DB)
     conn.row_factory = sqlite3.Row
     rows = conn.execute(
@@ -724,6 +767,7 @@ def find_stale(days=30, min_confidence=0.0):
 
     ★故意**不自动退役**：判错一次就永久丢事实。
     """
+    _ensure_tables()
     conn = sqlite3.connect(DB)
     conn.row_factory = sqlite3.Row
     rows = conn.execute(

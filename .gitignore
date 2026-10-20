@@ -217,3 +217,14 @@ docs/T7-*
 docs/projection_audit_*
 docs/future_roadmap_*
 docs/project_overview_*
+
+# ===== 2026-10-19 第十一轮：测试 mkdtemp 残留在仓库根（规则空转，同一失效模式第三次）=====
+# ★实测：tests/*.py 里 13 处 `tempfile.mkdtemp(prefix='mt_*')` **没有传 dir=**，
+#   于是 tempfile 用默认 TMPDIR——但本机 TMPDIR 被指到仓库根（或被 pytest 的
+#   cwd 影响），127 个 mt_* 目录全部落在仓库根，`git status` 被污染成
+#   一片未跟踪目录，而 .gitignore 一条都没匹配上（check-ignore rc=1）。
+# ★判据（第三次踩同一个坑，前两次是 astra_turn_ch*.txt 和 .chroma/）：
+#   规则写了不等于生效，必须 `git check-ignore -v <path>` 有命中才算。
+#   根因修法是给 mkdtemp 传 dir=tempfile.gettempdir()；这里是兜底规则。
+mt_*/
+qvalue_test_*/
