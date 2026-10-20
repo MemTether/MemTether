@@ -5,10 +5,36 @@ planned, in progress, and deliberately out of scope.
 
 ## Near-term (next minor release)
 
-- [x] External hash-chain anchoring (c0bb0b5 — `court --anchor-external` / `--verify-external`)
-- [ ] Auto-anchor performance benchmark (currently unmeasured)
-- [x] SGM 2-hop relation queries (19e97d0 — bridge-entity expansion with term-quality filter)
-- [x] Predicate extraction quality rebuild (5d45504 — prose-junk 56%→0%, multi-word entities fixed)
+- [ ] Auto-anchor performance benchmark (still unmeasured — the only remaining
+      near-term item; the three below moved to Completed in a82)
+- [ ] Hub-side test coverage for the remaining CLI surface
+      (`mem.py cmd_search`/`cmd_asof`/`cmd_qvalue`/`cmd_distill`,
+      `embed_local`, `skill_forge`) — hub suite went 0 → 125 tests this cycle
+      but these modules are still uncovered
+
+## Completed (a82)
+
+- [x] **Layered recall (L0/L1/L2)** — `memsearch.content_layers()` /
+      `apply_layers()`, deterministic split with zero LLM and zero new tables.
+      `gateway.search(layer=...)` and `memtether search --layer L0|L1|L2`.
+      Measured on a 2,221-fact production DB (limit=5): L0 = 10% of L2's
+      characters, L1 = 44%. L2 (default) is byte-identical to before.
+- [x] **Deterministic subject profile** — `gateway.profile()` aggregates one
+      subject's active memories (counts by type/source, time span,
+      high-confidence count, top facts by q_value+recency, L0 digest).
+      Exposed as `memtether profile` and MCP tool `profile` (9 → 10 tools).
+      Zero LLM calls by design: same DB → same profile, every line traceable.
+- [x] Hub test suite from 0 → 125 (gate / hub_selfcheck / is_junk / NREM
+      consolidation / trigger_detector / preflight / mem CLI / DB-path guards)
+- [x] `cluster_semantic()` empty-input return type unified (was `[]` vs a tuple)
+- [x] `governance` no longer crashes with "no such table: facts" on a fresh DB
+- [x] `governance.DB` honours `MEM_DB` (was hardcoded → two DBs in one session)
+- [x] Entity index column fix (`entity_name` → `entity`); the facts half of the
+      index had been silently dead behind a swallowed OperationalError
+- [x] `mem.py` `sanitize()` now masks ghp_/AKIA/glpat-/xoxb- (was sk- only)
+- [x] Blank `--source` no longer errors out (falls back to DEFAULT_SOURCE)
+- [x] `MANIFEST.in` excludes `*.bak*` — a NOTICE backup had shipped in the a82
+      wheel; packaging now matches what `.gitignore` already enforced
 
 ## Completed (a81)
 
@@ -21,6 +47,11 @@ planned, in progress, and deliberately out of scope.
 
 ## Mid-term
 
+- [ ] Required-and-registered `source` at write time. The junk gate's reliable
+      signal is the source blacklist, but a blank source with bare "probe"
+      wording is still undetectable without re-introducing false hits
+      (measured: 35/300 on real production rows when the word list was broad).
+      Enforcing source at the write entry point closes that hole properly.
 - [ ] Role-based access control on the REST API (currently single-key)
 - [ ] Migration adapters: import from mem0 / zep / letta memory stores
 - [ ] Post-processing benchmark type (MemDaily alignment)

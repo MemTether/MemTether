@@ -218,7 +218,7 @@ Every memory has `valid_from` / `valid_to` (business time) + `recorded_at` / `in
 | Local-first | ✅ | ❌ | ❌ | ⚠️ self-hosted | ✅ |
 | Zero config | ✅ | ❌ (Neo4j) | ❌ (Docker) | ⚠️ | ✅ |
 | Single file DB | ✅ | ❌ | ❌ | ❌ | ✅ |
-| REST API | ✅ (12 endpoints) | ✅ | ✅ | ✅ | ❌ |
+| REST API | ✅ (14 endpoints) | ✅ | ✅ | ✅ | ❌ |
 | MCP server | ✅ | ❌ | ✅ | ✅ | ❌ |
 | Web dashboard | ✅ | ❌ | ✅ | ✅ | ❌ |
 | Supersession chain | ✅ | ❌ | ❌ | ⚠️ | ❌ |
@@ -274,7 +274,7 @@ Gemini CLI ─────┤                  ├─── WorkBuddy
 | Governance | Supersession + bi-temporal + conflict detection | Never delete |
 | Concurrency | Hubguard (file lock + atomic write) | Cross-process safe |
 | Security | memtether_guard (OWASP LLM01/02/06) | Poisoning defense |
-| API | FastAPI REST (12 endpoints) + MCP server (9 tools) | Any language |
+| API | FastAPI REST (14 endpoints) + MCP server (10 tools) | Any language |
 | Packaging | PyPI + Docker + 23 client adapters | pip install memtether |
 
 </details>
@@ -315,7 +315,7 @@ memtether dashboard                    # Web UI
 The same operations work via **MCP** — your AI agent can govern memory directly:
 
 ```bash
-# Via MCP: correct_memory / retire_memory / pin_memory / as_of_query / timeline
+# Via MCP: correct_memory / retire_memory / pin_memory / as_of_query / timeline / profile
 # Your agent calls these tools — no CLI needed:
 
 # Agent corrects a fact (supersedes old, creates new)
@@ -481,7 +481,7 @@ memtether dashboard   # starts server + opens browser
 # or: uvicorn api_server:app --port 8820
 ```
 
-12 endpoints: `/health` `/remember` `/search` `/stats` `/correct` `/retire` `/list` `/timeline/{uid}` `/absorb` `/qvalue` `/dashboard`
+14 endpoints: `/` `/health` `/remember` `/search` `/stats` `/correct` `/retire` `/list` `/timeline/{uid}` `/absorb` `/qvalue` `/dashboard` `/court/verify` `/court/{uid}`
 
 ---
 

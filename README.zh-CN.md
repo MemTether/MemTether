@@ -188,7 +188,7 @@ $ memtether search "部署 端口" --list
 | Local-first | ✅ | ❌ | ❌ | ⚠️ self-hosted | ✅ |
 | 零配置 | ✅ | ❌ (Neo4j) | ❌ (Docker) | ⚠️ | ✅ |
 | 单文件 DB | ✅ | ❌ | ❌ | ❌ | ✅ |
-| REST API | ✅ (12 端点) | ✅ | ✅ | ✅ | ❌ |
+| REST API | ✅ (14 端点) | ✅ | ✅ | ✅ | ❌ |
 | MCP server | ✅ | ❌ | ✅ | ✅ | ❌ |
 | Web 控制台 | ✅ | ❌ | ✅ | ✅ | ❌ |
 | Supersession 链 | ✅ | ❌ | ❌ | ⚠️ | ❌ |
@@ -244,7 +244,7 @@ Gemini CLI ─────┤                  ├─── WorkBuddy
 | 治理 | Supersession + 双时间轴 + 冲突检测 | 永不删除 |
 | 并发 | Hubguard（文件锁 + 原子写） | 跨进程安全 |
 | 安全 | memtether_guard (OWASP LLM01/02/06) | 投毒防御 |
-| API | FastAPI REST (12 端点) + MCP server (9 工具) | 任意语言 |
+| API | FastAPI REST (14 端点) + MCP server (10 工具) | 任意语言 |
 | 打包 | PyPI + Docker + 23 客户端适配器 | pip install memtether |
 
 </details>
@@ -272,14 +272,45 @@ memtether setup codex
 
 ```bash
 memtether remember "用户偏好深色主题" --source claude-code
-memtether search "主题" --list        # L0: 一行 + uid
-memtether search "主题"               # 完整内容
+memtether search "主题" --layer L0    # 只回首句结论（适合先扫一遍）
+memtether search "主题" --layer L1    # 前 3 句
+memtether search "主题"               # 完整内容（L2，默认）
 memtether correct <uid> "更新了"      # 替代，永不删除
 memtether timeline <uid>              # 审计链
+memtether profile --subject user      # 关于这个用户已经知道什么（确定性，零 LLM）
 memtether stats
 memtether export-md --out ./backup    # 导出为 Markdown
 memtether dashboard                   # Web 界面
 ```
+
+> `--list` 是 `--layer L0` 的旧别名，行为保持一致。
+
+### 分层检索（L0 / L1 / L2）
+
+同一次检索可以按三种深度返回同一条记忆，让 agent 先用便宜的一行结论扫一遍，
+只对真正想要的那几条付全文的代价：
+
+```bash
+memtether search "deploy port" --layer L0   # 仅首句结论（约一行）
+memtether search "deploy port" --layer L1   # 前 3 句
+memtether search "deploy port"              # L2 = 全文（默认）
+```
+
+在 2,221 条记忆的生产库上实测（limit=5）：L0 只花 L2 **10%** 的字符，L1 **44%**。
+切分是纯确定性函数——零 LLM、零幻觉；且 `L2` 与加此功能前的行为逐字节一致。
+
+### 确定性用户表征
+
+```bash
+memtether profile --subject user           # 人类可读
+memtether profile --subject user --json    # 机器可读
+```
+
+把某个 subject 的全部 active 记忆聚合成一份表征（按类型/来源计数、时间跨度、
+高置信条数、按 q_value+recency 排序的 top facts，以及一段可直接粘进 system
+prompt 的 L0 摘要）。与 supermemory 的 `get_profile` / honcho 的
+`get_representation` 不同，这里**零 LLM 调用**——同一份库永远得到同一份结果，
+且每一行都能回溯到 uid。
 
 ---
 
