@@ -71,17 +71,16 @@ def _guard_against_production_db(tmp_path):
             if name in _names and m is not None]
 
     # 1) 事前：把指向生产库的模块改到沙箱
+    # ★2026-10-20 修（与 hub 仓同一因果链）：改模块属性 m.DB 会写进
+    #   sys.modules 缓存，而别的测试一旦 importlib.reload(gateway)，
+    #   reload 出来的新模块又会 import memsearch 并**重新求值 DB**，
+    #   那一刻若 MEM_DB 已被设成 sandbox，缓存就被写坏，表现为
+    #   "单跑全过、合跑必失败"。故这里改为：**不改已 import 模块的属性**，
+    #   只在模块完全未 import 时用 MEM_DB 引导；已 import 的一律不碰。
     _sandbox = str(tmp_path / 'guard_sandbox.db')
     _relocated = []
-    for m in mods:
-        if _looks_like_prod(getattr(m, 'DB', None)):
-            try:
-                m.DB = _sandbox
-                _relocated.append(m.__name__)
-                if hasattr(m, 'init_db'):
-                    m.init_db()
-            except Exception:
-                pass
+    if not mods and 'MEM_DB' not in os.environ:
+        os.environ['MEM_DB'] = _sandbox
     # ★2026-10-20 修（实测不稳定）：原版设了 MEM_DB 就**从不清理**，
     #   而 tests/test_cross_process_writes.py 用 subprocess.Popen 起子进程、
     #   继承父进程环境 → 子进程连到已消失的 guard_sandbox.db，
