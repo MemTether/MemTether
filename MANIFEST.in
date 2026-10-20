@@ -1,0 +1,23 @@
+# MANIFEST.in -- sdist/wheel inclusion rules (created 2026-10-20)
+#
+# Background: the 0.1.0a82 wheel shipped `NOTICE.bak-a17pre-20261004`
+# (an untracked backup file) at
+#   memtether-0.1.0a82.dist-info/licenses/NOTICE.bak-a17pre-20261004
+# i.e. a backup file leaked into the release artifact. .gitignore has excluded
+# *.bak* all along, so git was clean while the package was not - the packaging
+# side had no equivalent rule. This file closes that gap.
+#
+# Acceptance: after build, no .bak / .bak-* file may appear inside the wheel.
+
+global-exclude *.bak
+global-exclude *.bak-*
+global-exclude *.orig
+global-exclude *.rej
+global-exclude *.pyc
+global-exclude __pycache__/*
+
+include NOTICE
+include LICENSE
+include README.md
+include CHANGELOG.md
+include INSTALL.md
