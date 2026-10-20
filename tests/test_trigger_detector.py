@@ -13,19 +13,29 @@ from trigger_detector import detect_triggers, auto_context
 def entity_db(tmp_path):
     """Create a test DB with known entities + facts table for auto_context."""
     db = str(tmp_path / "test_trigger.db")
+    # NOTE (2026-10-20): the schema below mirrors gateway.py's real SCHEMA.
+    # The previous version created fact_entities WITH an entity_name column,
+    # but the real table is EAV (entity/attr/value/fact_uid). Because
+    # _load_entity_index selects entity_name and swallows the resulting
+    # OperationalError, the facts-side entity index was silently dead in
+    # production while these tests stayed green on their own fake table.
     conn = sqlite3.connect(db)
     conn.executescript("""
-        CREATE TABLE fact_entities (id INTEGER PRIMARY KEY, entity_name TEXT, attr TEXT, value TEXT, fact_uid TEXT, source TEXT, ts TEXT, valid_from TEXT, valid_to TEXT);
-        CREATE TABLE tool_assets (id INTEGER PRIMARY KEY, asset_name TEXT, asset_type TEXT, path TEXT, description TEXT, tags TEXT);
-        CREATE TABLE facts (id INTEGER PRIMARY KEY, uid TEXT, type TEXT, subject TEXT, content TEXT, status TEXT DEFAULT 'active', source TEXT, created_at TEXT);
+        CREATE TABLE fact_entities (id INTEGER PRIMARY KEY AUTOINCREMENT, entity TEXT NOT NULL, attr TEXT, value TEXT, fact_uid TEXT NOT NULL, source TEXT, ts TEXT, valid_from TEXT);
+        CREATE TABLE tool_assets (id INTEGER PRIMARY KEY AUTOINCREMENT, uid TEXT UNIQUE, name TEXT, aliases TEXT, type TEXT, status TEXT DEFAULT 'active', path TEXT, entrypoint TEXT, capabilities TEXT, recipe_ids TEXT, known_failures TEXT, prerequisites TEXT, last_verified_at TEXT, verification_method TEXT, source TEXT, created_at TEXT, updated_at TEXT, q_value REAL DEFAULT 0.5, use_count INTEGER DEFAULT 0);
+        CREATE TABLE facts (id INTEGER PRIMARY KEY AUTOINCREMENT, uid TEXT UNIQUE, type TEXT, subject TEXT, content TEXT NOT NULL, status TEXT DEFAULT 'active', superseded_by TEXT, valid_from TEXT, valid_to TEXT, recorded_at TEXT, invalidated_at TEXT, temporal_source TEXT, source TEXT, scope TEXT DEFAULT 'shared', confidence REAL DEFAULT 0.8, tags TEXT, created_at TEXT, updated_at TEXT, q_value REAL DEFAULT 0.5, use_count INTEGER DEFAULT 0);
     """)
     for entity in ["packy", "clash", "comfyui", "memtether"]:
-        conn.execute("INSERT INTO fact_entities (entity_name) VALUES (?)", (entity,))
+        conn.execute("INSERT INTO fact_entities (entity, fact_uid, source, ts) "
+                     "VALUES (?, ?, 'test', '2026-10-20 10:00:00')",
+                     (entity, 'fact-probe-' + entity))
     for tool in ["gateway.py", "memsearch.py"]:
-        conn.execute("INSERT INTO tool_assets (asset_name) VALUES (?)", (tool,))
+        conn.execute("INSERT INTO tool_assets (uid, name, status) VALUES (?, ?, 'active')",
+                     ('tool-probe-' + tool, tool))
     for content in ["packy is a proxy service", "clash proxy on port 7890", "comfyui is a diffusion UI"]:
         conn.execute("INSERT INTO facts (uid, content, status, source) VALUES (?,?,?,?)",
                      ("test-" + content[:10], content, "active", "test"))
+        # tool_assets 的 name 列也要有值，_load_entity_index 第二条路查的是它
     conn.commit()
     conn.close()
     return db

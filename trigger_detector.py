@@ -45,8 +45,8 @@ def _load_entity_index(db_path):
     entities = set()
     try:
         rows = conn.execute(
-            "SELECT DISTINCT entity_name FROM fact_entities "
-            "WHERE entity_name IS NOT NULL AND length(entity_name) >= 3"
+            "SELECT DISTINCT entity FROM fact_entities "
+            "WHERE entity IS NOT NULL AND length(entity) >= 3"
         ).fetchall()
         import re as _re
         _noise = _re.compile(r'^[a-f0-9]{16,}$')  # hash fragments
