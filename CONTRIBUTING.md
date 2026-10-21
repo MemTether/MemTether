@@ -7,8 +7,15 @@ Thank you for considering contributing! This document explains how to set up you
 ### 1. Fork & Clone
 
 ```bash
+# 1. Fork this repo on GitHub (button top-right), then:
 git clone https://github.com/YOUR_USERNAME/MemTether.git
 cd MemTether
+
+# 2. Point your fork at upstream so you can pull later:
+git remote add upstream https://github.com/MemTether/MemTether.git
+
+# Read-only clone of the canonical repo (if you only want to run it):
+#   git clone https://github.com/MemTether/MemTether.git
 ```
 
 ### 2. Set Up Environment

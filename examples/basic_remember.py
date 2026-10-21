@@ -3,8 +3,17 @@
 运行: python examples/basic_remember.py
 (需要先 pip install memtether 或在本仓根目录 python 直接跑)
 """
-import sys, os
+import sys, os, tempfile
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Isolate this demo into its own throwaway DB.
+# Without this, a machine that has local_paths.json pointing at a real hub would
+# have the example writing "source=demo" rows into the production memory.db
+# (2026-10-21 audit: it really did, and then crashed on the older schema).
+_demo_db = os.path.join(tempfile.mkdtemp(prefix='memtether_demo_'), 'demo.db')
+os.environ['MEM_DB'] = _demo_db
+os.environ['MEM_SKIP_VECTOR'] = '1'
+
 from gateway import remember, search, correct
 
 # 1. 写一条记忆

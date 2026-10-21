@@ -432,6 +432,17 @@ def _ensure_columns(conn):
         except sqlite3.OperationalError as e:
             if 'duplicate column' not in str(e).lower():
                 raise
+    # 2026-10-21: fact_entities.entity_name self-heal.
+    # The production hub still has this NOT NULL column from an older schema
+    # while our SCHEMA does not define it; CREATE TABLE IF NOT EXISTS never adds
+    # columns, so writing into a hub-shaped DB raised
+    # "NOT NULL constraint failed: fact_entities.entity_name".
+    try:
+        have_e = {r[1] for r in conn.execute('PRAGMA table_info(fact_entities)')}
+        if 'entity_name' not in have_e:
+            conn.execute("ALTER TABLE fact_entities ADD COLUMN entity_name TEXT DEFAULT 'legacy'")
+    except sqlite3.OperationalError:
+        pass
 
 
 def init_db():

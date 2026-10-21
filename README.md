@@ -140,9 +140,9 @@ mcp-name: io.github.lanbass869-cell/memtether
 ---
 
 
-- [Reproduce MemTether](docs/site/en/reproduce.html) - Every claim has a command
-- [Founding 10 Challenge](docs/site/en/challenge.html) - 10 spots, 14 days, honest outcomes
-- [Live site](https://lanbass869-cell.github.io/MemTether/en/) (when GitHub Pages is enabled)
+- [Reproduce MemTether](https://memtether.github.io/MemTether/site/en/reproduce.html) - Every claim has a command
+- [Founding 10 Challenge](https://memtether.github.io/MemTether/site/en/challenge.html) - 10 spots, 14 days, honest outcomes
+- [Docs (zh)](https://memtether.github.io/MemTether/site/zh/) - Reproduce / Challenge in Chinese
 
 ## Quick Start
 
