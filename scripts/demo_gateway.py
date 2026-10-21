@@ -33,7 +33,7 @@ print('\n【3】关键词检索')
 # ★开源版：查询词用中性占位（原为本机用户的真名）。换成你自己的关键词即可。
 r = gateway.search('使用者')
 for x in r['results']:
-    print('  [%s] %s' % (x['kind'], x.get('content') or x.get('name')))
+    print('  [%s] %s' % (x.get('type') or '?', x.get('content') or x.get('name') or '(空)'))
 
 print('\n【4】supersession 检查：过时的"三大机制"不应作为当前事实返回')
 r = gateway.search('三大机制')

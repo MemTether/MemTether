@@ -1,46 +1,21 @@
+MemTether Verification Report
+Generated: 2026-10-21T10:21:13.018668
 ============================================================
-MEMTETHER VERIFICATION REPORT
-Generated: 2026-10-13 16:55:54
-============================================================
 
-SECTION 1: PACKAGE
+[PASS] Test suite
+       ============ 642 passed, 6 skipped, 1 warning in 265.10s (0:04:25) ============
 
-CHECK: Import + version
-  PASS (0.1s)
+[PASS] Packaging checker
+       ✓ NOTICE 归属声明完整（模型目录 E:\RUANJIAN\memtether\models：5 个已全部登记）
 
-SECTION 2: CORE TESTS
+[PASS] PII roundtrip
+       RESULT: PASS
 
-CHECK: Memory Court (hash chain/tamper/verify)
-  PASS (5.7s)
-    tests\test_memory_court.py .........                                     [100%]
-    ======================== 9 passed, 1 warning in 4.01s =========================
+[PASS] Adapter selftest (23 metadata + 2 deep)
+       ---- 16/16 ----
 
-CHECK: Poisoning defense (8 vectors)
-  PASS (5.8s)
-    tests\test_poisoning_defense.py ........                                 [100%]
-    ======================== 8 passed, 1 warning in 4.37s =========================
-
-CHECK: E2E integration (gate/supersede/verify)
-  PASS (3.7s)
-    tests\test_court_e2e_integration.py ...                                  [100%]
-    ======================== 3 passed, 1 warning in 2.61s =========================
-
-CHECK: Integrity (cycle/race/privacy)
-  PASS (3.5s)
-    tests\test_r6_integrity.py ....                                          [100%]
-    tests/test_r6_integrity.py::TestCycleRefusal::test_cycle_chain_grows_without_error
-    ======================== 4 passed, 1 warning in 2.42s =========================
-
-CHECK: Supersession+search
-  PASS (3.4s)
-    tests\test_consolidation.py .....                                        [100%]
-    ======================== 8 passed, 1 warning in 2.29s =========================
-
-SECTION 3: AUDIT DEMO
-
-CHECK: Audit chain demo (tamper -> FAIL)
-  PASS (3.2s)
+[PASS] EAF 500Q artifact: 253/334 = 75.7% strict
 
 ============================================================
-RESULT: 7 passed, 0 failed, 7 total
-============================================================
+Overall: ALL CHECKS PASSED
+Repro commands: see docs/site/en/reproduce.html

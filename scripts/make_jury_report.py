@@ -60,34 +60,45 @@ lines = [
     '',
 ]
 
-all_ok = True
-for label, cmd in checks:
-    name, ok, summary = run(label, cmd)
-    status = 'PASS' if ok else 'FAIL'
-    if not ok:
-        all_ok = False
-    lines.append(f'[{status}] {label}')
-    lines.append(f'       {summary}')
+def main():
+    """Run every check and write VERIFICATION_REPORT.txt.
+
+    Importing this module must be free. Before 2026-10-21 the whole
+    body ran at import time, so `import scripts.make_jury_report`
+    executed the full suite (~4 min) - the same defect proj_judge.py
+    had. Wrapped into main() for both.
+    """
+    all_ok = True
+    for label, cmd in checks:
+        name, ok, summary = run(label, cmd)
+        status = 'PASS' if ok else 'FAIL'
+        if not ok:
+            all_ok = False
+        lines.append(f'[{status}] {label}')
+        lines.append(f'       {summary}')
+        lines.append('')
+
+    # EAF artifact check
+    eaf = os.path.join(ROOT, 'releases', 'eaf_artifact_bundle', 'eaf_500q_checkpoint.json')
+    if os.path.exists(eaf):
+        data = json.load(open(eaf, encoding='utf-8'))
+        results = data.get('results', [])
+        ok_count = sum(1 for r in results if r.get('strict') == 1)
+        total = sum(1 for r in results if r.get('strict') in (0, 1))
+        lines.append(f'[PASS] EAF 500Q artifact: {ok_count}/{total} = {100*ok_count/total:.1f}% strict')
+    else:
+        lines.append('[INFO] EAF artifact: available on GitHub Release v0.1.0a43')
+
     lines.append('')
+    lines.append('=' * 60)
+    lines.append(f'Overall: {"ALL CHECKS PASSED" if all_ok else "SOME CHECKS FAILED"}')
+    lines.append(f'Repro commands: see docs/site/en/reproduce.html')
 
-# EAF artifact check
-eaf = os.path.join(ROOT, 'releases', 'eaf_artifact_bundle', 'eaf_500q_checkpoint.json')
-if os.path.exists(eaf):
-    data = json.load(open(eaf, encoding='utf-8'))
-    results = data.get('results', [])
-    ok_count = sum(1 for r in results if r.get('strict') == 1)
-    total = sum(1 for r in results if r.get('strict') in (0, 1))
-    lines.append(f'[PASS] EAF 500Q artifact: {ok_count}/{total} = {100*ok_count/total:.1f}% strict')
-else:
-    lines.append('[INFO] EAF artifact: available on GitHub Release v0.1.0a43')
+    with open(OUT, 'w', encoding='utf-8') as f:
+        f.write('\n'.join(lines))
+    print(f'Report: {OUT}')
+    print(f'Overall: {"ALL PASSED" if all_ok else "SOME FAILED"}')
+    sys.exit(0 if all_ok else 1)
 
-lines.append('')
-lines.append('=' * 60)
-lines.append(f'Overall: {"ALL CHECKS PASSED" if all_ok else "SOME CHECKS FAILED"}')
-lines.append(f'Repro commands: see docs/site/en/reproduce.html')
-
-with open(OUT, 'w', encoding='utf-8') as f:
-    f.write('\n'.join(lines))
-print(f'Report: {OUT}')
-print(f'Overall: {"ALL PASSED" if all_ok else "SOME FAILED"}')
-sys.exit(0 if all_ok else 1)
+if __name__ == '__main__':
+    main()
