@@ -221,3 +221,67 @@ class TestDocsApiLayerParam:
         body = _read('docs/API.md')
         for route in ('/court/verify', '/court/{uid}'):
             assert route in body, 'docs/API.md missing %s' % route
+
+
+class TestReproducePathsResolve:
+    """Every path the README tells a reader to run must actually exist in the
+    published tree.
+
+    Why: the 2026-10-21 audit found the README pointing LoCoMo reproduction at
+    `scripts/run_full_benchmark.py` (does not exist) and
+    `_dev/memeval/.../memtether.py` (exists locally but `_dev/` is gitignored,
+    so nobody who clones the repo has it). The benchmark numbers may well be
+    real, but a reproduce path nobody can walk is a decoration, not evidence.
+    """
+    def _readme_backtick_paths(self):
+        """Only paths the README presents as something to RUN or REPRODUCE.
+
+        Scoped deliberately: a blanket "every backticked filename must exist"
+        also flags third-party config names mentioned in prose (e.g. DSH's
+        cordis.patch.yml, which lives on the user's machine, not here). What
+        matters is the reproduce contract, so that is what is checked.
+        """
+        body = _read('README.md')
+        out = []
+        for m in re.finditer(r'`([A-Za-z0-9_][A-Za-z0-9_./-]*\.(?:py|sh))`', body):
+            start = max(0, m.start() - 160)
+            ctx = body[start:m.start()].lower()
+            if any(w in ctx for w in ('reproduce', 'run ', 'python ', 'scripts/',
+                                      'adapter', 'benchmark', 'see ')):
+                out.append(m.group(1))
+        return [c for c in out if not c.startswith(('http', '/'))]
+
+    def test_every_referenced_script_exists(self):
+        missing = [c for c in self._readme_backtick_paths()
+                   if not os.path.exists(os.path.join(REPO, c))]
+        assert not missing, (
+            'README references files that do not exist in the repo: %s' % missing)
+
+    def test_no_readme_path_points_into_gitignored_dirs(self):
+        """A reproduce path inside _dev/ or another ignored dir is unreachable
+        for anyone who clones."""
+        ignored = ('_dev/', 'demo/', 'dist/', '_archive/', 'dev/')
+        bad = [c for c in self._readme_backtick_paths()
+               if c.startswith(ignored)]
+        assert not bad, (
+            'README points into gitignored dirs (unreachable after clone): %s' % bad)
+
+    def test_adapter_has_no_machine_specific_paths(self):
+        """The published benchmark adapter must import the package, not inject
+        a local absolute path."""
+        ad = os.path.join(REPO, 'scripts', 'bench_memtether_adapter.py')
+        assert os.path.exists(ad), 'bench_memtether_adapter.py missing'
+        body = io.open(ad, encoding='utf-8').read()
+        # allow the historical note in the comment, but no live path injection
+        # ★2026-10-21 修（变异测试发现的真漏洞）：第一版只查字面
+        #   'sys.path.insert'，于是 `import sys as _s; _s.path.insert(...)`
+        #   这种别名写法完全绕过守卫。改为查语义：任何 path 注入 + 任何
+        #   盘符绝对路径，不管模块叫什么名字。
+        live = []
+        for l in body.split('\n'):
+            code = l.split('#', 1)[0]          # 去掉注释，历史说明不算
+            if '.path.insert' not in code and 'sys.path' not in code:
+                continue
+            if re.search(r'[A-Za-z]:' + chr(92) + chr(92) + r'|/home/|/Users/|E:/|D:/', code):
+                live.append(l)
+        assert not live, 'adapter still injects a machine-specific path: %s' % live
