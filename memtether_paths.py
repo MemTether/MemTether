@@ -40,27 +40,45 @@ def resolve_hub_dir():
 
 
 def default_db():
-    """默认真源库路径。不修改环境变量。"""
+    """默认真源库路径。不修改环境变量。
+
+    优先级（2026-10-21 修正，见下）：
+      1. $MEM_DB
+      2. $MEMTETHER_IN_PKG -> 用户数据目录（pip 形态）
+      3. local_paths.json 的 hub_dir（dev checkout）
+      4. 已有用户数据目录
+      5. dev checkout（有 .git）用仓库根
+      6. 都不命中 -> 用户数据目录
+
+    ★2026-10-21 修了两个真 bug（此前没人测过这条路径）：
+      a) MEMTETHER_IN_PKG 分支原本排在 local_paths.json **之后**，
+         于是 pip 安装的包只要机器上有 local_paths.json 就会写到那个 hub，
+         "pip 用户保护"分支永远不生效；
+      b) 该分支自身返回 HERE/memory.db，而 HERE 在 pip 形态下就是
+         site-packages —— 正是它注释里要避免的"upgrades would
+         wipe memory"。分支目标改为与 4) 相同的用户数据目录。
+    """
     if os.environ.get('MEM_DB'):
         return os.environ['MEM_DB']
+    base = os.environ.get('LOCALAPPDATA') or os.path.expanduser('~/.local/share')
+    user_dir = os.path.join(base, 'memtether')
+    user_db = os.path.join(user_dir, 'memory.db')
+    # 2) pip 形态优先：绝不落到 site-packages，也不被 local_paths.json 覆盖
+    if os.environ.get('MEMTETHER_IN_PKG'):
+        return user_db
+    # 3) dev checkout：local_paths.json 指向的生产 hub
     hub = resolve_hub_dir()
     if hub:
         cand = os.path.join(hub, 'memory.db')
         if os.path.exists(cand):
             return cand
-    # P3-4 (2026-10-05): pip users must NOT write into site-packages
-    # (upgrades would wipe memory). Use a per-user data dir.
-    if os.environ.get('MEMTETHER_IN_PKG'):
-        return os.path.join(HERE, 'memory.db')
-    base = os.environ.get('LOCALAPPDATA') or os.path.expanduser('~/.local/share')
-    user_dir = os.path.join(base, 'memtether')
-    cand = os.path.join(user_dir, 'memory.db')
-    if os.path.exists(cand):
-        return cand
-    # dev checkout (repo root has .git) keeps old behavior
+    # 4) 已有用户数据目录
+    if os.path.exists(user_db):
+        return user_db
+    # 5) 仓库 checkout（有 .git）保持旧行为
     if os.path.isdir(os.path.join(HERE, '.git')):
         return os.path.join(HERE, 'memory.db')
-    return cand
+    return user_db
 
 
 def default_store(db_path=None):
