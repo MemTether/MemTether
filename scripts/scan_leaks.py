@@ -52,6 +52,7 @@ import re
 import sys
 import json
 import subprocess
+from cli_out import emit as _emit  # noqa: E402
 
 HERE = os.environ.get('MEM_SCAN_REPO') or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # ★2026-09-16：加 MEM_SCAN_REPO 环境变量 —— 扫描器不该只能扫"自己所在的仓库"。
@@ -212,22 +213,22 @@ def report(findings):
     by_cat = {}
     for f in findings:
         by_cat.setdefault(f['cat'], []).append(f)
-    print('=' * 84)
-    print('开源前「引擎侧」泄密扫描 —— 范围 =「会被发布的全集」（索引 + 未跟踪非忽略）')
-    print('=' * 84)
+    _emit('=' * 84)
+    _emit('开源前「引擎侧」泄密扫描 —— 范围 =「会被发布的全集」（索引 + 未跟踪非忽略）')
+    _emit('=' * 84)
     if _MISSING:
         # ★避免「扫出 0 处」被误读成「很干净」——降级必须显式说出来，
         #   而且**不能**再打「✓ 零命中」那个对勾：三类根本没查，打勾就是自欺。
         #   （这正是本项目头号缺陷型态「跑起来不报错、但结论错」的显示层版本。）
-        print('  ✗ 无法判定（降级）：本地敏感词表缺失，以下类别**未参与扫描**：')
-        print('       %s' % ' / '.join(_MISSING))
-        print('     期望位置：%s' % _TERMS)
-        print('     ★这不是「零命中」，是「这几类没查」。修好词表再跑，')
-        print('       或用 MEM_SCAN_TERMS 指向词表（发布库副本没有词表，需指回真源那份）。')
+        _emit('  ✗ 无法判定（降级）：本地敏感词表缺失，以下类别**未参与扫描**：')
+        _emit('       %s' % ' / '.join(_MISSING))
+        _emit('     期望位置：%s' % _TERMS)
+        _emit('     ★这不是「零命中」，是「这几类没查」。修好词表再跑，')
+        _emit('       或用 MEM_SCAN_TERMS 指向词表（发布库副本没有词表，需指回真源那份）。')
     else:
-        print('  规则来源：%s' % _TERMS)
+        _emit('  规则来源：%s' % _TERMS)
     if not findings:
-        print('  ✓ 零命中' if not _MISSING else '  — 已扫类别零命中（整体结论仍为「无法判定」）')
+        _emit('  ✓ 零命中' if not _MISSING else '  — 已扫类别零命中（整体结论仍为「无法判定」）')
         return
     order = [r[0] for r in RULES]
     for cat in order:
@@ -236,33 +237,33 @@ def report(findings):
             continue
         lvl = fs[0]['level']
         files = sorted({f['file'] for f in fs})
-        print('\n[%s] %s —— %d 处 / %d 个文件' % (
+        _emit('\n[%s] %s —— %d 处 / %d 个文件' % (
             'BLOCK' if lvl == 'block' else 'WARN ', cat, len(fs), len(files)))
         if fs[0]['note']:
-            print('   %s' % fs[0]['note'])
+            _emit('   %s' % fs[0]['note'])
         shown = {}
         for f in fs:
             shown.setdefault(f['file'], []).append(f)
         for fn, items in sorted(shown.items(), key=lambda x: -len(x[1])):
-            print('   %-42s %d 处' % (fn, len(items)))
+            _emit('   %-42s %d 处' % (fn, len(items)))
             for it in items[:3]:
-                print('      L%-5d %s' % (it['line'], it['snippet']))
+                _emit('      L%-5d %s' % (it['line'], it['snippet']))
             if len(items) > 3:
-                print('      …另 %d 处' % (len(items) - 3))
+                _emit('      …另 %d 处' % (len(items) - 3))
     nblock = sum(1 for f in findings if f['level'] == 'block')
     nwarn = len(findings) - nblock
-    print('\n' + '=' * 84)
-    print('  合计 %d 处：BLOCK %d 处（必须清）· WARN %d 处（建议清）' % (len(findings), nblock, nwarn))
+    _emit('\n' + '=' * 84)
+    _emit('  合计 %d 处：BLOCK %d 处（必须清）· WARN %d 处（建议清）' % (len(findings), nblock, nwarn))
     _ut = untracked_files()
-    print('  扫描范围：%d 个文件（会被发布的全集 = 索引 + 未跟踪非忽略）' % len(tracked_files()))
+    _emit('  扫描范围：%d 个文件（会被发布的全集 = 索引 + 未跟踪非忽略）' % len(tracked_files()))
     if _ut:
-        print('    其中未跟踪（尚未 git add）%d 个 —— 这些也**会被扫**，'
+        _emit('    其中未跟踪（尚未 git add）%d 个 —— 这些也**会被扫**，'
               '避免"add 之前扫不到"的漏检：' % len(_ut))
         for p in _ut[:8]:
-            print('      + %s' % p)
+            _emit('      + %s' % p)
         if len(_ut) > 8:
-            print('      …另 %d 个' % (len(_ut) - 8))
-    print('=' * 84)
+            _emit('      …另 %d 个' % (len(_ut) - 8))
+    _emit('=' * 84)
 
 
 def _fix_stdio():
@@ -297,17 +298,17 @@ def main():
                     })
         _fix_stdio()
         if findings:
-            print("commit-msg scan: %d hit(s)" % len(findings), file=sys.stderr)
+            _emit("commit-msg scan: %d hit(s)" % len(findings), file=sys.stderr)
             for f in findings:
-                print("  [%s] L%d %s: %s" % (f["level"], f["line"], f["cat"], f["match"]), file=sys.stderr)
+                _emit("  [%s] L%d %s: %s" % (f["level"], f["line"], f["cat"], f["match"]), file=sys.stderr)
         if _MISSING:
-            print("commit-msg scan: terms file missing -> cannot verify", file=sys.stderr)
+            _emit("commit-msg scan: terms file missing -> cannot verify", file=sys.stderr)
             sys.exit(2)
         sys.exit(1 if any(f["level"] == "block" for f in findings) else 0)
 
     fs = scan()
     if '--json' in sys.argv:
-        print(json.dumps(fs, ensure_ascii=False, indent=2))
+        _emit(json.dumps(fs, ensure_ascii=False, indent=2))
     else:
         report(fs)
     if _MISSING:
