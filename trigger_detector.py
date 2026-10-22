@@ -184,7 +184,12 @@ if __name__ == "__main__":
     fp = 0
     random.seed(42)
     for i in range(100):
-        msg = " ".join(random.choices(string.ascii_lowercase, k=5) for _ in range(5))
+        # ★2026-10-21 修：random.choices() 已返回 5 字符的 list，
+        #   再套一层 `for _ in range(5)` 会让 join() 收到 list
+        #   → TypeError: sequence item 0: expected str instance, list found
+        #   原样形：5 个随机单词用空格连成一句话（且必须移除分词）
+        msg = " ".join("".join(random.choices(string.ascii_lowercase, k=5))
+                        for _ in range(5))
         if detect_triggers(msg):
             fp += 1
     print(f"\nRandom text false positives: {fp}/100")
