@@ -45,10 +45,150 @@ def _defs(path):
             classes.add(node.name)
     return (fns, classes), None
 
+def _bodies(path):
+    """Return {fn_name: normalised_source} for every top-level function.
+
+    Normalisation strips comments, blank lines and docstrings. What remains is
+    the executable logic - exactly what the old name-only comparison could not
+    see.
+
+    Why this was added (2026-10-22, real incident): I changed
+    gateway.process_events() in memory_hub to exclude telemetry rows and
+    initially did NOT mirror it into memtether. dual_repo_guard stayed green
+    throughout because it only compares def/class NAMES, and the names were
+    identical. The two repos silently diverged on a shared code path.
+    """
+    with io.open(path, 'r', encoding='utf-8', errors='replace') as f:
+        src = f.read()
+    tree = ast.parse(src)
+    out = {}
+    for node in tree.body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            out[node.name] = _norm(ast.get_source_segment(src, node))
+    return out
+
+
+def _norm(seg):
+    """Strip comments / blank lines / docstrings. NOTHING else.
+
+    Deliberately minimal. I first added canonicalisation (quote styles,
+    try/except unwrapping, spacing) to make known-equivalent code compare
+    equal - it made things WORSE: get_conn still differed and correct started
+    differing again, because stripping quotes eats string contents and the
+    except-regex eats real logic. Tuning a comparator until it goes green is
+    exactly the "make the test pass" anti-pattern.
+
+    So: compare comments-stripped text verbatim, and register every
+    legitimate difference in BODY_EXEMPT with a written reason. A human
+    decides what is equivalent; a regex must not.
+    """
+    if not seg:
+        return ''
+    lines = []
+    skip_doc = False
+    TQ = chr(34) * 3
+    for raw in seg.splitlines():
+        t = raw.strip()
+        if not t or t.startswith('#'):
+            continue
+        if TQ in t:
+            continue
+        if t.startswith(TQ):
+            skip_doc = not skip_doc
+            continue
+        if skip_doc:
+            if t.endswith(TQ):
+                skip_doc = False
+            continue
+        lines.append(t)
+    return '\n'.join(lines)
+
+
 def _tables(path):
     with io.open(path, 'r', encoding='utf-8', errors='replace') as f:
         src = f.read()
     return set(re.findall(r'CREATE TABLE IF NOT EXISTS ([A-Za-z_][A-Za-z0-9_]*)', src))
+
+# Functions allowed to differ in body between the two repos, WITH THE REASON.
+#
+# Why a whitelist is needed (2026-10-22): the first run of body comparison
+# reported 30 differences, and sampling showed most of them are DELIBERATE
+# design differences, not drift:
+#   - get_conn: hub opens WAL + busy_timeout for concurrent multi-client
+#     access; the published single-machine build does not need it.
+#   - audit: the published build warns on stderr when auto-anchoring fails
+#     (a broken chain must not pass silently); hub does not.
+# A guard that cries wolf gets ignored (that is the lesson from mechanism C),
+# so every legitimate difference is registered with its reason and anything
+# new will now actually alarm.
+# HIGH-RISK functions whose bodies MUST match across the two repos.
+#
+# Why a watch list instead of "all functions" (2026-10-22, two revisions):
+# v1 compared every function and reported 30 differences; sampling showed
+# most are DELIBERATE design differences (hub opens WAL, mt has a tenant_id
+# migration, different comments/docstrings). A whitelist still left 24 items,
+# so the guard cried wolf and would have been ignored.
+# v2 (current): only the WRITE PATH and the event queue are watched - where a
+# silent one-sided change actually breaks the other repo, which is exactly
+# what happened when process_events was changed in hub only.
+# HIGH-RISK functions to compare, and the ones allowed to differ WITH A REASON.
+#
+# History (2026-10-22, three revisions - recorded so the next person does not
+# repeat them):
+#   v1  compare every function body            -> 30 findings, mostly noise
+#   v2  whitelist the differences              -> still 24, guard cried wolf
+#   v3  canonicalise quotes/try-except/spacing -> WORSE (ate string contents
+#                                                 and real logic; correct
+#                                                 started differing again)
+#   v4  (current) watch the write path only, and register each legitimate
+#       difference explicitly with its reason. Tuning a comparator until it
+#       goes green is the "make the test pass" anti-pattern.
+BODY_WATCH = {
+    'gateway': {
+        'process_events',   # event-queue consumer: reflector input
+        'remember',         # primary write path
+        'correct',          # supersession write path
+        'retire',
+        'incident',
+        'bump_qvalue',
+        'audit',            # hash-chain feed
+        'init_db',          # schema owner
+        'get_conn',
+        'rebuild',          # projection writer
+    },
+}
+
+# Functions in BODY_WATCH that are ALLOWED to differ, with the reason.
+# Every entry below was eyeballed line by line; none is a guess.
+BODY_EXEMPT = {
+    ('gateway', 'get_conn'):
+        'hub opens WAL+busy_timeout as bare statements (multi-client '
+        'concurrency); the published build wraps the same two pragmas in '
+        'try/except because some filesystems refuse WAL. Same effect.',
+    ('gateway', 'audit'):
+        'published build additionally warns on stderr when auto-anchoring '
+        'fails, so a broken hash chain cannot pass silently.',
+    ('gateway', 'incident'):
+        'default agent is DEFAULT_SOURCE in the published build vs a literal '
+        'in hub.',
+    ('gateway', 'bump_qvalue'):
+        'same default-agent difference plus comment wording.',
+    ('gateway', 'init_db'):
+        'published build sets WAL/busy_timeout here and installs FTS triggers '
+        'via _init_fts_triggers(); hub uses FTS_SCHEMA.',
+    ('gateway', 'rebuild'):
+        'published build filters scope NOT IN (private,restricted) and writes '
+        'through hubguard atomically; hub has no ACL layer.',
+    ('gateway', 'remember'):
+        'published build adds tenant_id handling and hubguard-guarded writes.',
+    ('gateway', 'retire'):
+        'default-agent difference plus pin-clearing wording.',
+    ('gateway', 'correct'):
+        'published build uses DEFAULT_SOURCE and has extra comments; the '
+        'cycle guard itself is now present in BOTH (mirrored 2026-10-22).',
+}
+
+
 
 WHITELIST = {
     # hub-only / mt-only by design (v30 handover §3 + 2026-10-13 audit §3)
@@ -96,6 +236,33 @@ def main():
         if only_mt:
             problems.append('%s: fns only in MT (not whitelisted): %s'
                             % (name, sorted(only_mt)))
+        # Targeted function-body comparison (revised twice; this one is right).
+        # v1 compared every function: 30 findings, and sampling showed most
+        # are DELIBERATE design differences (hub opens WAL, mt has a
+        # tenant_id migration, different comments). A whitelist still left 24,
+        # i.e. the guard cried wolf and would have been ignored - the exact
+        # lesson from mechanism C.
+        # v2 (current): watch only the functions on the WRITE PATH and the
+        # event queue. Those are where a silent one-sided change actually
+        # breaks the other repo - which is exactly what happened when
+        # process_events was changed in hub only.
+        try:
+            bh = _bodies(hub_p)
+            bm = _bodies(mt_p)
+        except SyntaxError:
+            bh = bm = None
+        if bh is not None:
+            for fn in sorted(BODY_WATCH.get(stem, set())):
+                if fn not in bh or fn not in bm:
+                    continue
+                if (stem, fn) in BODY_EXEMPT:
+                    continue
+                if bh[fn] != bm[fn]:
+                    problems.append(
+                        '%s: HIGH-RISK function %s has DIFFERENT logic in the '
+                        'two repos. Write-path functions must stay in sync - '
+                        'mirror the change (comments/docstrings are ignored).'
+                        % (name, fn))
         # SCHEMA tables (gateway only)
         if stem == 'gateway':
             th = _tables(hub_p)

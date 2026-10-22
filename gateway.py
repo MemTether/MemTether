@@ -380,8 +380,20 @@ def _tenant_filter():
 
 
 def get_conn():
-    conn = sqlite3.connect(DB)
+    # 2026-10-22: align with memory_hub. The published build used to open the
+    # DB without WAL and without a busy timeout, so the moment two clients
+    # (or a client plus the reflector) touched it, one of them got
+    # "database is locked". WAL lets readers and a writer proceed together;
+    # busy_timeout makes the loser wait instead of failing.
+    # Wrapped in try/except because some filesystems (network shares) refuse
+    # WAL - degrading to the old behaviour beats refusing to open.
+    conn = sqlite3.connect(DB, timeout=10)
     conn.row_factory = sqlite3.Row
+    try:
+        conn.execute('PRAGMA journal_mode=WAL')
+        conn.execute('PRAGMA busy_timeout=5000')
+    except Exception:
+        pass
     return conn
 
 
@@ -1431,9 +1443,22 @@ def process_events(limit=10):
     init_db()
     conn = get_conn()
     try:
+        # Mirror of memory_hub/gateway.py (2026-10-22): explicitly exclude
+        # telemetry rows. The old query filtered on status='pending' alone, so
+        # ANY row written to run_events would be fed to auto_reflect as an agent
+        # event the moment it became pending. The codex hook writes
+        # event_type='memory_inject' rows there; those have no payload to
+        # distil. Whitelisting the type beats relying on "telemetry rows are
+        # never pending", which is luck, not design.
+        # NOTE: dual_repo_guard only compares def/class/SCHEMA NAMES, not
+        # function bodies - so this mirror had to be done by hand.
+        _TELEMETRY_TYPES = ('memory_inject',)
+        _ph = ','.join('?' * len(_TELEMETRY_TYPES))
         rows = conn.execute(
-            "SELECT * FROM run_events WHERE status='pending' ORDER BY created_at ASC LIMIT ?",
-            (limit,)).fetchall()
+            "SELECT * FROM run_events WHERE status='pending' "
+            "AND event_type NOT IN (%s) "
+            "ORDER BY created_at ASC LIMIT ?" % _ph,
+            _TELEMETRY_TYPES + (limit,)).fetchall()
         out = {'processed': 0, 'skipped': 0, 'failed': 0, 'details': []}
         for row in rows:
             try:
