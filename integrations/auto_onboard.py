@@ -67,7 +67,9 @@ _DRY = False          # --dry-run / detect 时为 True：一切写盘动作被�
 
 
 def _read(p):
-    return io.open(p, encoding='utf-8').read()
+    # newline='' so Python does not normalise CRLF to LF on read.
+    with io.open(p, encoding='utf-8', newline='') as f:
+        return f.read()
 
 
 def _write(p, t):
@@ -81,6 +83,12 @@ def _write(p, t):
         bak = p + '.bak-' + time.strftime('%Y%m%d')
         if not os.path.exists(bak):
             shutil.copy2(p, bak)
+        # Preserve the original line-ending style; mixing CRLF and LF in
+        # one file is worse than either alone.
+        with io.open(p, 'rb') as _bf:
+            _raw = _bf.read()
+        if b'\r\n' in _raw and '\n' in t and '\r\n' not in t:
+            t = t.replace('\r\n', '\n').replace('\n', '\r\n')
     with tempfile.NamedTemporaryFile('w', encoding='utf-8', newline='',
                                      dir=d or '.', delete=False) as f:
         f.write(t)
@@ -179,7 +187,11 @@ def inject_marked(path, block, label, report, covered_test=None):
     if covered_test and covered_test(t):
         report.append(('SKIP', label, '已有等效人工注入（质量高于通用模板），未动'))
         return
-    _write(path, t.rstrip() + '\n\n' + block.strip() + '\n')
+    # Follow the file's own line-ending style; mixing LF into a CRLF file
+    # produces a hybrid that is harder to read than either alone.
+    _nl = '\r\n' if '\r\n' in t else '\n'
+    _blk = block.strip().replace('\r\n', '\n').replace('\n', _nl)
+    _write(path, t.rstrip() + _nl + _nl + _blk + _nl)
     report.append(('OK', label, '已追加注入块'))
 
 
