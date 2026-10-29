@@ -815,6 +815,20 @@ def _cmd_search(args):
         os.environ["MEM_TENANT_ID"] = args.tenant
     import gateway as _gw
     _gw.init_db()  # fresh-DB safety: search before any remember must not crash (2026-10-08 audit)
+    mode = getattr(args, "mode", None) or "full"
+    if mode == "paths":
+        # ★2026-10-29: return uid + abstract + court command instead of pasting full text.
+        # Mirrors agent-memory's "return paths not pastes" (4.3K stars): the agent gets
+        # a map and decides how deep to dig. Saves tokens and gives the agent autonomy.
+        res = search(args.query, limit=args.limit, mode="paths")
+        rows = res.get("results", []) if isinstance(res, dict) else (res or [])
+        if not rows:
+            print("（无结果）")
+            return 0
+        for i, r in enumerate(rows, 1):
+            print("%2d. [%s] %s" % (i, r.get("type", ""), r.get("abstract", "")))
+            print("    %s  score=%.4f" % (r.get("court", ""), r.get("score", 0)))
+        return 0
     res = search(args.query, limit=args.limit)
     rows = res.get("results", []) if isinstance(res, dict) else (res or [])
     if not rows:
@@ -831,7 +845,6 @@ def _cmd_search(args):
             head = "[%s%s]" % (kind, ("/" + src_attr) if src_attr else "")
             tail = ("  %.4f" % score) if isinstance(score, (int, float)) else ""
             if listing:
-                # L0 mode: first line only + uid + score; agent decides to read full
                 first_line = text.split("\n")[0][:120]
                 uid_str = ("  uid=" + uid) if uid else ""
                 print("%2d. %s %s%s%s" % (i, head, first_line, uid_str, tail))
@@ -1151,6 +1164,8 @@ def main(argv=None):
     sp.set_defaults(func=_cmd_demo)
 
     sp = sub.add_parser("search", help="混合检索")
+    sp.add_argument("--mode", choices=["full", "paths"], default="full",
+    help="paths: return uid+abstract+court command, not full text (saves tokens)")
     sp.add_argument("query")
     sp.add_argument("--limit", type=int, default=10)
     sp.add_argument("--tenant", default=None, help="Tenant ID filter")

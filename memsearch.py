@@ -1005,7 +1005,7 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
                   rerank_w=0.4, rerank_model=None,
                   adaptive=True, adaptive_thr=0.6,
                   decay=True, qvalue=None, _round=0, layer='L2',
-                  l1_sentences=3):
+                  l1_sentences=3, mode='full'):
     """混合检索：质量门禁 + 向量 + ASCII精确 + RRF 融合 + cross-encoder 精排。
 
     use_rerank : 是否启用 cross-encoder 精排（agentmemory V4 的核心增益项）
@@ -2100,6 +2100,14 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
     #   ⇒ 与旧行为逐字节一致，不破坏任何现有调用方与测试。
     _out = apply_layers(_kept[:limit], layer=layer, l1_sentences=l1_sentences)
     _diag['layer'] = layer
+    if mode == 'paths':
+        _out = [{'uid': r.get('uid', ''),
+                 'abstract': r.get('layers', {}).get('L0', r.get('content', ''))[:160],
+                 'score': r.get('score', 0),
+                 'type': r.get('type', ''),
+                 'source': r.get('source', ''),
+                 'court': 'memtether court %s' % r.get('uid', '')}
+                for r in _out]
     return {'query': q, 'results': _out, 'diag': _diag}
 
 
