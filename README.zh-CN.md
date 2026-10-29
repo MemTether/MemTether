@@ -66,6 +66,14 @@ $ python examples/audit_chain_demo.py
 
 复现：`python benchmarks/bench_latency.py --n 200`
 
+## 发布通道
+
+`main` 分支只保留通过完整测试套件的合并。alpha 构建在每次成功构建时自动打 tag
+（`v0.1.0aN`），因此 tag 编号不连续，且部分 tag 指向后来被压缩进合并的提交。
+需要经过验证的构建请从 PyPI 安装：
+
+    pip install memtether -i https://pypi.org/simple/
+
 ## 文档
 
 核心机制：**supersession 链**（纠正不删除）、**双时间轴**（事实何时成立 vs 系统何时知道）、

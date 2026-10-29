@@ -75,6 +75,15 @@ fields honestly marked `temporal_source="backfilled"`.
 
 Reproduce: `python benchmarks/bench_latency.py --n 200`
 
+## Release channels
+
+`main` only holds merges that passed the full test suite. Alpha builds are tagged
+automatically on every successful build (`v0.1.0aN`), so tag numbers are not
+contiguous and some tags point at commits that were later squashed into a merge.
+Install from PyPI for a validated build:
+
+    pip install memtether -i https://pypi.org/simple/
+
 ## Documentation
 
 Under the hood: **supersession chains** (corrections never delete),
