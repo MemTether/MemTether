@@ -227,3 +227,4 @@ docs/project_overview_*
 #   根因修法是给 mkdtemp 传 dir=tempfile.gettempdir()；这里是兜底规则。
 mt_*/
 qvalue_test_*/
+bench_data/lme_chroma/
