@@ -5,9 +5,9 @@
      Without this the PyPI project page shows a broken image as its first
      screen (this fallback existed once and was lost in a later rewrite). -->
 <picture>
-  <source srcset="https://raw.githubusercontent.com/MemTether/MemTether/main/assets/demo.gif" media="(min-width: 0px)">
-  <img src="assets/demo.gif" width="100%" alt="MemTether — cross-client AI memory in action"
-       onerror="this.onerror=null;this.src='https://raw.githubusercontent.com/MemTether/MemTether/main/assets/demo.gif'"/>
+  <source srcset="https://raw.githubusercontent.com/MemTether/MemTether/main/assets/court_demo.gif" media="(min-width: 0px)">
+  <img src="assets/court_demo.gif" width="100%" alt="MemTether Memory Court — tamper-evident audit chain for AI memory"
+       onerror="this.onerror=null;this.src='https://raw.githubusercontent.com/MemTether/MemTether/main/assets/court_demo.gif'"/>
 </picture>
 
 # MemTether — The AI Memory Court
