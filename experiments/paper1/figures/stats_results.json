@@ -1,0 +1,46 @@
+{
+  "results": {
+    "single-session-user": {
+      "gap": 2.5,
+      "ci": [
+        -5.4,
+        10.7
+      ],
+      "h": -0.11
+    },
+    "single-session-assistant": {
+      "gap": 5.0,
+      "ci": [
+        -14.4,
+        24.4
+      ],
+      "h": -0.102
+    },
+    "knowledge-update": {
+      "gap": -11.8,
+      "ci": [
+        -26.4,
+        2.6
+      ],
+      "h": 0.276
+    },
+    "temporal-reasoning": {
+      "gap": -7.9,
+      "ci": [
+        -21.3,
+        5.9
+      ],
+      "h": 0.159
+    },
+    "multi-session": {
+      "gap": 38.5,
+      "ci": [
+        25.4,
+        50.9
+      ],
+      "h": -0.791
+    }
+  },
+  "mcnemar_p": 1.1102230246251565e-16,
+  "pearson_r": 0.6316585470974609
+}

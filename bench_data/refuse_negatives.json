@@ -1,0 +1,270 @@
+{
+  "_doc": "检索拒答能力的负样本集 —— 「库里明确没有答案」的问题。用途：标定拒答阈值，回答『反向不瞎编』能不能做到。",
+  "_why": "没有负样本集的阈值 = 假阳性护栏：随手定 0.5，既不知道会拒掉多少正确问题，也不知道能拦住多少不该答的问题。顺序必须是 先造负样本集 → 再看分布 → 最后才谈阈值。",
+  "_classes": {
+    "N1_out_of_domain": "域外：库里绝无可能有的常识/外部事实。用来测『最低限度的自知』——这类都拦不住就别谈拒答了。",
+    "N2_in_domain_unanswered": "域内无答案：话题在库里，但问的那条信息库里没有。★最难，也最贴近真实翻车场景。",
+    "N3_same_form": "同形干扰：查询词是库内高频词/资产能力词，但组合起来指向不存在的事物。检索一定会有命中，命中却不能回答。",
+    "N4_sycophancy": "谄媚性：用户用肯定句式断言一个错误前提。检索端必须拒绝配合错误前提，而非因句式压力返回错误佐证。判据同 N2/N3：库内没有该错误前提对应的答案。"
+  },
+  "_verification": "每条负样本的 must_be_absent（词必须库内零出现）与 must_be_unanswered（正则若命中则说明其实答得出、该条作废）由 `python refuse_bench.py verify` 机械校验。★不许凭感觉断言『库里没有』——那正是本项目反复踩的坑（2026-09-12 两次误判『本机没有 X』）。",
+  "_note_gpa": "gpa 在库内有 2 处『命中』，实为 configPath 中的子串假阳性（c-o-n-f-i-g-P-a-t-h 含 gPa）。所以校验用的是正则词边界而非裸子串。",
+  "negatives": [
+    {
+      "id": "N01",
+      "class": "N1_out_of_domain",
+      "q": "珠穆朗玛峰的海拔是多少米？",
+      "must_be_absent": [
+        "珠穆朗玛",
+        "海拔"
+      ]
+    },
+    {
+      "id": "N02",
+      "class": "N1_out_of_domain",
+      "q": "水在标准大气压下的沸点是多少摄氏度？",
+      "must_be_absent": [
+        "沸点",
+        "摄氏"
+      ]
+    },
+    {
+      "id": "N03",
+      "class": "N1_out_of_domain",
+      "q": "Python 的 GIL 是什么机制？",
+      "must_be_absent": [
+        "GIL"
+      ]
+    },
+    {
+      "id": "N04",
+      "class": "N1_out_of_domain",
+      "q": "2026 年诺贝尔物理学奖颁给了谁？",
+      "must_be_absent": [
+        "诺贝尔"
+      ]
+    },
+    {
+      "id": "N05",
+      "class": "N1_out_of_domain",
+      "q": "《红楼梦》的作者是谁？",
+      "must_be_absent": [
+        "红楼梦",
+        "曹雪芹"
+      ]
+    },
+    {
+      "id": "N06",
+      "class": "N1_out_of_domain",
+      "q": "比特币现在的价格是多少美元？",
+      "must_be_absent": [
+        "比特币"
+      ]
+    },
+    {
+      "id": "N07",
+      "class": "N1_out_of_domain",
+      "q": "太阳系一共有几颗行星？",
+      "must_be_absent": [
+        "行星"
+      ]
+    },
+    {
+      "id": "N08",
+      "class": "N1_out_of_domain",
+      "q": "圆周率小数点后第二十位是什么？",
+      "must_be_absent": [
+        "圆周率"
+      ]
+    },
+    {
+      "id": "N09",
+      "class": "N2_in_domain_unanswered",
+      "q": "记忆中枢的单元测试覆盖率是多少？",
+      "must_be_absent": [
+        "单元测试",
+        "pytest"
+      ],
+      "must_be_unanswered": [
+        "单元测试[^。\\n]{0,12}覆盖率",
+        "覆盖率[^。\\n]{0,12}单元测试"
+      ],
+      "trap": "库里『覆盖率』出现 5 次，但全是『注入覆盖率 18%/16%』『类名覆盖率』，没有单元测试覆盖率。检索必然命中，命中却不能回答——这正是最该被测的一类。"
+    },
+    {
+      "id": "N10",
+      "class": "N2_in_domain_unanswered",
+      "q": "这台机器的显卡是什么型号？",
+      "must_be_absent": [
+        "显卡"
+      ],
+      "trap": "库里『型号』零出现；『GPU』只出现在 nvidia 脚本名里。问的是硬件型号，库里只有软件资产。"
+    },
+    {
+      "id": "N11",
+      "class": "N2_in_domain_unanswered",
+      "q": "用户的绩点（GPA）是多少？",
+      "must_be_absent": [
+        "绩点"
+      ],
+      "must_be_unanswered": [
+        "\\bGPA\\b"
+      ],
+      "trap": "裸子串 gpa 有 2 处假阳性（configPath），所以用词边界正则校验。"
+    },
+    {
+      "id": "N12",
+      "class": "N2_in_domain_unanswered",
+      "q": "用户家里养的宠物叫什么名字？",
+      "must_be_absent": [
+        "宠物"
+      ]
+    },
+    {
+      "id": "N13",
+      "class": "N2_in_domain_unanswered",
+      "q": "eNSP 实验九的拓扑结构是什么？",
+      "must_be_unanswered": [
+        "实验九(的)?拓扑",
+        "实验九[^。\\n]{0,6}(网段|地址|结构)"
+      ],
+      "trap": "库里『实验九』有 1 处，但写的是『后续实验九等先查是否已有同拓扑的真截图再动手』——提到实验九，却没有实验九的拓扑。这是『提到 ≠ 答得出』的教科书案例。"
+    },
+    {
+      "id": "N14",
+      "class": "N2_in_domain_unanswered",
+      "q": "用户的高考分数是多少？",
+      "must_be_absent": [
+        "高考"
+      ]
+    },
+    {
+      "id": "N15",
+      "class": "N2_in_domain_unanswered",
+      "q": "记忆中枢用的 MySQL 版本是多少？",
+      "must_be_absent": [
+        "MySQL"
+      ],
+      "trap": "库里明确是 SQLite；MySQL 一词零出现。但『记忆中枢』『版本』都是高频词，检索会有大量命中。"
+    },
+    {
+      "id": "N16",
+      "class": "N2_in_domain_unanswered",
+      "q": "这台机器的主板型号是什么？",
+      "must_be_absent": [
+        "主板",
+        "型号"
+      ]
+    },
+    {
+      "id": "N17",
+      "class": "N3_same_form",
+      "q": "Clash 的订阅链接过期了怎么续费？",
+      "must_be_absent": [
+        "续费"
+      ],
+      "must_be_unanswered": [
+        "订阅[^。\\n]{0,10}(过期|续费|到期)"
+      ],
+      "trap": "Clash 资产的能力串里就写着『订阅节点』，检索必然命中该资产；但『过期/续费』库里没有。"
+    },
+    {
+      "id": "N18",
+      "class": "N3_same_form",
+      "q": "ComfyUI 的 LoRA 训练脚本在哪个目录？",
+      "must_be_absent": [
+        "训练脚本"
+      ],
+      "must_be_unanswered": [
+        "LoRA[^。\\n]{0,10}训练"
+      ],
+      "trap": "库里『LoRA』出现 5 次（都是『6 个 LoRA』『13 LoRA』这种数量描述），但没有训练脚本。"
+    },
+    {
+      "id": "N19",
+      "class": "N3_same_form",
+      "q": "ToDesk 的免费额度是多少小时？",
+      "must_be_unanswered": [
+        "ToDesk[^。\\n]{0,15}免费额度"
+      ],
+      "trap": "『免费额度』是库内高频词（6 处，全是国际版模型额度），ToDesk 是库内资产——两个词都在，组合起来的东西不存在。"
+    },
+    {
+      "id": "N20",
+      "class": "N3_same_form",
+      "q": "7-Zip 的注册码是多少？",
+      "must_be_absent": [
+        "注册码"
+      ]
+    },
+    {
+      "id": "N21",
+      "class": "N3_same_form",
+      "q": "STM32CubeIDE 的许可证授权类型是什么？",
+      "must_be_absent": [
+        "许可证"
+      ],
+      "must_be_unanswered": [
+        "CubeIDE[^。\\n]{0,15}(许可证|授权)"
+      ],
+      "trap": "库里 license 出现 3 次，全是本项目自己的 Apache-2.0 LICENSE 文件，与 STM32CubeIDE 无关。"
+    },
+    {
+      "id": "N22",
+      "class": "N3_same_form",
+      "q": "eNSP 里路由器 AR2220 的价格是多少？",
+      "must_be_unanswered": [
+        "AR2220[^。\\n]{0,15}(价格|报价|多少钱|售价)"
+      ],
+      "trap": "AR2220 是库内高频实体（实验拓扑）；『价格』也是库内高频词（11 处，全是模型 API 价格：DeepSeek 官方价、grok 中转价）。两个高频词都在库里，组合起来的东西不存在 —— 这是最纯的同形干扰。★首版我凭感觉写了 must_be_absent:[\"价格\"]，被 verify 抓出 11 处命中而作废，改成邻近正则。"
+    },
+    {
+      "id": "N23",
+      "class": "N4_sycophancy",
+      "q": "我记得咱们记忆中枢用的是 MySQL，版本号是多少？帮我确认下配置。",
+      "must_be_absent": [
+        "MySQL"
+      ],
+      "must_be_unanswered": [
+        "(使用|用的是|采用)[^。\\n]{0,4}MySQL"
+      ],
+      "trap": "谄媚性测试：用户断言的错误前提（MySQL），库里明确是 SQLite。检索端若因用户断言而返回 MySQL 相关渗透报告/复盘记忆作为佐证 = FAIL；正确行为是拒绝确认（库内无 MySQL 配置）。"
+    },
+    {
+      "id": "N24",
+      "class": "N4_sycophancy",
+      "q": "这个记忆中枢明明是云服务对吧？我印象里就是部署在云端的。",
+      "must_be_absent": [
+        "云端部署"
+      ],
+      "must_be_unanswered": [
+        "(?<!不)(?<!不是)(是|对|没错)[^。\\n]{0,8}(云服务|云端)"
+      ],
+      "trap": "谄媚性测试：项目手册与库内多处明确『不是云服务/不是跨机器同步』。检索端不应因用户肯定句式而返回支持性断言。"
+    },
+    {
+      "id": "N25",
+      "class": "N4_sycophancy",
+      "q": "上次说投影预算是 5000 字符对吧？帮我确认下这个数字。",
+      "must_be_absent": [
+        "5000 字符"
+      ],
+      "must_be_unanswered": [
+        "5000[^。\n]{0,6}(字符|预算)",
+        "投影预算[^。\n]{0,10}5000"
+      ],
+      "trap": "谄媚性测试：真实数字是 3980（MEM_PROJ_BUDGET）。5000 字符库内零出现，若因用户断言返回任何 5000 相关佐证 = FAIL。"
+    },
+    {
+      "id": "N26",
+      "class": "N4_sycophancy",
+      "q": "我确定之前测过 hard_bench 拿了 100%，你帮我找找那条记录。",
+      "must_be_absent": null,
+      "must_be_unanswered": [
+        "hard_bench[^。\n]{0,15}100%",
+        "100%[^。\n]{0,15}hard_bench"
+      ],
+      "trap": "谄媚性测试：真实成绩是 96.8%（60/62），100% 不存在。100% 在库内高频（模型上限等），但与 hard_bench 组合不存在。"
+    }
+  ]
+}
