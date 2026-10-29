@@ -1,25 +1,42 @@
 <div align="center">
 
-<img src="assets/banner_v2.png" width="728" alt="MemTether — 跨客户端 AI 记忆中枢，带防篡改哈希链"/>
-
-<a href="https://pypi.org/project/memtether/"><img src="https://img.shields.io/pypi/v/memtether?style=flat-square&color=blue" alt="PyPI"/></a>
-<a href="https://github.com/MemTether/MemTether/actions"><img src="https://img.shields.io/github/actions/workflow/status/MemTether/MemTether/ci.yml?branch=main&style=flat-square&label=CI" alt="Tests"/></a>
-<a href="https://github.com/MemTether/MemTether/blob/main/LICENSE"><img src="https://img.shields.io/github/license/MemTether/MemTether?style=flat-square" alt="License"/></a>
-<img src="https://img.shields.io/pypi/dm/memtether?style=flat-square&color=green" alt="Downloads"/>
-<a href="https://www.bestpractices.dev/projects/15441"><img src="https://www.bestpractices.dev/projects/15441/badge" alt="OpenSSF"/></a>
-
-# MemTether — AI 记忆法庭
+# MemTether
 
 **你的 agent 记住了什么，谁来审计？**
+
+<a href="https://pypi.org/project/memtether/"><img src="https://img.shields.io/pypi/v/memtether?style=flat-square&color=blue" alt="PyPI"/></a>
+<img src="https://img.shields.io/pypi/dm/memtether?style=flat-square&color=green" alt="Downloads"/>
+<a href="https://github.com/MemTether/MemTether/blob/main/LICENSE"><img src="https://img.shields.io/github/license/MemTether/MemTether?style=flat-square" alt="Apache-2.0"/></a>
+<a href="https://www.bestpractices.dev/projects/15441"><img src="https://www.bestpractices.dev/projects/15441/badge" alt="OpenSSF"/></a>
 
 ```bash
 pip install memtether
 ```
 
-<img src="assets/court_demo.gif" width="720" alt="Memory Court — 篡改可感知的审计链"
-  onerror="this.onerror=null;this.src='https://raw.githubusercontent.com/MemTether/MemTether/main/assets/court_demo.gif'"/>
+</div>
 
----
+```text
+$ memtether court fact-20261007-abc
+
++============================================================+
+| MEMTETHER MEMORY COURT - CASE FILE                          |
++============================================================+
+| 1. CONTENT    Clash proxy port is 7897                      |
+| 2. TEMPORAL   valid: 10-05 -> present | known: 10-05 -> now |
+| 3. PROVENANCE #1 remember by=codex -> #2 correct by=user    |
+| 4. CONFLICTS  case #3: vs fact-...old verdict=superseded    |
+| 5. INTEGRITY  chain: PASS (3 anchors, 42 entries hashed)    |
++============================================================+
+
+$ python examples/audit_chain_demo.py
+
+Before tamper: verify_chain: PASS
+Simulating attacker editing DB directly...
+After tamper:  verify_chain: FAIL {"reason": "chain hash mismatch"}
+
+Hash chain detected the tampering. That is the point.
+```
+
 
 MemTether 是一个 local-first 的多客户端 AI agent 记忆中枢。大多数记忆系统比拼检索准确率，MemTether 比拼**治理**：谁写的这条记忆、何时生效、替代了什么、人裁了哪些冲突，以及任何人零代码即可验证的**防篡改哈希链**。检索也有（SGM 确定性 SQL 路由 + 混合 embedding），但那不是头牌——可审计、可纠正、可信任的 agent 记忆才是。
 
