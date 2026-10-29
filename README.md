@@ -353,6 +353,7 @@ memtether conflicts --stats            # Review conflict candidates
 memtether court --verify               # Verify the audit hash chain
 memtether stats
 memtether version --json        # Machine-readable version info (CI/tooling)
+memtether sleep --dry-run       # Consolidate similar memories (NREM)        # Machine-readable version info (CI/tooling)
 memtether export-md --out ./backup     # Export as markdown
 memtether backup                       # Point-in-time DB backup
 memtether reconcile --dry-run          # SQLite <-> vector drift report

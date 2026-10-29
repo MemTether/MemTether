@@ -39,7 +39,7 @@ for i, item in enumerate(sample):
                 else:
                     raise
         if retrieval_results:
-            evidence = retrieval if isinstance(retrieval, str) else "\n".join([str(r)[:200] for r in retrieval])
+            evidence = retrieval_results if isinstance(retrieval_results, str) else "\n".join([str(r)[:200] for r in retrieval_results])
         else:
             evidence = ""
     except Exception as e:

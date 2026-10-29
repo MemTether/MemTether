@@ -37,7 +37,10 @@ _FASTAPI_AUTO = {'/openapi.json', '/docs', '/docs/oauth2-redirect', '/redoc'}
 
 
 def _read(rel):
-    return io.open(os.path.join(REPO, rel), encoding='utf-8').read()
+    path = os.path.join(REPO, rel)
+    if not os.path.exists(path):
+        pytest.skip(f'{rel} not present (gitignored local file)')
+    return io.open(path, encoding='utf-8').read()
 
 
 def _probe(code):
