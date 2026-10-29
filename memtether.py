@@ -829,6 +829,9 @@ def _cmd_search(args):
             print("%2d. [%s] %s" % (i, r.get("type", ""), r.get("abstract", "")))
             print("    %s  score=%.4f" % (r.get("court", ""), r.get("score", 0)))
         return 0
+    scope = getattr(args, "scope", None)
+    if scope:
+        os.environ["MEM_SCOPE"] = scope
     res = search(args.query, limit=args.limit)
     rows = res.get("results", []) if isinstance(res, dict) else (res or [])
     if not rows:
@@ -1202,6 +1205,7 @@ def main(argv=None):
     sp.add_argument("query")
     sp.add_argument("--limit", type=int, default=10)
     sp.add_argument("--tenant", default=None, help="Tenant ID filter")
+    sp.add_argument("--scope", default=None, help="Scope filter (default: exclude private/restricted)")
     sp.add_argument("--list", action="store_true",
                     help="L0 mode: return one-line summaries + UIDs instead of full content")
     sp.set_defaults(func=_cmd_search)
