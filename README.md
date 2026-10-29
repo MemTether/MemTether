@@ -1,9 +1,9 @@
 <div align="center">
 
-<img src="assets/banner_v2.png" width="100%" alt="MemTether — Cross-client AI memory hub with a tamper-evident hash chain"/>
+<img src="assets/banner_v2.png" width="728" alt="MemTether — Cross-client AI memory hub with a tamper-evident hash chain"/>
 
 <a href="https://pypi.org/project/memtether/"><img src="https://img.shields.io/pypi/v/memtether?style=flat-square&color=blue" alt="PyPI"/></a>
-<a href="https://github.com/MemTether/MemTether/actions"><img src="https://img.shields.io/github/actions/workflow/status/MemTether/MemTether/ci.yml?branch=main&style=flat-square&label=tests" alt="Tests"/></a>
+<a href="https://github.com/MemTether/MemTether/actions"><img src="https://img.shields.io/github/actions/workflow/status/MemTether/MemTether/ci.yml?branch=main&style=flat-square&label=CI" alt="Tests"/></a>
 <a href="https://github.com/MemTether/MemTether/blob/main/LICENSE"><img src="https://img.shields.io/github/license/MemTether/MemTether?style=flat-square" alt="License"/></a>
 <img src="https://img.shields.io/pypi/dm/memtether?style=flat-square&color=green" alt="Downloads"/>
 <a href="https://www.bestpractices.dev/projects/15441"><img src="https://www.bestpractices.dev/projects/15441/badge" alt="OpenSSF"/></a>
