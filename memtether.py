@@ -1100,14 +1100,50 @@ def _cmd_provenance(args: argparse.Namespace) -> None:
 
     conn.close()
     print("=" * 60)
+
+
+def _version_payload():
+    db_path = os.environ.get("MEM_DB") or DEFAULT_DB
+    py_ver = f"{sys.version_info.major}.{sys.version_info.minor}"
+    return {
+        "version": __version__,
+        "python": py_ver,
+        "db": db_path,
+    }
+
+
+def _cmd_version(args):
+    if getattr(args, "json", False):
+        print(json.dumps(_version_payload()))
+    else:
+        print("memtether %s" % __version__)
+    return 0
+
+
 def main(argv=None):
-    argv = list(sys.argv[1:] if argv is None else argv)
+    raw_argv = list(sys.argv[1:] if argv is None else argv)
+    argv = list(raw_argv)
     p = argparse.ArgumentParser(
         prog="memtether",
         description="MemTether —— 跨客户端 AI 记忆中枢（一份物理记忆，多个客户端共用）")
-    p.add_argument("--version", action="version",
-                   version="memtether %s" % __version__)
+
+    class _VersionAction(argparse.Action):
+        def __call__(self, parser, namespace, values, option_string=None):
+            if "--json" in raw_argv:
+                print(json.dumps(_version_payload()))
+            else:
+                print("memtether %s" % __version__)
+            parser.exit()
+
+    p.add_argument("--version", action=_VersionAction, nargs=0,
+                   help="show program's version number and exit")
+    p.add_argument("--json", action="store_true",
+                   help="Output version in JSON format (used with --version)")
     sub = p.add_subparsers(dest="cmd")
+
+    sp_ver = sub.add_parser("version", help="Print version information")
+    sp_ver.add_argument("--json", action="store_true", help="Output version info in JSON format")
+    sp_ver.set_defaults(func=_cmd_version)
 
     sp = sub.add_parser("demo", help="生成全合成演示库（零真实数据，可离线跑）")
     sp.add_argument("--out", default=DEFAULT_DB, help="输出路径（默认 %s）" % DEFAULT_DB)
