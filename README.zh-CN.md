@@ -293,6 +293,7 @@ memtether correct <uid> "更新了"      # 替代，永不删除
 memtether timeline <uid>              # 审计链
 memtether profile --subject user      # 关于这个用户已经知道什么（确定性，零 LLM）
 memtether stats
+memtether version --json        # 机器可读版本信息（CI/工具链）
 memtether export-md --out ./backup    # 导出为 Markdown
 memtether dashboard                   # Web 界面
 ```
