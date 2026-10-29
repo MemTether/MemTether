@@ -1,21 +1,21 @@
 MemTether Verification Report
-Generated: 2026-10-21T10:21:13.018668
+Generated: 2026-10-22T15:10:12.664337
 ============================================================
 
-[PASS] Test suite
-       ============ 642 passed, 6 skipped, 1 warning in 265.10s (0:04:25) ============
+[FAIL] Test suite
+       
 
-[PASS] Packaging checker
-       ✓ NOTICE 归属声明完整（模型目录 E:\RUANJIAN\memtether\models：5 个已全部登记）
+[FAIL] Packaging checker
+       ★E:\RUANJIAN\memtether 不是 git 仓库（或 git 不可用）：
 
-[PASS] PII roundtrip
-       RESULT: PASS
+[FAIL] PII roundtrip
+       
 
-[PASS] Adapter selftest (23 metadata + 2 deep)
-       ---- 16/16 ----
+[FAIL] Adapter selftest (23 metadata + 2 deep)
+       
 
 [PASS] EAF 500Q artifact: 253/334 = 75.7% strict
 
 ============================================================
-Overall: ALL CHECKS PASSED
+Overall: SOME CHECKS FAILED
 Repro commands: see docs/site/en/reproduce.html
