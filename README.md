@@ -73,7 +73,7 @@ fields honestly marked `temporal_source="backfilled"`.
 | search (keyword) | 32.2ms | 35.0ms | 135.0ms |
 | correct (supersede) | 50.8ms | 54.7ms | 54.7ms |
 
-Reproduce: `python _dev/benchmarks/bench_latency.py --n 200`
+Reproduce: `python benchmarks/bench_latency.py --n 200`
 
 ## Documentation
 

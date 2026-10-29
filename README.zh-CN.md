@@ -64,7 +64,7 @@ $ python examples/audit_chain_demo.py
 | search (关键词) | 32.2ms | 35.0ms | 135.0ms |
 | correct (替代) | 50.8ms | 54.7ms | 54.7ms |
 
-复现：`python _dev/benchmarks/bench_latency.py --n 200`
+复现：`python benchmarks/bench_latency.py --n 200`
 
 ## 文档
 
