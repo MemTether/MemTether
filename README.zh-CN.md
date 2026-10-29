@@ -1,16 +1,25 @@
 <div align="center">
 
-<!-- PyPI 不解析仓库内相对路径图片，故 src 保持相对（GitHub 用），
-     并用 onerror 回退到 raw GitHub 绝对 URL。缺了它 PyPI 项目页首屏就是碎图。 -->
-<picture>
-  <source srcset="https://raw.githubusercontent.com/MemTether/MemTether/main/assets/court_demo.gif">
-  <img src="assets/court_demo.gif" width="100%" alt="MemTether Memory Court — 篡改可感知的 AI 记忆审计链"
-       onerror="this.onerror=null;this.src='https://raw.githubusercontent.com/MemTether/MemTether/main/assets/court_demo.gif'"/>
-</picture>
+<img src="assets/banner_v2.png" width="100%" alt="MemTether — 跨客户端 AI 记忆中枢，带防篡改哈希链"/>
+
+<a href="https://pypi.org/project/memtether/"><img src="https://img.shields.io/pypi/v/memtether?style=flat-square&color=blue" alt="PyPI"/></a>
+<a href="https://github.com/MemTether/MemTether/actions"><img src="https://img.shields.io/github/actions/workflow/status/MemTether/MemTether/ci.yml?branch=main&style=flat-square&label=tests" alt="Tests"/></a>
+<a href="https://github.com/MemTether/MemTether/blob/main/LICENSE"><img src="https://img.shields.io/github/license/MemTether/MemTether?style=flat-square" alt="License"/></a>
+<img src="https://img.shields.io/pypi/dm/memtether?style=flat-square&color=green" alt="Downloads"/>
+<a href="https://www.bestpractices.dev/projects/15441"><img src="https://www.bestpractices.dev/projects/15441/badge" alt="OpenSSF"/></a>
 
 # MemTether — AI 记忆法庭
 
 **你的 agent 记住了什么，谁来审计？**
+
+```bash
+pip install memtether
+```
+
+<img src="assets/court_demo.gif" width="720" alt="Memory Court — 篡改可感知的审计链"
+  onerror="this.onerror=null;this.src='https://raw.githubusercontent.com/MemTether/MemTether/main/assets/court_demo.gif'"/>
+
+---
 
 MemTether 是一个 local-first 的多客户端 AI agent 记忆中枢。大多数记忆系统比拼检索准确率，MemTether 比拼**治理**：谁写的这条记忆、何时生效、替代了什么、人裁了哪些冲突，以及任何人零代码即可验证的**防篡改哈希链**。检索也有（SGM 确定性 SQL 路由 + 混合 embedding），但那不是头牌——可审计、可纠正、可信任的 agent 记忆才是。
 

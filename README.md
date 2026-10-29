@@ -1,18 +1,25 @@
 <div align="center">
 
-<!-- PyPI does not resolve repo-relative image paths, so the primary src stays
-     relative for GitHub and an onerror fallback points at the raw GitHub URL.
-     Without this the PyPI project page shows a broken image as its first
-     screen (this fallback existed once and was lost in a later rewrite). -->
-<picture>
-  <source srcset="https://raw.githubusercontent.com/MemTether/MemTether/main/assets/court_demo.gif" media="(min-width: 0px)">
-  <img src="assets/court_demo.gif" width="100%" alt="MemTether Memory Court — tamper-evident audit chain for AI memory"
-       onerror="this.onerror=null;this.src='https://raw.githubusercontent.com/MemTether/MemTether/main/assets/court_demo.gif'"/>
-</picture>
+<img src="assets/banner_v2.png" width="100%" alt="MemTether — Cross-client AI memory hub with a tamper-evident hash chain"/>
+
+<a href="https://pypi.org/project/memtether/"><img src="https://img.shields.io/pypi/v/memtether?style=flat-square&color=blue" alt="PyPI"/></a>
+<a href="https://github.com/MemTether/MemTether/actions"><img src="https://img.shields.io/github/actions/workflow/status/MemTether/MemTether/ci.yml?branch=main&style=flat-square&label=tests" alt="Tests"/></a>
+<a href="https://github.com/MemTether/MemTether/blob/main/LICENSE"><img src="https://img.shields.io/github/license/MemTether/MemTether?style=flat-square" alt="License"/></a>
+<img src="https://img.shields.io/pypi/dm/memtether?style=flat-square&color=green" alt="Downloads"/>
+<a href="https://www.bestpractices.dev/projects/15441"><img src="https://www.bestpractices.dev/projects/15441/badge" alt="OpenSSF"/></a>
 
 # MemTether — The AI Memory Court
 
 **Your agent remembers things. Who audits what it remembers?**
+
+```bash
+pip install memtether
+```
+
+<img src="assets/court_demo.gif" width="720" alt="Memory Court — tamper-evident audit chain in action"
+  onerror="this.onerror=null;this.src='https://raw.githubusercontent.com/MemTether/MemTether/main/assets/court_demo.gif'"/>
+
+---
 
 MemTether is a local-first memory hub for multi-client AI agents. While
 most memory systems compete on retrieval accuracy, MemTether competes on
