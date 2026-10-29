@@ -1125,6 +1125,35 @@ def _version_payload():
     }
 
 
+def _cmd_sleep(args):
+    """Run NREM consolidation: cluster similar recent memories, extract summaries,
+    mark superseded, and distill error signals into procedures.
+
+    This is the sleep-time compute that agent-memory calls "dreaming" —
+    but it already exists in the codebase as nrem_consolidate.py.
+    This command just exposes it as a first-class CLI operation.
+    """
+    import subprocess, sys, os
+    here = os.path.dirname(os.path.abspath(__file__))
+    nrem = os.path.join(here, "nrem_consolidate.py")
+    if not os.path.exists(nrem):
+        # try the hub
+        hub_nrem = os.path.join(os.path.dirname(here), "memory_hub", "nrem_consolidate.py")
+        if os.path.exists(hub_nrem):
+            nrem = hub_nrem
+        else:
+            print("nrem_consolidate.py not found")
+            return 1
+    py = sys.executable
+    cmd = [py, nrem, "--hours", str(args.hours)]
+    if not args.dry_run:
+        cmd.append("--apply")
+    print("Running NREM consolidation (--hours %d%s)..." % (
+        args.hours, ", dry-run" if args.dry_run else ""))
+    r = subprocess.run(cmd, timeout=300, cwd=here)
+    return r.returncode
+
+
 def _cmd_version(args):
     if getattr(args, "json", False):
         print(json.dumps(_version_payload()))
@@ -1154,6 +1183,10 @@ def main(argv=None):
                    help="Output version in JSON format (used with --version)")
     sub = p.add_subparsers(dest="cmd")
 
+    sp_sleep = sub.add_parser("sleep", help="Run a consolidation pass: cluster similar memories, distill conclusions, retire stale entries")
+    sp_sleep.add_argument("--hours", type=int, default=24, help="Look-back window in hours")
+    sp_sleep.add_argument("--dry-run", action="store_true", help="Show proposals without applying")
+    sp_sleep.set_defaults(func=_cmd_sleep)
     sp_ver = sub.add_parser("version", help="Print version information")
     sp_ver.add_argument("--json", action="store_true", help="Output version info in JSON format")
     sp_ver.set_defaults(func=_cmd_version)
