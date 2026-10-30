@@ -1,0 +1,19 @@
+{
+  "method": "Logistic regression from scratch, 5-fold stratified CV, pure Python CPU",
+  "n": 2635,
+  "positive": 386,
+  "balance": 14.6,
+  "f1_mean": 0.93,
+  "f1_std": 0.024,
+  "f1_95ci": [
+    0.909,
+    0.951
+  ],
+  "folds": [
+    0.971,
+    0.933,
+    0.922,
+    0.898,
+    0.925
+  ]
+}
