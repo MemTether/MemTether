@@ -1,0 +1,64 @@
+{
+  "ts": "2026-09-16T09:54:42.916750",
+  "variant": "oracle",
+  "n": 60,
+  "strict": 0.5854,
+  "strict_n": 41,
+  "strict_na": 19,
+  "llm": 0.4576,
+  "llm_n": 59,
+  "llm_skipped": 1,
+  "per_type": {
+    "knowledge-update": {
+      "n": 9,
+      "strict": 5,
+      "strict_n": 7,
+      "strict_na": 2,
+      "llm": 5,
+      "llm_n": 9
+    },
+    "multi-session": {
+      "n": 16,
+      "strict": 3,
+      "strict_n": 10,
+      "strict_na": 6,
+      "llm": 7,
+      "llm_n": 16
+    },
+    "single-session-assistant": {
+      "n": 7,
+      "strict": 1,
+      "strict_n": 5,
+      "strict_na": 2,
+      "llm": 3,
+      "llm_n": 7
+    },
+    "single-session-preference": {
+      "n": 4,
+      "strict": 0,
+      "strict_n": 0,
+      "strict_na": 4,
+      "llm": 1,
+      "llm_n": 4
+    },
+    "temporal-reasoning": {
+      "n": 16,
+      "strict": 7,
+      "strict_n": 11,
+      "strict_na": 5,
+      "llm": 3,
+      "llm_n": 15
+    },
+    "single-session-user": {
+      "n": 8,
+      "strict": 8,
+      "strict_n": 8,
+      "strict_na": 0,
+      "llm": 8,
+      "llm_n": 8
+    }
+  },
+  "errors": [
+    "gen: [SILICON_KEY] ReadTimeout: HTTPSConnectionPool(host='api.siliconflow.cn', port=443): Read timed o"
+  ]
+}

@@ -1,0 +1,412 @@
+{
+ "ts": "2026-10-18T10:27:44.930659",
+ "method": "LongMemEval official LLM-as-judge on EAF 500Q answers",
+ "judge_model": "cn:glm-5.3-flash",
+ "judge_hits": 41,
+ "judge_total": 50,
+ "judge_rate": 82.0,
+ "strict_rate": 0.757,
+ "results": [
+  {
+   "idx": 60,
+   "question_id": "eaf_60",
+   "gold": "3",
+   "answer": "2 items: the navy blue blazer and the pair of boots.",
+   "judge": false,
+   "raw": "WRONG"
+  },
+  {
+   "idx": 61,
+   "question_id": "eaf_61",
+   "gold": "2",
+   "answer": "GENERATION_FAILED",
+   "judge": false,
+   "raw": "WRONG"
+  },
+  {
+   "idx": 63,
+   "question_id": "eaf_63",
+   "gold": "8 days.",
+   "answer": "8 days",
+   "judge": true,
+   "raw": "CORRECT"
+  },
+  {
+   "idx": 67,
+   "question_id": "eaf_67",
+   "gold": "15 hours for getting to the three destinations (or 30 hours for the round trip)",
+   "answer": "15 hours",
+   "judge": true,
+   "raw": "CORRECT"
+  },
+  {
+   "idx": 68,
+   "question_id": "eaf_68",
+   "gold": "I visited three different doctors: a primary care physician, an ENT specialist, and a dermatologist.",
+   "answer": "3",
+   "judge": true,
+   "raw": "CORRECT"
+  },
+  {
+   "idx": 70,
+   "question_id": "eaf_70",
+   "gold": "3",
+   "answer": "2 (orange and lime)",
+   "judge": false,
+   "raw": "WRONG"
+  },
+  {
+   "idx": 72,
+   "question_id": "eaf_72",
+   "gold": "17 days",
+   "answer": "17 days",
+   "judge": true,
+   "raw": "CORRECT"
+  },
+  {
+   "idx": 73,
+   "question_id": "eaf_73",
+   "gold": "3",
+   "answer": "3 tanks.",
+   "judge": true,
+   "raw": "CORRECT"
+  },
+  {
+   "idx": 75,
+   "question_id": "eaf_75",
+   "gold": "140 hours",
+   "answer": "140 hours",
+   "judge": true,
+   "raw": "CORRECT"
+  },
+  {
+   "idx": 77,
+   "question_id": "eaf_77",
+   "gold": "5",
+   "answer": "5 babies: Ava, Lily, Max, Jasper, and Charlotte.",
+   "judge": true,
+   "raw": "CORRECT"
+  },
+  {
+   "idx": 78,
+   "question_id": "eaf_78",
+   "gold": "4",
+   "answer": "4 pieces of furniture: the IKEA bookshelf, kitchen table, coffee table, and mattress.",
+   "judge": true,
+   "raw": "CORRECT"
+  },
+  {
+   "idx": 84,
+   "question_id": "eaf_84",
+   "gold": "0.5 hours",
+   "answer": "30 minutes of jogging; no yoga duration was recorded.",
+   "judge": true,
+   "raw": "CORRECT"
+  },
+  {
+   "idx": 85,
+   "question_id": "eaf_85",
+   "gold": "TikTok",
+   "answer": "TikTok.",
+   "judge": true,
+   "raw": "CORRECT"
+  },
+  {
+   "idx": 86,
+   "question_id": "eaf_86",
+   "gold": "Thrive Market",
+   "answer": "Thrive Market",
+   "judge": true,
+   "raw": "CORRECT"
+  },
+  {
+   "idx": 88,
+   "question_id": "eaf_88",
+   "gold": "4",
+   "answer": "2",
+   "judge": false,
+   "raw": "WRONG"
+  },
+  {
+   "idx": 89,
+   "question_id": "eaf_89",
+   "gold": "59.6",
+   "answer": "59.6 years old.",
+   "judge": true,
+   "raw": "CORRECT"
+  },
+  {
+   "idx": 90,
+   "question_id": "eaf_90",
+   "gold": "2",
+   "answer": "2",
+   "judge": true,
+   "raw": "CORRECT"
+  },
+  {
+   "idx": 93,
+   "question_id": "eaf_93",
+   "gold": "17",
+   "answer": "17 fish total (16 in the 20-gallon tank + 1 betta in the 10-gallon tank).",
+   "judge": true,
+   "raw": "CORRECT"
+  },
+  {
+   "idx": 94,
+   "question_id": "eaf_94",
+   "gold": "5",
+   "answer": "5 fitness classes per week.",
+   "judge": true,
+   "raw": "CORRECT"
+  },
+  {
+   "idx": 96,
+   "question_id": "eaf_96",
+   "gold": "3",
+   "answer": "3 pieces of jewelry.",
+   "judge": true,
+   "raw": "CORRECT"
+  },
+  {
+   "idx": 100,
+   "question_id": "eaf_100",
+   "gold": "2",
+   "answer": "2",
+   "judge": true,
+   "raw": "CORRECT"
+  },
+  {
+   "idx": 102,
+   "question_id": "eaf_102",
+   "gold": "3 days.",
+   "answer": "3 days",
+   "judge": true,
+   "raw": "CORRECT"
+  },
+  {
+   "idx": 107,
+   "question_id": "eaf_107",
+   "gold": "3 days",
+   "answer": "3 days",
+   "judge": true,
+   "raw": "CORRECT"
+  },
+  {
+   "idx": 108,
+   "question_id": "eaf_108",
+   "gold": "99",
+   "answer": "99 rare items.",
+   "judge": true,
+   "raw": "CORRECT"
+  },
+  {
+   "idx": 110,
+   "question_id": "eaf_110",
+   "gold": "2",
+   "answer": "2",
+   "judge": true,
+   "raw": "CORRECT"
+  },
+  {
+   "idx": 112,
+   "question_id": "eaf_112",
+   "gold": "3",
+   "answer": "2",
+   "judge": false,
+   "raw": "WRONG"
+  },
+  {
+   "idx": 114,
+   "question_id": "eaf_114",
+   "gold": "23",
+   "answer": "GENERATION_FAILED",
+   "judge": false,
+   "raw": "WRONG"
+  },
+  {
+   "idx": 117,
+   "question_id": "eaf_117",
+   "gold": "0. You did not mention visitng any museum in December",
+   "answer": "0 (no December museum or gallery visits are mentioned in the context).",
+   "judge": true,
+   "raw": "CORRECT"
+  },
+  {
+   "idx": 432,
+   "question_id": "eaf_432",
+   "gold": "100",
+   "answer": "Approximately 350 followers.",
+   "judge": false,
+   "raw": "WRONG"
+  },
+  {
+   "idx": 433,
+   "question_id": "eaf_433",
+   "gold": "5",
+   "answer": "2",
+   "judge": false,
+   "raw": "WRONG"
+  },
+  {
+   "idx": 441,
+   "question_id": "eaf_441",
+   "gold": "27",
+   "answer": "27 episodes (15 from \"How I Built This\" and 12 from \"My Favorite Murder\").",
+   "judge": true,
+   "raw": "CORRECT"
+  },
+  {
+   "idx": 442,
+   "question_id": "eaf_442",
+   "gold": "8",
+   "answer": "5 tomato plants and 3 cucumber plants (8 total).",
+   "judge": true,
+   "raw": "CORRECT"
+  },
+  {
+   "idx": 448,
+   "question_id": "eaf_448",
+   "gold": "5",
+   "answer": "5 (3 goals + 2 assists).",
+   "judge": true,
+   "raw": "CORRECT"
+  },
+  {
+   "idx": 452,
+   "question_id": "eaf_452",
+   "gold": "11",
+   "answer": "11 years old.",
+   "judge": true,
+   "raw": "CORRECT"
+  },
+  {
+   "idx": 459,
+   "question_id": "eaf_459",
+   "gold": "8 meals",
+   "answer": "8",
+   "judge": true,
+   "raw": "CORRECT"
+  },
+  {
+   "idx": 461,
+   "question_id": "eaf_461",
+   "gold": "Harvard University",
+   "answer": "Harvard University",
+   "judge": true,
+   "raw": "CORRECT"
+  },
+  {
+   "idx": 462,
+   "question_id": "eaf_462",
+   "gold": "1 year and 5 months",
+   "answer": "1 year 5 months.",
+   "judge": true,
+   "raw": "CORRECT"
+  },
+  {
+   "idx": 466,
+   "question_id": "eaf_466",
+   "gold": "an hour and a half",
+   "answer": "1 hour and 30 minutes.",
+   "judge": true,
+   "raw": "CORRECT"
+  },
+  {
+   "idx": 467,
+   "question_id": "eaf_467",
+   "gold": "2",
+   "answer": "2 miles per gallon more.",
+   "judge": true,
+   "raw": "CORRECT"
+  },
+  {
+   "idx": 468,
+   "question_id": "eaf_468",
+   "gold": "20",
+   "answer": "20",
+   "judge": true,
+   "raw": "CORRECT"
+  },
+  {
+   "idx": 470,
+   "question_id": "eaf_470",
+   "gold": "33",
+   "answer": "33 years old.",
+   "judge": true,
+   "raw": "CORRECT"
+  },
+  {
+   "idx": 472,
+   "question_id": "eaf_472",
+   "gold": "three",
+   "answer": "3",
+   "judge": true,
+   "raw": "CORRECT"
+  },
+  {
+   "idx": 475,
+   "question_id": "eaf_475",
+   "gold": "70 pounds",
+   "answer": "70 pounds",
+   "judge": true,
+   "raw": "CORRECT"
+  },
+  {
+   "idx": 479,
+   "question_id": "eaf_479",
+   "gold": "43",
+   "answer": "The context does not provide your age, so I can’t determine how many years older your grandma is.",
+   "judge": false,
+   "raw": "WRONG"
+  },
+  {
+   "idx": 480,
+   "question_id": "eaf_480",
+   "gold": "7",
+   "answer": "7 years older.",
+   "judge": true,
+   "raw": "CORRECT"
+  },
+  {
+   "idx": 482,
+   "question_id": "eaf_482",
+   "gold": "33",
+   "answer": "33 comments",
+   "judge": true,
+   "raw": "CORRECT"
+  },
+  {
+   "idx": 487,
+   "question_id": "eaf_487",
+   "gold": "12",
+   "answer": "12 minutes",
+   "judge": true,
+   "raw": "CORRECT"
+  },
+  {
+   "idx": 488,
+   "question_id": "eaf_488",
+   "gold": "856",
+   "answer": "416 pages and 440 pages.",
+   "judge": true,
+   "raw": "CORRECT"
+  },
+  {
+   "idx": 489,
+   "question_id": "eaf_489",
+   "gold": "4",
+   "answer": "4",
+   "judge": true,
+   "raw": "CORRECT"
+  },
+  {
+   "idx": 493,
+   "question_id": "eaf_493",
+   "gold": "2",
+   "answer": "2 (March 5th and March 26th).",
+   "judge": true,
+   "raw": "CORRECT"
+  }
+ ],
+ "errors": []
+}
