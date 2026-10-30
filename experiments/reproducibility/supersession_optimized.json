@@ -1,0 +1,11 @@
+{
+  "method": "Logistic regression + threshold optimization, 5-fold stratified CV, leak-free",
+  "best_threshold": 0.66,
+  "f1_default_05": 0.692,
+  "f1_optimized": 0.857,
+  "f1_std": 0.014,
+  "f1_95ci": [
+    0.844,
+    0.869
+  ]
+}
