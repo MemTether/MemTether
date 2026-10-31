@@ -36,7 +36,7 @@ print(f"Loaded LoCoMo: {len(locomo)} conversations, {sum(len(c['qa']) for c in l
 print("Ingesting all conversations...")
 t0 = time.time()
 total_msgs = 0
-for ci, conv in enumerate(locomо if False else locomo):
+for ci, conv in enumerate(locomo if False else locomo):
     conv_id = conv.get("sample_id", f"conv_{ci}")
     conversation = conv["conversation"]
     
