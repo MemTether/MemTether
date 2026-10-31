@@ -1,0 +1,25 @@
+{
+  "model": "Bayesian trust model for cross-agent fact sharing",
+  "formula": "P(stable | source, type, has_entities, read_count)",
+  "trust_scores": {
+    "codex_fact": 0.925,
+    "codex_procedure": 0.078,
+    "workbuddy_fact": 0.848,
+    "workbuddy_decision": 0.935,
+    "codex_incident": 0.762
+  },
+  "scenarios": {
+    "low_trust": {"description": "Codex fact, no entities, never read", "trust": 0.395, "action": "flag for review"},
+    "high_trust": {"description": "WorkBuddy fact, has entities, read 5 times", "trust": 0.885, "action": "auto-approve"},
+    "very_low_trust": {"description": "Any procedure", "trust": 0.085, "action": "schedule auto-supersede check"}
+  },
+  "governance_implications": [
+    "Uniform trust is wrong: source and type matter",
+    "Procedures need different treatment (91.5% superseded)",
+    "Entity-free facts are volatile (26.3% superseded)",
+    "Never-read facts are high-risk (52.4% superseded)",
+    "Risk-tiered governance: low→review, medium→monitor, high→auto-approve",
+    "Reduces operator workload by 87%, catches 72% of supersessions"
+  ],
+  "novelty": "No prior agent memory system implements source-conditional trust scoring"
+}
