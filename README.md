@@ -62,6 +62,16 @@ $ memtether court fact-20261007-abc
 +============================================================+
 ```
 
+
+## Demo
+
+![MemTether Demo](assets/demo.gif)
+
+### Memory Court — audit any memory
+
+![Memory Court](assets/court_demo.gif)
+
+
 ## TL;DR
 
 - **Your AI clients forget each other?** Every agent keeps its own memory. MemTether gives them one shared, governed brain via file-level pointers — no cloud, no sync.
@@ -332,6 +342,8 @@ Gemini CLI ─────┤                  ├─── WorkBuddy
 </details>
 
 ---
+
+![Architecture](assets/demo-architecture.svg)
 
 ## Connect Your Clients
 
