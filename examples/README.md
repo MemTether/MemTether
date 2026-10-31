@@ -1,15 +1,21 @@
-# Examples
+# MemTether Examples
 
-Each file is self-contained and can be run directly:
+## Basic Usage
+- `basic_usage.py` — remember, search, correct, retire
+- `basic_remember.py` — minimal write example
+- `multi_client_demo.py` — multiple agents sharing one memory DB
+- `bitemporal_demo.py` — as_of queries and time travel
+- `audit_chain_demo.py` — hash chain tamper detection
+- `qvalue_demo.py` — Q-value usage-based ranking
 
-```bash
-python examples/basic_usage.py       # remember + search + supersede + retire`npython examples/basic_remember.py    # minimal 10-line quickstart (CN comments)
-python examples/multi_client_demo.py # two clients sharing one memory (Claude Code -> Cursor)
-python examples/bitemporal_demo.py   # as-of queries
-python examples/qvalue_demo.py       # Q-Value ranking demo
-python examples/mcp_client.py        # MCP server connection guide (info only)
-python examples/rest_api_client.py   # REST API usage guide (info only)
-python examples/audit_chain_demo.py  # tamper-evident audit chain demo (core feature)
-```
+## Framework Integrations
+- `crewai_integration.py` — CrewAI multi-agent crews with governed memory
+- `autogen_integration.py` — AutoGen memory poisoning protection
+- `langchain_integration.py` — LangChain persistent memory with audit trails
 
-All examples use isolated temp databases and won't touch any real data.
+## Migration
+- `mem0_migration.py` — migrate from mem0 to MemTether
+
+## API Clients
+- `rest_api_client.py` — REST API client
+- `mcp_client.py` — MCP protocol client
