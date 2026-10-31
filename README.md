@@ -218,6 +218,18 @@ docker-compose up
 
 ---
 
+## Framework Integrations
+
+MemTether works with any agent framework via its Python API or MCP server. Ready-made examples:
+
+| Framework | Example | What it adds |
+|---|---|---|
+| [CrewAI](examples/crewai_integration.py) | Multi-agent crews | Governed shared memory with audit chains and conflict gating |
+| [AutoGen](examples/autogen_integration.py) | Multi-agent conversations | Memory poisoning protection via provenance and tamper detection |
+| [LangChain](examples/langchain_integration.py) | Persistent memory | Cross-session recall with bi-temporal corrections |
+
+All examples are self-contained and compile-verified. See `examples/` for the full list.
+
 ## Why MemTether
 
 ### The one thing no other memory system does: corrections don't delete
