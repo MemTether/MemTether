@@ -317,6 +317,23 @@ On LoCoMo (conv0 subset, 82 QA pairs): 13.4\% strict, 8.5\% judge. On LongMemEva
 
 We recommend paired per-question McNemar analysis as the default protocol for any benchmark reporting dual-track scores.
 
+\begin{table}[h]
+\centering
+\caption{LongMemEval per-type performance (EAF pipeline).}
+\begin{tabular}{lrr}
+\toprule
+Type & Strict & Judge \\
+\midrule
+Knowledge-update & 85.9\% & --- \\
+Single-session-user & 94.9\% & --- \\
+Single-session-assistant & 78.7\% & --- \\
+Temporal-reasoning & 67.9\% & --- \\
+Multi-session & 60.0\% & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
 \section{Causal Analysis}
 \label{sec:causal}
 
@@ -371,6 +388,22 @@ The system has been running continuously since September 13, 2026. During the 30
 
 \textbf{Write governance.} Cache admission policies (TinyLFU, ARC) solve the analogous problem in database buffer pools. LSM-tree compaction provides write-side optimization. Our work adapts these concepts to agent memory where admission must consider semantic novelty and predicted utility.
 
+
+\section{Discussion}
+\label{sec:discussion}
+
+\subsection{Why Not Compete on Retrieval Accuracy Alone}
+Our contribution is not retrieval accuracy but the governance and auditability layer. MemStrata reports 95% on LongMemEval and xmemory reports 97.1% F1. These systems optimize retrieval quality; we optimize correctness guarantees. A memory system that returns the right answer 95% of the time but cannot prove that its memories were not tampered with is insufficient for compliance scenarios.
+
+\subsection{Cross-Agent Power Dynamics}
+In multi-agent deployments, different agents have different write privileges. MemTether's source attribution makes it possible to audit which agent wrote which fact, enabling accountability in scenarios where agent decisions affect users.
+
+\subsection{The Architecture-Evaluation Connection}
+Our cross-system comparison reveals that memory architecture and evaluation methodology are not independent choices. A preservation-oriented system (MemTether) produces temporally dependent data where random CV is invalid. A compression-oriented system (mem0) converges to a fixed-size store where random CV may be valid but information loss is invisible. Researchers choosing a memory architecture are implicitly choosing an evaluation methodology.
+
+\subsection{Practical Governance Routing}
+We demonstrate three scenarios: (1) a Codex procedure with 0 entities should be flagged for review (91.5% supersession rate for this category); (2) a WorkBuddy decision with entities and reads can be auto-approved (6.5% supersession rate); (3) any fact with 0 reads after 24 hours should enter the review queue (52.4% supersession rate).
+
 \section{Limitations}
 \label{sec:limitations}
 
@@ -387,6 +420,353 @@ The system has been running continuously since September 13, 2026. During the 30
 
 \section{Conclusion}
 We present MemTether, a local-first agent memory system with bi-temporal supersession (4 theorems), hash-chained audit (Memory Court), and deployment-aligned evaluation (ClockScore). Our 30-day production deployment validates the architecture across 15 agents and 22 adapters with zero data loss. Our evaluation reveals a cross-benchmark direction reversal and a four-way behavioral spectrum across memory systems. MemTether achieves 62.4\% strict and 68.8\% judge on LongMemEval-500, exceeding mem0.
+
+\begin{thebibliography}{50}
+
+\bibitem[Wang et~al.(2026)]{admissibility}
+Wang, Z. et~al.
+\newblock The Right Memory in the Wrong Context: Verifying Retrieval Admissibility in Long-Term Agent Memory.
+\newblock \emph{arXiv:2610.07309}, 2026.
+
+\bibitem[Chen et~al.(2024)]{agentpoison}
+Chen, Z. et~al.
+\newblock AgentPoison: Red-teaming LLM Agents via Poisoning Memory or Knowledge Bases.
+\newblock \emph{NeurIPS 2024}, 2024. arXiv:2407.12784.
+
+\bibitem[Zhang et~al.(2026)]{amac}
+Zhang, G., Jiang, W., Wang, X., Behr, A., Zhao, K., Friedman, J., Chu, X., and Anoun, A.
+Adaptive memory admission control for LLM agents. In ICLR 2026 Workshop MemAgent.
+arXiv:2603.04549, 2026.
+
+\bibitem[Jiang et~al.(2026)]{anatomy2026}
+Jiang, D. et~al.
+\newblock Anatomy of Agentic Memory: Taxonomy and Empirical Analysis of Evaluation and Sys. \newblock \emph{arXiv:2602.19320}, 2026.
+
+\bibitem[Anonymous(2026)]{anonymous2026simpson}
+Anonymous.
+\newblock Denominator Mismatch Inflates Apparent Strict--Judge Gaps in Memory Evaluation.
+\newblock \emph{Under review}, 2026.
+
+\bibitem[Megiddo and Modha(2003)]{arc}
+Megiddo, N. and Modha, D.~S.
+\newblock ARC: A Self-Tuning, Low Overhead Replacement Cache.
+\newblock \emph{USENIX FAST}, 2003.
+
+\bibitem[Chanhnourack(2026)]{auditlme}
+Chanhnourack, C. J.
+\newblock Auditing Long-Term Memory Evaluation: Repeated Judging, Reader Variation, and Negative Controls.
+\newblock \emph{arXiv:2609.38021}, 2026.
+
+\bibitem[Bergmeir and Benítez(2012)]{bergmeir2012}
+Bergmeir, C. and Benítez, J. M. On the use of cross-validation for time series predictor evaluation. \emph{Information Sciences} 191 (2012), 192--213.
+
+\bibitem[Anonymous(2026)]{beyondqa}
+Anonymous.
+\newblock Beyond Downstream QA: Rethinking How We Evaluate Agent Memory.
+\newblock \emph{arXiv preprint arXiv:2610.22209}, 2026.
+
+\bibitem[BGE(2023)]{bge2023}
+BAAI.
+\newblock BGE-M3: Embedding Model for Multi-lingual, Multi-functionality, Multi-granularity.
+\newblock \emph{\url{https://huggingface.co/BAAI/bge-m3}}, 2023.
+
+\bibitem[Anonymous(2026)]{calm}
+Anonymous.
+\newblock CALM: Conflict-Aware Lifecycle Memory Governance for Long-Horizon Language Agents.
+\newblock \emph{arXiv preprint arXiv:2610.38573}, 2026.
+
+\bibitem[Cerqueira et~al.(2020)]{cerqueira2020}
+Cerqueira, V., Torgo, L. and Mozetič, I. Evaluating time series forecasting models: an empirical study on performance estimation methods. \emph{Machine Learning} 109 (2020), 1997--2028.
+
+\bibitem[Anonymous(2026)]{companioncac}
+Anonymous.
+\newblock When Agents Disagree: Measuring and Resolving Cross-Agent Memory Contradictions in Shared Multi-Agent Memory.
+\newblock Manuscript under review, 2026.
+
+\bibitem[Anonymous(2026)]{companioncrossbench}
+Anonymous. Cross-Benchmark Analysis of Dual-Track Scoring in Memory Evaluation. Under review, 2026.
+
+\bibitem[Anonymous(2026)]{companionjss}
+Anonymous.
+\newblock MemTether: A Local-First Agent Memory System with Bi-Temporal Supersession and Hash-Chained Audit for Multi-Client AI Agents.
+\newblock \emph{Journal of Systems and Software}, under review, 2026.
+
+\bibitem[Chen et~al.(2026)]{comptrap}
+Chen, Y., Bai, X., and Yuille, A. The compliance trap: diagnosing how AI agents
+consume conflicting memory. arXiv:2607.10608, 2026.
+
+\bibitem[Cui et~al.(2025)]{edgemem2025}
+Z.~Cui et~al.
+\newblock EdgeMem: LLM-Free Agent Memory Construction and Retrieval via Evidence-Preservin. \newblock \emph{arXiv:2609.05553}, 2025.
+
+\bibitem[Wang et~al.(2026)]{engram}
+Wang, L.
+\newblock Less Context, More Accuracy: A Bi-Temporal Memory Model for AI Agents.
+\newblock \emph{arXiv:2606.09900}, 2026.
+
+\bibitem[Wang et~al.(2026)]{engram2026}
+Wang, L. et~al.
+\newblock Less Context, More Accuracy: A Bi-Temporal Memory Engine for LLM Agents Where a . \newblock \emph{arXiv:2606.09900}, 2026.
+
+\bibitem[Deng(2026)]{entitycollision}
+Deng, Y. Entity-collision: a stratified protocol for attributing retrieval lift
+in agent memory. arXiv:2605.29630, 2026.
+
+\bibitem[EU AI Act(2024)]{euaiact}
+European Parliament and Council.
+\newblock Regulation (EU) 2024/1689 (Artificial Intelligence Act).
+\newblock \emph{Official Journal of the European Union}, 2024.
+
+\bibitem[Hu et~al.(2026)]{evermemos2026}
+Hu, C. et~al.
+\newblock EverMemOS: A Self-Organizing Memory Operating System for Structured Long-Horizon. \newblock \emph{arXiv:2601.02163}, 2026.
+
+\bibitem[Feuer et~al.(2025)]{feuer2025noise}
+Feuer, B. et~al.
+\newblock When Judgment Becomes Noise: How Design Failures in LLM Judge Benchmarks Silently Undermine Validity.
+\newblock \emph{arXiv:2509.20293}, 2025.
+
+\bibitem[An et~al.(2026)]{fidelity2026}
+An, T. et~al.
+\newblock Fidelity Before Structure: Verbatim Chunks Beat Lossy Artifact Extraction in Lon. \newblock \emph{arXiv:2601.00821}, 2026.
+
+\bibitem[Gama et~al.(2014)]{gama2014}
+Gama, J., Žliobaitė, I., Bifet, A., Pechenizkiy, M. and Bouchachia, A. A survey on concept drift adaptation. \emph{ACM Computing Surveys} 46, 4 (2014), Article 44.
+
+\bibitem[Saraswat et~al.(2026)]{gatedmem}
+Saraswat, P., Neelagiri, D., and Manoj, A. Gated memory: admission-controlled memory
+formation for conversational AI. arXiv:2610.11270, 2026.
+
+\bibitem[Ren et~al.(2026)]{gatemem2026}
+Ren, Z. et~al.
+\newblock GateMem: Benchmarking Memory Governance in Multi-Principal Shared-Memory Agents. \newblock \emph{arXiv:2606.18829}, 2026.
+
+\bibitem[Geifman and El-Yaniv(2017)]{geifman2017selective}
+Y.~Geifman and R.~El-Yaniv.
+\newblock Selective Classification for Deep Neural Networks.
+\newblock In \emph{NeurIPS}, 2017.
+
+\bibitem[Kim et~al.(2025)]{gmotion}
+Kim, J. et~al.
+\newblock G-Memory: Tracing Hierarchical Memory for Multi-Agent Systems.
+\newblock \emph{NeurIPS 2025 Spotlight}, 2025.
+
+\bibitem[Anonymous(2026)]{govcorr}
+Anonymous.
+\newblock Governance-State Corruption in Long-Term Memory for LLM Agents: A Cross-Model Stress Test.
+\newblock \emph{arXiv preprint arXiv:2610.30698}, 2026.
+
+\bibitem[Anonymous(2026)]{groundeval}
+Anonymous.
+\newblock GroundEval: Judge-Free Verification of Agent Evidence Paths.
+\newblock \emph{arXiv preprint}, 2026.
+
+\bibitem[Anonymous(2026)]{gtfirst}
+Anonymous. Ground truth first: a longitudinal evaluation instrument for agent
+memory, and the tenure crossover in memory-architecture rankings.
+arXiv:2607.21962, 2026.
+
+\bibitem[Gu et~al.(2024)]{gu2024judgesurvey}
+J.~Gu et~al.
+\newblock A Survey on LLM-as-a-Judge.
+\newblock \emph{arXiv:2411.15594}, 2024.
+
+\bibitem[Ji et~al.(2023)]{ji2023hallucination}
+Z.~Ji et~al.
+\newblock Survey of Hallucination in Natural Language Generation.
+\newblock \emph{ACM Computing Surveys}, 55(12), 2023.
+
+\bibitem[Kamath et~al.(2020)]{kamath2020selective}
+A.~Kamath, J.~Jia, and P.~Liang.
+\newblock Selective Question Answering under Domain Shift.
+\newblock In \emph{ACL}, 2020.
+
+\bibitem[Kapoor and Narayanan(2023)]{kapoor2023}
+Kapoor, S. and Narayanan, A. Leakage and the reproducibility crisis in machine-learning-based science. \emph{Patterns} 4, 12 (2023), 100804.
+
+\bibitem[Kaufman et~al.(2012)]{kaufman2012}
+Kaufman, S., Rosset, S., Perlich, C. and Stitelman, O. Leakage in data mining: formulation, detection, and avoidance. \emph{ACM Transactions on Knowledge Discovery from Data} 6, 4 (2012), Article 15.
+
+\bibitem[Liu et~al.(2025)]{langmem}
+Liu, H. et~al.
+\newblock LangMem: Memory Management for Language Agents.
+\newblock \emph{LangChain}, 2025.
+
+\bibitem[Packer et~al.(2023)]{letta}
+Packer, C. et~al.
+\newblock MemGPT: Towards LLMs as Operating Systems.
+\newblock \emph{arXiv:2310.08560}, 2023.
+
+\bibitem[Li et~al.(2025)]{li2025unreliable}
+J.~Li et~al.
+\newblock LLMs Cannot Reliably Judge Factual Consistency.
+\newblock \emph{arXiv}, 2025.
+
+\bibitem[Maharana et~al.(2024)]{locomo2024}
+Maharana, A. et~al.
+\newblock Evaluating Very Long-Term Conversational Memory of LLM Agents.
+\newblock \emph{arXiv:2402.17753}, 2024.
+
+\bibitem[Wu et~al.(2026)]{longmemevalv2}
+D.~Wu et~al.
+\newblock LongMemEval-V2: Evaluating Long-Term Agent Memory Toward Experienced Colleagues.
+\newblock \emph{arXiv:2605.12493}, 2026.
+
+\bibitem[O'Neil et~al.(1996)]{lsm}
+O'Neil, P., Cheng, E., Gawlick, D., and O'Neil, E.
+\newblock The Log-Structured Merge-Tree (LSM-Tree).
+\newblock \emph{Acta Informatica}, 1996.
+
+\bibitem[Hu et~al.(2025)]{mab}
+Hu, Y. et~al.
+\newblock Evaluating Memory in LLM Agents via Incremental Multi-Turn Interactions.
+\newblock \emph{arXiv:2507.05257}, 2025.
+
+\bibitem[Anonymous(2026)]{mandato}
+Anonymous.
+\newblock Mandato: Protocol-Level Enforcement of Digitally Signed Mandates on AI Agent Actions with Cryptographically Chained Audit Trails.
+\newblock \emph{arXiv preprint arXiv:2608.14074}, 2026.
+
+\bibitem[Chhikara et~al.(2025)]{mem0}
+Chhikara, P. et~al.
+\newblock Mem0: Building Production-Ready AI Agents with Scalable Long-Term Memory.
+\newblock \emph{arXiv:2504.19413}, 2025.
+
+\bibitem[Abtahi et~al.(2026)]{memanto}
+Abtahi, S. M. et~al.
+\newblock Memanto: Typed Semantic Memory with Information-Theoretic Retrieval.
+\newblock \emph{arXiv:2604.22085}, 2026.
+
+\bibitem[Margalit et~al.(2026)]{memclaw2026}
+Margalit, Y. et~al.
+\newblock Governed Shared Memory for Multi-Agent LLM Systems. \newblock \emph{arXiv:2606.24535}, 2026.
+
+\bibitem[Anonymous(2026)]{memderive}
+Anonymous.
+\newblock MemDerive: Deriving Gold Answers with Datalog for Agent Memory Diagnosis.
+\newblock \emph{arXiv preprint}, 2026.
+
+\bibitem[Anonymous(2026)]{memecho}
+Anonymous.
+\newblock Memory Echo in Single-Agent Long-Term Memory: Lifecycle Evaluation and Provenance-Guided Mitigation.
+\newblock \emph{arXiv preprint arXiv:2610.17763}, 2026.
+
+\bibitem[Wang(2026)]{memguard2026}
+H.~Wang.
+\newblock MemGuard: Persisting Verifier Signals for LLM-Agent Memory Governance. \newblock \emph{arXiv:2608.21867}, 2026.
+
+\bibitem[Mudgal et~al.(2026)]{memleak}
+Mudgal, P. et~al.
+\newblock MemLeak: Cross-User Semantic Leakage in Multi-Tenant AI Agent Memory.
+\newblock \emph{arXiv:2610.04195}, 2026.
+
+\bibitem[Li et~al.(2025)]{memos2025}
+Li, Z. et~al.
+\newblock MemOS: A Memory OS for AI System. \newblock \emph{arXiv:2507.03724}, 2025.
+
+\bibitem[Yadav(2026)]{memstrata}
+Yadav, N.
+\newblock Temporal Validity in Retrieval Memory: Eliminating Stale-Fact Errors.
+\newblock \emph{arXiv:2606.26511}, 2026. v2: arXiv:2610.05343, 2026.
+
+\bibitem[Yadav(2026)]{memstrata2026}
+Yadav, N.
+\newblock Temporal Validity in Retrieval Memory: Eliminating Stale-Fact Errors for AI Agen. \newblock \emph{arXiv:2606.26511}, 2026.
+
+
+Yadav, N.
+\newblock MemStrata: Bi-Temporal Ledger for Agent Memory.
+\newblock \emph{arXiv:2606.26511}, 2026.
+
+\bibitem[Anonymous(2026)]{memtax}
+Anonymous.
+\newblock MemoryTax: Designed Memory Is a Costly Patch for Weak Models.
+\newblock \emph{arXiv preprint}, 2026.
+
+\bibitem[Gema et~al.(2024)]{mmluredux2024}
+Gema, A.~P. et~al.
+\newblock Are We Done with MMLU?. \newblock \emph{arXiv:2406.04127}, 2024.
+
+\bibitem[Anonymous(2026)]{obsolete}
+Anonymous.
+\newblock When Retrieval Is Not Enough: Obsolete Facts in Agent Memory.
+\newblock \emph{arXiv preprint arXiv:2610.36308}, 2026.
+
+\bibitem[Anonymous(2026)]{safemem}
+Anonymous.
+\newblock SAFE-Mem: Secure Agentic Memory with Fine-Grained Authority and Governance-Aware Retrieval.
+\newblock \emph{arXiv preprint arXiv:2610.22959}, 2026.
+
+\bibitem[Simpson(1951)]{simpson1951}
+E.~H. Simpson.
+\newblock The Interpretation of Interaction in Contingency Tables.
+\newblock \emph{JRSS-B}, 13(2), 1951.
+
+\bibitem[Chen et~al.(2021)]{simpsonrecsys}
+Jadidinejad, A.~H. et~al.
+\newblock The Simpson's Paradox in the Offline Evaluation of Recommendation Systems.
+\newblock \emph{arXiv:2104.08912}, 2021.
+
+\bibitem[Pulipaka et~al.(2025)]{sleeper}
+Pulipaka, S. et~al.
+\newblock Hidden in Memory: Sleeper Memory Poisoning in LLM Agents. \newblock \emph{arXiv:2605.15338}, 2025.
+
+\bibitem[Anonymous(2026)]{slm4}
+Anonymous.
+\newblock SuperLocalMemory 4.0: The Governed Memory Operating System for AI Agents.
+\newblock \emph{arXiv preprint arXiv:2608.08253}, 2026.
+
+\bibitem[Snodgrass(1995)]{snodgrass95}
+Snodgrass, R.
+\newblock \emph{Developing Time-Oriented Database Applications in SQL}.
+\newblock Morgan Kaufmann, 1995.
+
+\bibitem[Anonymous(2026)]{supersede}
+Anonymous. Supersede: diagnosing and training the memory-update gap in LLM
+agents. arXiv:2606.27472, 2026.
+
+\bibitem[Tashman(2000)]{tashman2000}
+Tashman, L. J. Out-of-sample tests of forecasting accuracy: an analysis and review. \emph{International Journal of Forecasting} 16, 4 (2000), 437--450.
+
+\bibitem[Berg et~al.(2017)]{tinylfu}
+Berg, M., Bhatt, H., Franklin, M., and Krishnamurthy, A.
+\newblock TinyLFU: A Highly Efficient Cache Admission Policy.
+\newblock \emph{ACM Transactions on Storage}, 2017.
+
+\bibitem[Xiong et~al.(2026)]{trace2026}
+W.~Xiong et~al.
+\newblock TRACE: Temporal Return Admission under Context Evolution. \newblock \emph{arXiv:2609.33517}, 2026.
+
+\bibitem[Ghosh et~al.(2026)]{tracekit}
+Ghosh, B. et~al.
+\newblock TraceKit: Tamper-Evident Intent-Reasoning-Action Auditing for Autonomous Coding Agents.
+\newblock \emph{arXiv:2609.35659}, 2026.
+
+\bibitem[So et~al.(2026)]{whosecred}
+So, J. et~al.
+\newblock Whose Credential Is It Anyway? Owner Attribution in Shared Agent Memory.
+\newblock \emph{arXiv preprint}, 2026.
+
+\bibitem[Wu et~al.(2024)]{wu2024longmemeval}
+Wu, C. et~al.
+\newblock LongMemEval: Benchmarking Chat Assistants on Long-Term Interactive Memory. \newblock \emph{arXiv:2410.10813}, 2024.
+
+\bibitem[Petrov et~al.(2026)]{xmemory}
+Petrov, A. et~al.
+\newblock From Unstructured Recall to Schema-Grounded Memory.
+\newblock \emph{arXiv:2604.27906v3}, 2026.
+
+\bibitem[Rasmussen et~al.(2025)]{zep}
+Rasmussen, R. et~al.
+\newblock Zep: A Temporal Knowledge Graph Architecture for Agent Memory.
+\newblock \emph{arXiv:2501.13956}, 2025.
+
+\bibitem[Zheng et~al.(2023)]{zheng2023judge}
+L.~Zheng et~al.
+\newblock Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena.
+\newblock In \emph{NeurIPS}, 2023.
+
+\end{thebibliography}
 
 \end{document}
 
