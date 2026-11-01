@@ -141,14 +141,31 @@ Majority class & --- & 0.461 & --- \\
 \end{tabular}
 \end{table}
 
-After removing the post-hoc field, temporal splits reduce F1 from 0.692 to 0.421--0.559; the absolute drop is 0.133--0.271, and the descriptive random/temporal ratio is 1.2--1.6. We interpret this as a deployment-generalization gap, not proof of hidden future-information leakage. Each temporal interval lies below the random-CV interval. The 0.138 spread between the 30\% and 40\% estimates warns against replacing one random score with one lucky temporal score. Model provenance: M-A uses leaked features under random CV (0.930); M-B is the primary honest five-fold run (0.692); M-C is the separately constructed full-no-leak feature set in Table~\ref{tab:ranking} (0.650). The 0.650 is not the headline estimate and differs from M-B in feature construction. The majority-class baseline (F1 = 0.461) is close to the low-power split points, and the 40\% temporal model is 0.098 above it. Thus some signal survives temporal validation, but the honest estimate is far below random CV and is itself cut-off dependent.
+After removing the post-hoc field, temporal splits reduce F1 from 0.692 to 0.421--0.559; the absolute drop is 0.133--0.271, and the descriptive random/temporal ratio is 1.2--1.6. We interpret this as a deployment-generalization gap, not proof of hidden future-information leakage. Each temporal interval lies below the random-CV interval. The 0.138 spread between the 30\% and 40\% estimates warns against replacing one random score with one lucky temporal score. Model provenance is shown in Table~\ref{tab:model-prov}.
+
+\begin{table}[h]
+\centering
+\caption{Model provenance for all reported F1 values.}
+\label{tab:model-prov}
+\begin{tabular}{llr}
+\toprule
+ID & Configuration & F1 \\
+\midrule
+M-A & Leaked features + random CV & 0.930 \\
+M-B & Honest features + random CV (primary) & 0.692 \\
+M-C & Full-no-leak feature set (ranking experiment) & 0.650 \\
+M-D & Honest features + temporal split & 0.421--0.559 \\
+M-E & LoCoMo event task + group-aware CV & 0.506 \\
+\bottomrule
+\end{tabular}
+\end{table} The majority-class baseline (F1 = 0.461) is close to the low-power split points, and the 40\% temporal model is 0.098 above it. Thus some signal survives temporal validation, but the honest estimate is far below random CV and is itself cut-off dependent.
 
 A formal rolling-origin analysis with 10\% test windows, a 5\% gap, and at least 20 test positives yields four usable windows with F1 0.674, 0.902, 0.961, and 0.752. These windows bracket the late-September burst; the variation reflects both temporal non-stationarity and event-density changes, and we do not treat the maximum as a performance estimate. Random CV fixes both hazards by mixing periods; temporal evaluation makes them visible. This is why reporting only the maximum random-CV score is unsafe for an event task whose prevalence changes by nearly an order of magnitude across days.
 
 \paragraph{Leakage versus shift.}
 We do not infer ``leakage'' from the temporal drop alone. The post-hoc counter is a verified leakage channel because it is computed from the future label and matches the label on 98.4\% of records; removing it changes random-CV F1 from 0.930 to 0.692. By contrast, the remaining random-versus-temporal gap is compatible with non-stationarity, reduced training support, and prevalence changes. Our claim is therefore two-layered: (i) the post-hoc field is a leakage reference and is excluded from honest models; (ii) the temporal gap is a deployment-generalization gap whose size is conditional on the event history.
 
-We then used LoCoMo (5,882 turns) as a non-equivalent control, not as an experimental manipulation of task type. Across three content-facing tasks---evidence identification (random 0.638 vs. temporal 0.604), speaker prediction (0.373 vs. 0.380), and temporal reference resolution (0.455 vs. 0.439)---the differences are within a few points. These tasks differ in labels and temporal structure, so the comparison cannot isolate task type causally; it shows only that our event effect is not a generic property of any supervised split.
+A non-equivalent LoCoMo control on three content-facing tasks (evidence identification, speaker prediction, temporal reference resolution) showed differences within a few points (0.638/0.604, 0.373/0.380, 0.455/0.439). Because these tasks differ in labels and temporal structure, they cannot isolate task type causally; they only show that the event effect is not a generic property of any supervised split.
 
 \subsection{External Event Task}
 \label{sec:external-event}
@@ -476,6 +493,7 @@ Kapoor, S. and Narayanan, A. Leakage and the reproducibility crisis in machine-l
 \end{thebibliography}
 
 \end{document}
+
 
 
 
