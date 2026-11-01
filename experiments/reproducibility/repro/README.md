@@ -30,3 +30,8 @@ All experiments use fixed seed 42. Scripts are located in `experiments/reproduci
 ## Anonymous artifact
 
 For anonymous review, use the commit hash of this repository and anonymize authorship. No raw operational data is included.
+- `results/joint_MI.json`: joint discretized MI over all features and write-time-only features
+- `results/interaction_entity_type.json`: chi-square interaction between entity presence and type
+- `results/content_type_analysis.json`: content-type classification and supersession rates
+- `results/psm_entity_effect.json`: propensity-score matching and McNemar test
+- `results/rd_analysis.json`: discontinuity check at entity cutoff

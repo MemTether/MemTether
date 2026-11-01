@@ -176,7 +176,7 @@ We estimate mutual information with quantile-binned discrete estimator over base
 
 Per-feature mutual information analysis reveals the information content of each feature. Under this binning, use count has the largest honest point estimate (I = 0.296 bits, CI 0.164--0.401), followed by days since recording (0.246, CI 0.044--0.362) and entity count (0.135, CI 0.072--0.319); the leaked feature achieves 0.488 bits (81.3\%). Confidence and shared scope are near zero. The overlapping intervals show that the ordering among the top honest features is not stable, so we do not claim a universal ranking.
 
-This is an empirical audit of the chosen representation, not a proof that every conceivable predictor is capped. The remaining 45.9\\% of entropy is therefore unexplained under the audited feature families, rather than irreducible in a universal mathematical sense.
+This is an empirical audit of the chosen representation, not a proof that every conceivable predictor is capped. The remaining 45.9\\% of entropy is therefore unexplained under the audited feature families, rather than irreducible in a universal mathematical sense. A joint discretized MI over all audited features reaches 0.581 bits (96.7\\% of $H(Y)$), and 0.524 bits over strict write-time features only.
 Table~\ref{tab:feature-mi} separates the two failure modes that this aggregate number hides.
 
 \begin{table}[h]
@@ -230,6 +230,7 @@ Decision & 11.3 & 0.0 & 16.4 & <0.001 \\
 
 The within-type tests are significant, but the large chi-square statistics partly reflect the sample sizes and near-zero cell counts for grounded records; we interpret the direction and stratified consistency, not the p-values alone. The odds ratio is 0.002: entity-anchored facts are much less likely to be superseded. This effect is not driven by a confound with memory type, as it holds within every type. However, cross-system validation using MemStrata rules shows that this effect does not generalize beyond entity-keyed supersession mechanisms. Within MemTether, the mechanism is structural: entity-keyed records can be deterministically matched for supersession, while entity-free records lack this coordination point. The coordination point is analogous to a primary key in databases: keyed records have unambiguous identity and can be updated deterministically; non-keyed records allow duplicates. When a new fact targets the same entity, the system detects the match and applies supersession. Entity-free facts lack this key, so new facts do not explicitly target them and semantic overlap goes undetected.
 
+A propensity-score match on source, type, confidence, and read-count buckets yields 542 pairs: one entity-grounded supersession versus 94 control supersessions (McNemar $p<10^{-26}$). A discontinuity check at the entity cutoff shows 26.3\% supersession for entity-free records and 0\% for exactly one entity. These analyses support a strong implementation association within this system, not a universal causal law.
 \section{Discussion}
 \label{sec:discussion}
 
@@ -308,57 +309,26 @@ The accountability path has three stakeholders. A \emph{memory owner} needs to k
 \subsection{Limitations}
 \label{sec:limitations}
 
-The strongest threat to external validity is the deployment footprint: one production system, one operator, and one governance/logging stack, despite 15 client instances and 22 adapters. We do not claim that the 1.2--1.6 descriptive ratio transfers unchanged. The narrower claim is that event predictions depending on future writes are exposed to temporal leakage unless the protocol proves otherwise.
+The deployment footprint is a single production system with one operator and one logging stack. We do not claim that the 1.2--1.6 descriptive ratio transfers; event predictions depending on future writes remain exposed to temporal leakage unless the protocol proves otherwise.
 
-The cross-system check reinforces this caution. Applying deterministic MemStrata-style rules to our records produced 693 supersessions, compared with 386 natively, with Jaccard overlap 0.120; entity-grounded records were no longer protected at the native level (23.0\% versus 0.1\% supersession). The entity-grounding association is therefore system-specific. A controlled counterfactual was underpowered (estimated power 35\%; about 600 paired cases for 80\% power), so we treat the effect as an implementation hypothesis supported by stratified observations.
+Cross-system validation using MemStrata rules produced 693 supersessions versus 386 natively (Jaccard 0.120), and entity-grounded records lost their protection under the external rule. The association is therefore system-specific; the controlled counterfactual remains underpowered, so we treat it as an implementation hypothesis.
 
 The LoCoMo experiments are a bounded negative control, not an event-task replication. Temporal splitting did not change three content-facing tasks: evidence identification (0.638 random versus 0.604 temporal), speaker prediction (0.373 versus 0.380), and temporal reference resolution (0.455 versus 0.439). Because these tasks are not trained to predict future write events over the same record stream, stability is unsurprising. The contrast delimits our claim: temporal validation is necessary where the target depends on the future, but it does not repair post-hoc labels.
 
 Finally, the corpus has a bursty history: the late-September burst produced many procedure-like, entity-free records, and the later documentation phase left long eventless stretches. Temporal estimates are therefore sensitive to the cut-off. Right-censoring is limited (4.2\% of records have less than 72 hours of observation), and a Kaplan--Meier version of the survival analysis is included in the supplement. A separate standardization audit on the same group-aware protocol changes F1 from 0.357 (global, leaky) to 0.373 (fold-level) under the audit configuration; this is not comparable to the primary M-B run 0.692, which uses the original threshold and feature pipeline. We report the fold-level result in the audit. Per-agent comparisons are observational; sources differ in workflow, volume, read patterns, and content mix, not merely in NER coverage.
 
+\paragraph{References.} Key related work includes Mem0, Zep, MemGPT, Engram, MemStrata, CALM, LongMemEval, LoCoMo, and standard leakage/forecasting references (Tashman 2000; Bergmeir and Benítez 2012; Gama et al. 2014; Kaufman et al. 2012; Kapoor and Narayanan 2023).
+
 \section{Conclusion}
 This case study separates a controlled post-outcome field from ordinary non-stationarity. Removing the former is necessary but not sufficient; deployment-aligned temporal validation is also required. The evaluation protocol can change feature-set rankings. Content-based tasks need the same disclosure discipline, but our LoCoMo checks show they may remain stable under ordinary temporal splitting. For governance, a post-write never-read audit reviews 16.8\% of facts and catches 93.9\% of supersessions at the audited operating point, beating the logistic model on the reported metrics; it is a triage signal, not a predictor, and needs bias and privacy checks. The supplement includes a de-identified feature-only corpus, aggregate result files, analysis scripts, the grouping labels, and an experiment log with seed 42. The de-identified records retain the fields used for scoring but replace credential-related facts and endpoint, IP, and domain strings with placeholders; the raw operational corpus is withheld. This enables reuse of the scoring logic without exposing operational data.
 
-\begin{thebibliography}{20}
 
-\bibitem[Wu et~al.(2024)]{wu2024longmemeval}
-Wu, C. et al. LongMemEval: Benchmarking Chat Assistants on Long-Term Interactive Memory. arXiv:2410.10813, 2024.
-
-\bibitem[Chhikara et~al.(2025)]{mem0}
-Chhikara, P. et al. Mem0: Building Production-Ready AI Agents with Scalable Long-Term Memory. arXiv:2504.19413, 2025.
-
-\bibitem[Rasmussen et~al.(2025)]{zep}
-Rasmussen, R. et al. Zep: A Temporal Knowledge Graph Architecture for Agent Memory. arXiv:2501.13956, 2025.
-
-\bibitem[Yadav(2026)]{memstrata}
-Yadav, N. Temporal Validity in Retrieval Memory: Eliminating Stale-Fact Errors for AI Agents over Evolving Knowledge. arXiv:2606.26511, 2026.
-
-\bibitem[Wang et~al.(2026)]{engram}
-Wang, L. Less Context, More Accuracy: A Bi-Temporal Memory Engine for LLM Agents. arXiv:2606.09900, 2026.
-
-\bibitem[Anonymous(2026)]{calm}
-Anonymous. CALM: Conflict-Aware Lifecycle Memory Governance for Long-Horizon Language Agents. arXiv:2610.38573, 2026.
-
-\bibitem[Tashman(2000)]{tashman2000}
-Tashman, L. J. Out-of-sample tests of forecasting accuracy: an analysis and review. \emph{International Journal of Forecasting} 16, 4 (2000), 437--450.
-
-\bibitem[Bergmeir and Benítez(2012)]{bergmeir2012}
-Bergmeir, C. and Benítez, J. M. On the use of cross-validation for time series predictor evaluation. \emph{Information Sciences} 191 (2012), 192--213.
-
-\bibitem[Cerqueira et~al.(2020)]{cerqueira2020}
-Cerqueira, V., Torgo, L. and Mozetič, I. Evaluating time series forecasting models: an empirical study on performance estimation methods. \emph{Machine Learning} 109 (2020), 1997--2028.
-
-\bibitem[Gama et~al.(2014)]{gama2014}
-Gama, J., Žliobaitė, I., Bifet, A., Pechenizkiy, M. and Bouchachia, A. A survey on concept drift adaptation. \emph{ACM Computing Surveys} 46, 4 (2014), Article 44.
-
-\bibitem[Kaufman et~al.(2012)]{kaufman2012}
-Kaufman, S., Rosset, S., Perlich, C. and Stitelman, O. Leakage in data mining: formulation, detection, and avoidance. \emph{ACM Transactions on Knowledge Discovery from Data} 6, 4 (2012), Article 15.
-
-\bibitem[Kapoor and Narayanan(2023)]{kapoor2023}
-Kapoor, S. and Narayanan, A. Leakage and the reproducibility crisis in machine-learning-based science. \emph{Patterns} 4, 12 (2023), 100804.
-\end{thebibliography}
 
 \end{document}
+
+
+
+
 
 
 

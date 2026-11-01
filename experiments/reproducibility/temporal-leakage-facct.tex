@@ -207,7 +207,7 @@ We estimate mutual information with quantile-binned discrete estimator over base
 
 Per-feature mutual information analysis reveals the information content of each feature. Under this binning, use count has the largest honest point estimate (I = 0.296 bits, CI 0.164--0.401), followed by days since recording (0.246, CI 0.044--0.362) and entity count (0.135, CI 0.072--0.319); the leaked feature achieves 0.488 bits (81.3\%). Confidence and shared scope are near zero. The overlapping intervals show that the ordering among the top honest features is not stable, so we do not claim a universal ranking.
 
-This is an empirical audit of the chosen representation, not a proof that every conceivable predictor is capped. The remaining 45.9\\% of entropy is therefore unexplained under the audited feature families, rather than irreducible in a universal mathematical sense.
+This is an empirical audit of the chosen representation, not a proof that every conceivable predictor is capped. A joint discretized MI over all audited features reaches 0.581 bits (96.7\\% of $H(Y)$), and 0.524 bits over strict write-time features only (excluding use count and days since recording). The remaining unexplained entropy is therefore small under these feature families, not irreducible in a universal mathematical sense.
 Table~\ref{tab:feature-mi} separates the two failure modes that this aggregate number hides.
 
 \begin{table}[h]
@@ -493,6 +493,7 @@ Kapoor, S. and Narayanan, A. Leakage and the reproducibility crisis in machine-l
 \end{thebibliography}
 
 \end{document}
+
 
 
 

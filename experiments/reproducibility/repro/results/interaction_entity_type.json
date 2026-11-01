@@ -1,0 +1,102 @@
+{
+  "fact": {
+    "data": {
+      "true": {
+        "n": 560,
+        "superseded": 1,
+        "rate": 0.17857142857142858
+      },
+      "false": {
+        "n": 776,
+        "superseded": 138,
+        "rate": 17.783505154639176
+      }
+    },
+    "chi2": 106.2670427547804,
+    "p": 6.443929231510457e-25,
+    "dof": 1
+  },
+  "decision": {
+    "data": {
+      "true": {
+        "n": 134,
+        "superseded": 0,
+        "rate": 0.0
+      },
+      "false": {
+        "n": 301,
+        "superseded": 34,
+        "rate": 11.295681063122924
+      }
+    },
+    "chi2": 14.889286164265364,
+    "p": 0.00011400865436372259,
+    "dof": 1
+  },
+  "experience": {
+    "data": {
+      "true": {
+        "n": 349,
+        "superseded": 0,
+        "rate": 0.0
+      },
+      "false": {
+        "n": 79,
+        "superseded": 46,
+        "rate": 58.22784810126582
+      }
+    },
+    "chi2": 221.65646902998682,
+    "p": 3.9361485089352204e-50,
+    "dof": 1
+  },
+  "incident": {
+    "data": {
+      "true": {
+        "n": 113,
+        "superseded": 0,
+        "rate": 0.0
+      },
+      "false": {
+        "n": 182,
+        "superseded": 49,
+        "rate": 26.923076923076923
+      }
+    },
+    "chi2": 34.56511052362492,
+    "p": 4.122290586189306e-09,
+    "dof": 1
+  },
+  "procedure": {
+    "data": {
+      "true": {
+        "n": 10,
+        "superseded": 0,
+        "rate": 0.0
+      },
+      "false": {
+        "n": 119,
+        "superseded": 118,
+        "rate": 99.15966386554622
+      }
+    },
+    "chi2": 103.92193047480934,
+    "p": 2.1044712599592855e-24,
+    "dof": 1
+  },
+  "correction": {
+    "data": {
+      "false": {
+        "n": 6,
+        "superseded": 0,
+        "rate": 0.0
+      },
+      "true": {
+        "n": 6,
+        "superseded": 0,
+        "rate": 0.0
+      }
+    },
+    "error": "The internally computed table of expected frequencies has a zero element at (np.int64(0), np.int64(0))."
+  }
+}

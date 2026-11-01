@@ -1,0 +1,10 @@
+{
+  "treated_n": 1172,
+  "control_n": 1463,
+  "matched_pairs": 542,
+  "discordant_t_pos_c_neg": 1,
+  "discordant_t_neg_c_pos": 94,
+  "mcnemar_p": 4.8467614016778965e-27,
+  "treated_superseded": 1,
+  "control_superseded": 94
+}

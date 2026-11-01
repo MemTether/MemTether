@@ -1,0 +1,7 @@
+{
+  "H_Y": 0.601,
+  "joint_mi_all_features": 0.5809538579780923,
+  "joint_mi_no_days_since": 0.5770472774172456,
+  "joint_mi_write_time_only_no_ds_no_uc": 0.5244008853169748,
+  "notes": "Joint MI over discretized features; all features includes post-write signals (use_count, days_since); write-time only excludes both."
+}
