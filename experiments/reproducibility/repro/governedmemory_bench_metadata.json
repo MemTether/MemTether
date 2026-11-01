@@ -1,0 +1,46 @@
+{
+  "name": "GovernedMemory Bench",
+  "version": "1.0",
+  "description": "A benchmark for evaluating agent memory governance: supersession prediction, entity grounding, retrieval readiness, and temporal ordering.",
+  "source": "30-day production deployment, 15 agents, 22 adapters, de-identified",
+  "license": "CC-BY-4.0 (de-identified data)",
+  "total_tasks": 8005,
+  "dimensions": {
+    "supersession": {
+      "n_tasks": 2635,
+      "n_positive": 386,
+      "task_type": "binary_classification"
+    },
+    "entity_grounding": {
+      "n_tasks": 2635,
+      "n_positive": 1172,
+      "task_type": "binary_classification"
+    },
+    "retrieval_readiness": {
+      "n_tasks": 2635,
+      "n_positive": 1921,
+      "task_type": "binary_classification"
+    },
+    "temporal_ordering": {
+      "n_tasks": 100,
+      "n_positive": "N/A (pairwise)",
+      "task_type": "pairwise_comparison"
+    }
+  },
+  "split": {
+    "train_end_index": 1581,
+    "train_date": "2026-09-27 22:33:11",
+    "test_start_date": "2026-09-27 22:33:11"
+  },
+  "metrics": {
+    "supersession": "F1 (macro-averaged), AUC-ROC",
+    "entity_grounding": "F1 (macro-averaged), Precision, Recall",
+    "retrieval_readiness": "F1 (macro-averaged), Precision@K",
+    "temporal_ordering": "Accuracy"
+  },
+  "baseline": {
+    "majority_class_f1_supersession": 0.461,
+    "majority_class_f1_entity": 0.0,
+    "majority_class_f1_retrieval": 0.0
+  }
+}

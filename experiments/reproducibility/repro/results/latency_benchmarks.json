@@ -1,0 +1,19 @@
+{
+  "search_latency_ms": {
+    "mean": 5.9,
+    "median": 5.7
+  },
+  "write_latency_ms": {
+    "mean": 1.2,
+    "median": 0.5
+  },
+  "supersession_latency_ms": {
+    "mean": 3.2,
+    "median": 3.1
+  },
+  "chain_verify_latency_ms": {
+    "mean": 19.9
+  },
+  "chain_verified": false,
+  "production_db_size": 4421
+}

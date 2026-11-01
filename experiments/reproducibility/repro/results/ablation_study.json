@@ -1,0 +1,18 @@
+{
+  "full": 0.022448979591836733,
+  "without_metadata": 0.022110552763819093,
+  "drop_metadata": 0.0003,
+  "without_entities": 0.027777777777777773,
+  "drop_entities": -0.0053,
+  "without_reads": 0.022244691607684528,
+  "drop_reads": 0.0002,
+  "without_temporal": 0.022964509394572025,
+  "drop_temporal": -0.0005,
+  "without_content": 0.022321428571428572,
+  "drop_content": 0.0001,
+  "only_metadata": 0.028282828282828288,
+  "only_entities": 0.02301255230125523,
+  "only_reads": 0.10619469026548671,
+  "only_temporal": 0.02114164904862579,
+  "only_content": 0.019512195121951216
+}
