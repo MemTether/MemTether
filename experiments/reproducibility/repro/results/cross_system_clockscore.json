@@ -1,0 +1,59 @@
+{
+  "memtether_supersession": {
+    "clockscore": 0.1026,
+    "f1_random_cv": 0.1497,
+    "f1_temporal_windows": [
+      0.1053,
+      0.0714,
+      0.1714,
+      0.251,
+      0.3,
+      0.0244,
+      0,
+      0
+    ],
+    "n_temporal_windows": 8,
+    "n_records": 2635,
+    "n_positive": 386
+  },
+  "locomo_event": {
+    "clockscore": 0.0354,
+    "f1_random_cv": 0.347,
+    "f1_temporal_windows": [
+      0.3704,
+      0.3099,
+      0.2778,
+      0.3484,
+      0.3354,
+      0.2955,
+      0.3277,
+      0.2771
+    ],
+    "n_temporal_windows": 8,
+    "n_records": 2541,
+    "n_positive": 832
+  },
+  "controlled_synthetic": {
+    "clockscore": 0.4212,
+    "f1_random_cv": 0.4688,
+    "f1_temporal_windows": [
+      0.9975,
+      0.929,
+      0.4325,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "n_temporal_windows": 8,
+    "n_records": 4000,
+    "n_positive": 1800
+  },
+  "definition": "ClockScore = mean(|F1_random_cv - F1_temporal_window_i|) across temporal windows",
+  "interpretation": "Higher = more deployment-sensitive; Lower = stable across time",
+  "comparison": {
+    "memtether_vs_locomo": "MemTether ClockScore is 2.9x higher than LoCoMo",
+    "memtether_vs_synthetic": "MemTether ClockScore is 0.2x higher than Controlled Synthetic"
+  }
+}
