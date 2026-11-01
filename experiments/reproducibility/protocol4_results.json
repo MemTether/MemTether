@@ -1,0 +1,90 @@
+{
+  "protocol": "Trust Model Validation on held-out temporal test set",
+  "train_size": 1317,
+  "test_size": 1318,
+  "calibration": {
+    "ece": 0.231,
+    "verdict": "poorly-calibrated",
+    "bins": [
+      {
+        "bin": 0,
+        "n": 131,
+        "mean_trust": 0.549,
+        "actual_stable_rate": 0.053,
+        "error": 0.495
+      },
+      {
+        "bin": 1,
+        "n": 131,
+        "mean_trust": 0.706,
+        "actual_stable_rate": 0.504,
+        "error": 0.202
+      },
+      {
+        "bin": 2,
+        "n": 131,
+        "mean_trust": 0.752,
+        "actual_stable_rate": 1.0,
+        "error": 0.248
+      },
+      {
+        "bin": 3,
+        "n": 131,
+        "mean_trust": 0.754,
+        "actual_stable_rate": 0.977,
+        "error": 0.223
+      },
+      {
+        "bin": 4,
+        "n": 131,
+        "mean_trust": 0.757,
+        "actual_stable_rate": 1.0,
+        "error": 0.243
+      },
+      {
+        "bin": 5,
+        "n": 131,
+        "mean_trust": 0.757,
+        "actual_stable_rate": 1.0,
+        "error": 0.243
+      },
+      {
+        "bin": 6,
+        "n": 131,
+        "mean_trust": 0.757,
+        "actual_stable_rate": 0.985,
+        "error": 0.228
+      },
+      {
+        "bin": 7,
+        "n": 131,
+        "mean_trust": 0.772,
+        "actual_stable_rate": 0.977,
+        "error": 0.205
+      },
+      {
+        "bin": 8,
+        "n": 131,
+        "mean_trust": 0.849,
+        "actual_stable_rate": 1.0,
+        "error": 0.151
+      },
+      {
+        "bin": 9,
+        "n": 139,
+        "mean_trust": 0.915,
+        "actual_stable_rate": 0.993,
+        "error": 0.078
+      }
+    ]
+  },
+  "discrimination": {
+    "auc_roc": 0.964,
+    "interpretation": "excellent"
+  },
+  "practical_utility": {
+    "best_threshold": 0.75,
+    "best_f1": 0.884,
+    "note": "See threshold sweep results above"
+  }
+}

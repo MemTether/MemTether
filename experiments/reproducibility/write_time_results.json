@@ -1,0 +1,15 @@
+{
+  "experiment": "Write-time vs full-feature supersession prediction",
+  "write_time": {
+    "features": 7,
+    "f1": 0.489,
+    "std": 0.019
+  },
+  "full": {
+    "features": 11,
+    "f1": 0.541,
+    "std": 0.031
+  },
+  "difference": 0.052,
+  "practical_implication": "post-write needed"
+}

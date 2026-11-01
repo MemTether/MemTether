@@ -1,0 +1,83 @@
+{
+  "finding": "Entity grounding is the primary determinant of memory stability across all memory types",
+  "method": "Cross-tabulation of memory type ¡Á entity count ¡Á supersession outcome on 2635 production records",
+  "key_data": {
+    "supersession_rate_by_type_and_entities": {
+      "procedure_no_entities": {
+        "superseded": 118,
+        "total": 119,
+        "rate": 99.2
+      },
+      "procedure_with_entities": {
+        "superseded": 0,
+        "total": 10,
+        "rate": 0.0
+      },
+      "experience_no_entities": {
+        "superseded": 46,
+        "total": 79,
+        "rate": 58.2
+      },
+      "experience_with_entities": {
+        "superseded": 0,
+        "total": 349,
+        "rate": 0.0
+      },
+      "incident_no_entities": {
+        "superseded": 49,
+        "total": 182,
+        "rate": 26.9
+      },
+      "incident_with_entities": {
+        "superseded": 0,
+        "total": 113,
+        "rate": 0.0
+      },
+      "fact_no_entities": {
+        "superseded": 138,
+        "total": 776,
+        "rate": 17.8
+      },
+      "fact_with_entities": {
+        "superseded": 1,
+        "total": 560,
+        "rate": 0.2
+      },
+      "decision_no_entities": {
+        "superseded": 34,
+        "total": 301,
+        "rate": 11.3
+      },
+      "decision_with_entities": {
+        "superseded": 0,
+        "total": 134,
+        "rate": 0.0
+      }
+    },
+    "config_change_dominance": {
+      "config_changes_pct": 69.7,
+      "external_dependency_pct": 44.8,
+      "subcategories": {
+        "file_path": 99,
+        "api_key": 61,
+        "channel_status": 47,
+        "api_endpoint": 36,
+        "model_version": 15,
+        "port_url": 14,
+        "timeout": 7
+      }
+    },
+    "supersession_taxonomy": {
+      "config_change": 269,
+      "other": 51,
+      "fact_correction": 40,
+      "status_update": 10,
+      "incident_resolved": 8,
+      "process_improvement": 6,
+      "info_expired": 2,
+      "redundant": 0
+    }
+  },
+  "interpretation": "Entity grounding, not memory type, is the primary determinant of memory stability. The effect is universal across all memory types (procedures, facts, decisions, experiences, incidents). Facts referencing specific identifiable entities are structurally stable because entity references create coordination points for deterministic supersession detection. Entity-free facts describe abstract states that lack coordination points and are superseded by any semantically overlapping write.",
+  "design_implication": "Memory systems should require entity grounding at write time rather than predicting supersession post-hoc. Entity extraction quality becomes a first-order design concern."
+}

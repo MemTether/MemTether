@@ -1,0 +1,11 @@
+{
+  "experiment": "Multi-task temporal leakage validation on LoCoMo",
+  "tasks_tested": ["evidence_id", "speaker_prediction", "temporal_reference"],
+  "results": {
+    "evidence_id": {"random_f1": 0.638, "temporal_f1": 0.604, "ratio": 1.06, "leakage": false},
+    "speaker_prediction": {"random_f1": 0.373, "temporal_f1": 0.380, "ratio": 0.98, "leakage": false},
+    "temporal_reference": {"random_f1": 0.455, "temporal_f1": 0.439, "ratio": 1.04, "leakage": false}
+  },
+  "conclusion": "Temporal leakage does NOT generalize to LoCoMo tasks. The 1.2-1.6x inflation found in MemTether supersession prediction is system-specific and task-specific, not universal. This is an honest negative result for the universal temporal leakage hypothesis.",
+  "implication": "The paper should NOT claim that all agent memory evaluation is broken. It should honestly report that temporal leakage was found in our system's supersession prediction but does not generalize to other tasks or datasets."
+}

@@ -1,0 +1,19 @@
+{
+  "method": "Adaptive binned MI estimator (pure Python, no numpy)",
+  "per_feature_mi": {
+    "confidence": 0.0056,
+    "content_length": 0.0252,
+    "n_entities": 0.1351,
+    "q_value": 0.0412,
+    "use_count": 0.1754,
+    "hour": 0.0229,
+    "weekday": 0.0898,
+    "days_since": 0.2619,
+    "type_fact": 0.0108,
+    "type_decision": 0.0061,
+    "scope_shared": 0.0023
+  },
+  "h_y": 0.601,
+  "leaked_mi": 0.4884,
+  "best_honest": "days_since"
+}

@@ -1,0 +1,23 @@
+{
+  "experiment": "A/B test: uniform vs trust-scored governance",
+  "temporal_split": {
+    "train": 1844,
+    "test": 791
+  },
+  "threshold": 0.81,
+  "control": {
+    "reviewed": 633,
+    "caught": 3,
+    "missed": 0
+  },
+  "treatment": {
+    "reviewed": 1,
+    "caught": 0,
+    "missed": 3,
+    "precision": 0.0,
+    "recall": 0.0,
+    "f1": 0
+  },
+  "effort_saved_pct": 99.8,
+  "supersession_prevention_pct": 0.0
+}

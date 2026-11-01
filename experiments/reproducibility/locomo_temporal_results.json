@@ -1,0 +1,18 @@
+{
+  "experiment": "Cross-dataset temporal validation on LoCoMo",
+  "dataset": "LoCoMo (5882 turns, 10 conversations, 1986 QA pairs)",
+  "task": "Predict which conversation turns will be referenced as evidence by future QA pairs",
+  "results": {
+    "random_cv_f1": 0.635,
+    "temporal_split_f1": 0.649,
+    "ratio": 1.0,
+    "temporal_leakage": "NOT PRESENT"
+  },
+  "comparison_with_memtether": {
+    "memtether_random_cv": 0.857,
+    "memtether_temporal": 0.008,
+    "ratio": 107,
+    "temporal_leakage": "SEVERE"
+  },
+  "conclusion": "Temporal leakage is task-dependent: event-based predictions (supersession) suffer from temporal leakage, content-based predictions (evidence identification) do not. This is because event outcomes depend on future agent behavior absent from training data, while content quality is present in the training data."
+}

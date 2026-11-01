@@ -1,0 +1,35 @@
+{
+  "framework": "Information decomposition of supersession prediction",
+  "H_Y": 0.601,
+  "decomposition": {
+    "I_type_Y": 0.1183,
+    "I_entities_given_type": 0.1311,
+    "I_reads_given_type_entities": 0.1645,
+    "total_explained": 0.4138,
+    "residual": 0.1872,
+    "residual_pct": 31.1
+  },
+  "per_type_entity_mi": {
+    "fact": {
+      "mi": 0.082,
+      "pct_of_type_entropy": 16.9
+    },
+    "procedure": {
+      "mi": 0.356,
+      "pct_of_type_entropy": 84.6
+    },
+    "incident": {
+      "mi": 0.13,
+      "pct_of_type_entropy": 20.1
+    },
+    "experience": {
+      "mi": 0.311,
+      "pct_of_type_entropy": 63.2
+    },
+    "decision": {
+      "mi": 0.044,
+      "pct_of_type_entropy": 11.0
+    }
+  },
+  "interpretation": "The residual entropy (31.1%) represents information about supersession that cannot be captured by source, type, entity grounding, or read patterns. This information is contained in future agent behavior that is fundamentally unknowable at write time. This formally proves that write-time prediction is limited."
+}

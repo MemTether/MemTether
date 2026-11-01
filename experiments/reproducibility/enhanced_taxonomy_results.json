@@ -1,0 +1,48 @@
+{
+  "total": 386,
+  "taxonomy": {
+    "configuration_decision": 45,
+    "environment_snapshot": 35,
+    "iterative_refinement": 136,
+    "tool_usage_note": 79,
+    "other": 33,
+    "incident_report": 24,
+    "deployment_record": 34
+  },
+  "by_type": {
+    "fact": {
+      "configuration_decision": 29,
+      "environment_snapshot": 24,
+      "iterative_refinement": 41,
+      "tool_usage_note": 10,
+      "other": 24,
+      "deployment_record": 11
+    },
+    "experience": {
+      "environment_snapshot": 7,
+      "configuration_decision": 10,
+      "tool_usage_note": 11,
+      "iterative_refinement": 13,
+      "other": 4,
+      "deployment_record": 1
+    },
+    "incident": {
+      "incident_report": 24,
+      "iterative_refinement": 25
+    },
+    "decision": {
+      "tool_usage_note": 10,
+      "deployment_record": 2,
+      "other": 5,
+      "iterative_refinement": 7,
+      "environment_snapshot": 4,
+      "configuration_decision": 6
+    },
+    "procedure": {
+      "iterative_refinement": 50,
+      "deployment_record": 20,
+      "tool_usage_note": 48
+    }
+  },
+  "timestamp": "2026-10-31T22:22:19.080903"
+}

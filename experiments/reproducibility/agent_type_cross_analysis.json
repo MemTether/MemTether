@@ -1,0 +1,182 @@
+[
+  {
+    "source": "codex",
+    "type": "fact",
+    "total": 769,
+    "superseded": 58,
+    "supersession_rate": 7.5,
+    "entity_grounding_rate": 26.7,
+    "avg_confidence": 0.8,
+    "avg_read_count": 17.2
+  },
+  {
+    "source": "workbuddy",
+    "type": "fact",
+    "total": 342,
+    "superseded": 52,
+    "supersession_rate": 15.2,
+    "entity_grounding_rate": 71.3,
+    "avg_confidence": 0.78,
+    "avg_read_count": 6.2
+  },
+  {
+    "source": "codex",
+    "type": "decision",
+    "total": 341,
+    "superseded": 25,
+    "supersession_rate": 7.3,
+    "entity_grounding_rate": 17.9,
+    "avg_confidence": 0.8,
+    "avg_read_count": 29.6
+  },
+  {
+    "source": "workbuddy",
+    "type": "experience",
+    "total": 214,
+    "superseded": 16,
+    "supersession_rate": 7.5,
+    "entity_grounding_rate": 82.7,
+    "avg_confidence": 0.8,
+    "avg_read_count": 21.1
+  },
+  {
+    "source": "codex",
+    "type": "incident",
+    "total": 172,
+    "superseded": 41,
+    "supersession_rate": 23.8,
+    "entity_grounding_rate": 33.7,
+    "avg_confidence": 0.81,
+    "avg_read_count": 15.0
+  },
+  {
+    "source": "workbuddy_ai",
+    "type": "experience",
+    "total": 147,
+    "superseded": 22,
+    "supersession_rate": 15.0,
+    "entity_grounding_rate": 81.6,
+    "avg_confidence": 0.81,
+    "avg_read_count": 17.7
+  },
+  {
+    "source": "workbuddy_ai",
+    "type": "fact",
+    "total": 134,
+    "superseded": 15,
+    "supersession_rate": 11.2,
+    "entity_grounding_rate": 61.9,
+    "avg_confidence": 0.82,
+    "avg_read_count": 7.2
+  },
+  {
+    "source": "codex",
+    "type": "procedure",
+    "total": 128,
+    "superseded": 118,
+    "supersession_rate": 92.2,
+    "entity_grounding_rate": 7.8,
+    "avg_confidence": 0.8,
+    "avg_read_count": 11.9
+  },
+  {
+    "source": "workbuddy_ai",
+    "type": "incident",
+    "total": 76,
+    "superseded": 6,
+    "supersession_rate": 7.9,
+    "entity_grounding_rate": 35.5,
+    "avg_confidence": 0.8,
+    "avg_read_count": 4.8
+  },
+  {
+    "source": "workbuddy",
+    "type": "decision",
+    "total": 62,
+    "superseded": 4,
+    "supersession_rate": 6.5,
+    "entity_grounding_rate": 75.8,
+    "avg_confidence": 0.81,
+    "avg_read_count": 20.5
+  },
+  {
+    "source": "workbuddy",
+    "type": "incident",
+    "total": 47,
+    "superseded": 2,
+    "supersession_rate": 4.3,
+    "entity_grounding_rate": 59.6,
+    "avg_confidence": 0.81,
+    "avg_read_count": 9.3
+  },
+  {
+    "source": "doubao_a",
+    "type": "fact",
+    "total": 44,
+    "superseded": 0,
+    "supersession_rate": 0.0,
+    "entity_grounding_rate": 0.0,
+    "avg_confidence": 0.8,
+    "avg_read_count": 0.7
+  },
+  {
+    "source": "codex",
+    "type": "experience",
+    "total": 31,
+    "superseded": 3,
+    "supersession_rate": 9.7,
+    "entity_grounding_rate": 67.7,
+    "avg_confidence": 0.81,
+    "avg_read_count": 30.4
+  },
+  {
+    "source": "legacy",
+    "type": "experience",
+    "total": 30,
+    "superseded": 2,
+    "supersession_rate": 6.7,
+    "entity_grounding_rate": 93.3,
+    "avg_confidence": 0.71,
+    "avg_read_count": 12.7
+  },
+  {
+    "source": "legacy",
+    "type": "fact",
+    "total": 29,
+    "superseded": 14,
+    "supersession_rate": 48.3,
+    "entity_grounding_rate": 51.7,
+    "avg_confidence": 0.72,
+    "avg_read_count": 6.5
+  },
+  {
+    "source": "workbuddy_ai",
+    "type": "decision",
+    "total": 25,
+    "superseded": 3,
+    "supersession_rate": 12.0,
+    "entity_grounding_rate": 84.0,
+    "avg_confidence": 0.86,
+    "avg_read_count": 35.0
+  },
+  {
+    "source": "workbuddy",
+    "type": "correction",
+    "total": 12,
+    "superseded": 0,
+    "supersession_rate": 0.0,
+    "entity_grounding_rate": 50.0,
+    "avg_confidence": 0.8,
+    "avg_read_count": 4.5
+  },
+  {
+    "source": "reflector",
+    "type": "fact",
+    "total": 6,
+    "superseded": 0,
+    "supersession_rate": 0.0,
+    "entity_grounding_rate": 83.3,
+    "avg_confidence": 0.92,
+    "avg_read_count": 7.2
+  }
+]

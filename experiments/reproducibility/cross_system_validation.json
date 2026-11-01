@@ -1,0 +1,16 @@
+{
+  "experiment": "Cross-system validation: MemStrata rules applied to MemTether data",
+  "method": "Extracted (S,R,O) triples from 2635 records, applied MemStrata deterministic supersession rule chronologically",
+  "results": {
+    "memstrata_superseded": 693,
+    "memtether_superseded": 386,
+    "overlap": 116,
+    "jaccard_similarity": 0.120,
+    "entity_grounding_effect": {
+      "under_memtether_rules": {"no_entities": "26.3%", "with_entities": "0.1%"},
+      "under_memstrata_rules": {"no_entities": "29.0%", "with_entities": "23.0%"},
+      "conclusion": "Entity grounding effect is system-specific, not universal"
+    }
+  },
+  "implication": "Findings from one memory system may not generalize to others. Cross-system validation is necessary before claiming universal properties."
+}

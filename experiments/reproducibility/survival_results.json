@@ -1,0 +1,71 @@
+{
+  "time_to_supersession": {
+    "n": 377,
+    "mean_hours": 44.8,
+    "median_hours": 59.3,
+    "pct_within_1h": 18.8,
+    "pct_within_24h": 30.5,
+    "pct_within_72h": 95.5
+  },
+  "by_type": {
+    "fact": {
+      "median_h": 8.1,
+      "mean_h": 33.2,
+      "n": 130
+    },
+    "experience": {
+      "median_h": 57.1,
+      "mean_h": 45.7,
+      "n": 46
+    },
+    "incident": {
+      "median_h": 47.7,
+      "mean_h": 42.3,
+      "n": 49
+    },
+    "decision": {
+      "median_h": 24.9,
+      "mean_h": 32.0,
+      "n": 34
+    },
+    "procedure": {
+      "median_h": 59.3,
+      "mean_h": 61.9,
+      "n": 118
+    }
+  },
+  "fast_vs_slow_predictors": {
+    "confidence": {
+      "fast_mean": 0,
+      "slow_mean": 0
+    },
+    "content_length": {
+      "fast_mean": 0,
+      "slow_mean": 0
+    },
+    "n_entities": {
+      "fast_mean": 0,
+      "slow_mean": 0
+    },
+    "is_fact": {
+      "fast_mean": 0,
+      "slow_mean": 0
+    },
+    "is_decision": {
+      "fast_mean": 0,
+      "slow_mean": 0
+    },
+    "is_procedure": {
+      "fast_mean": 0,
+      "slow_mean": 0
+    },
+    "is_incident": {
+      "fast_mean": 0,
+      "slow_mean": 0
+    },
+    "hour": {
+      "fast_mean": 0,
+      "slow_mean": 0
+    }
+  }
+}

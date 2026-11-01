@@ -1,0 +1,37 @@
+{
+  "bootstrap_f1": {
+    "mean": 0.847,
+    "ci_95": [
+      0.816,
+      0.872
+    ],
+    "n_iterations": 100,
+    "threshold": 0.66,
+    "method": "Bootstrap resampling (100 iterations, 70/30 split, leak-free features)"
+  },
+  "mutual_information": {
+    "target_entropy_H_Y": 0.601,
+    "leaked_feature_n_superseded_by": {
+      "mi_bits": 0.4884,
+      "normalized": 0.8127
+    },
+    "best_honest_feature_days_since": {
+      "mi_bits": 0.1946,
+      "normalized": 0.3238
+    },
+    "all_features": {
+      "confidence": 0.0062,
+      "content_length": 0.0105,
+      "n_entities": 0.1351,
+      "q_value": 0.0455,
+      "use_count": 0.112,
+      "hour": 0.042,
+      "weekday": 0.0898,
+      "days_since": 0.1946,
+      "type_fact": 0.0108,
+      "type_decision": 0.0061,
+      "scope_shared": 0.0023
+    },
+    "conclusion": "Write-time features capture at most 32% of target entropy. The leaked feature captures 81%. By the data processing inequality, no predictor can exceed I(X;Y)."
+  }
+}

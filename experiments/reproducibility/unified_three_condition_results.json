@@ -1,0 +1,79 @@
+[
+ {
+  "entity": "app.asar",
+  "combined_correct": true,
+  "filtered_correct": true,
+  "stale_correct": true,
+  "new_correct": true
+ },
+ {
+  "entity": "astra",
+  "combined_correct": true,
+  "filtered_correct": true,
+  "stale_correct": true,
+  "new_correct": true
+ },
+ {
+  "entity": "codebuddy",
+  "combined_correct": true,
+  "filtered_correct": true,
+  "stale_correct": true,
+  "new_correct": true
+ },
+ {
+  "entity": "device",
+  "combined_correct": false,
+  "filtered_correct": false,
+  "stale_correct": true,
+  "new_correct": true
+ },
+ {
+  "entity": "exec",
+  "combined_correct": false,
+  "filtered_correct": true,
+  "stale_correct": true,
+  "new_correct": true
+ },
+ {
+  "entity": "gpt-6-astra",
+  "combined_correct": true,
+  "filtered_correct": true,
+  "stale_correct": true,
+  "new_correct": false
+ },
+ {
+  "entity": "grok",
+  "combined_correct": false,
+  "filtered_correct": false,
+  "stale_correct": true,
+  "new_correct": true
+ },
+ {
+  "entity": "grok-4.5",
+  "combined_correct": false,
+  "filtered_correct": true,
+  "stale_correct": false,
+  "new_correct": true
+ },
+ {
+  "entity": "session",
+  "combined_correct": true,
+  "filtered_correct": true,
+  "stale_correct": true,
+  "new_correct": false
+ },
+ {
+  "entity": "symlink",
+  "combined_correct": false,
+  "filtered_correct": true,
+  "stale_correct": true,
+  "new_correct": true
+ },
+ {
+  "entity": "tabbit2api",
+  "combined_correct": false,
+  "filtered_correct": true,
+  "stale_correct": true,
+  "new_correct": true
+ }
+]

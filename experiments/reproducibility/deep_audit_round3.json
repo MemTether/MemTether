@@ -1,0 +1,16 @@
+{
+  "deep_audit_round3_fixes": [
+    "Joint MI computed empirically (0.325 bits, 54% of H(Y)) - added to theorem proof",
+    "F1=0.857 scoped as post-write with CI [0.816, 0.872]",
+    "'reactive only viable' softened to 'reactive more viable'",
+    "Controlled experiment power analysis added (35% power, need n=600 for 80%)",
+    "Temporal split CI added to abstract (95% CI [0.401, 0.593])"
+  ],
+  "remaining_honest_limitations": [
+    "Single system (MemTether only)",
+    "Single operator",
+    "Cross-system validation uses simplified rules",
+    "Entity grounding effect not confirmed with independent detection",
+    "Controlled experiment underpowered (35%)"
+  ]
+}

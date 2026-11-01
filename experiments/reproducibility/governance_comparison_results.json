@@ -1,0 +1,19 @@
+{
+  "experiment": "Governance strategy comparison on temporal hold-out set",
+  "test_set": {"total": 1318, "superseded": 198, "rate": "15.0%"},
+  "strategies": [
+    {"name": "No governance", "reviewed_pct": 0, "caught_pct": 0, "precision": 0},
+    {"name": "Review all", "reviewed_pct": 100, "caught_pct": 100, "precision": 0.15},
+    {"name": "Flag never-read facts", "reviewed_pct": 16.8, "caught_pct": 93.9, "precision": 0.842},
+    {"name": "Flag procedures", "reviewed_pct": 4.9, "caught_pct": 30.8, "precision": 0.953},
+    {"name": "Flag entity-free", "reviewed_pct": 83.5, "caught_pct": 99.5, "precision": 0.179},
+    {"name": "ML model", "reviewed_pct": 77.5, "caught_pct": 91.9, "precision": 0.178},
+    {"name": "Combined", "reviewed_pct": 79.2, "caught_pct": 98.5, "precision": 0.187}
+  ],
+  "key_finding": "Simple never-read heuristic outperforms ML: reviews 16.8% of facts, catches 93.9% of supersessions, precision 0.842. ML model reviews 77.5% but catches only 91.9%. Simple heuristic is MORE efficient and MORE effective.",
+  "fa ct_implications": [
+    "Simplicity > complexity for accountability (heuristic is auditable, ML is not)",
+    "Read access monitoring is a transparent governance mechanism",
+    "No black-box model needed for 93.9% of supersession detection"
+  ]
+}

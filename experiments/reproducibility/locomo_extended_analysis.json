@@ -1,0 +1,151 @@
+[
+  {
+    "conv_id": "conv-26",
+    "sessions": 19,
+    "total_turns": 419,
+    "qa_pairs": 199,
+    "evidence_references": 250,
+    "qa_categories": {
+      "2": 37,
+      "3": 13,
+      "1": 32,
+      "4": 70,
+      "5": 47
+    },
+    "avg_turns_per_session": 22.1
+  },
+  {
+    "conv_id": "conv-30",
+    "sessions": 19,
+    "total_turns": 369,
+    "qa_pairs": 105,
+    "evidence_references": 131,
+    "qa_categories": {
+      "2": 26,
+      "4": 44,
+      "1": 11,
+      "5": 24
+    },
+    "avg_turns_per_session": 19.4
+  },
+  {
+    "conv_id": "conv-41",
+    "sessions": 32,
+    "total_turns": 663,
+    "qa_pairs": 193,
+    "evidence_references": 251,
+    "qa_categories": {
+      "2": 27,
+      "1": 31,
+      "3": 8,
+      "4": 86,
+      "5": 41
+    },
+    "avg_turns_per_session": 20.7
+  },
+  {
+    "conv_id": "conv-42",
+    "sessions": 29,
+    "total_turns": 629,
+    "qa_pairs": 260,
+    "evidence_references": 375,
+    "qa_categories": {
+      "3": 11,
+      "1": 37,
+      "2": 40,
+      "4": 111,
+      "5": 61
+    },
+    "avg_turns_per_session": 21.7
+  },
+  {
+    "conv_id": "conv-43",
+    "sessions": 29,
+    "total_turns": 680,
+    "qa_pairs": 242,
+    "evidence_references": 343,
+    "qa_categories": {
+      "1": 31,
+      "3": 14,
+      "2": 26,
+      "4": 107,
+      "5": 64
+    },
+    "avg_turns_per_session": 23.4
+  },
+  {
+    "conv_id": "conv-44",
+    "sessions": 28,
+    "total_turns": 675,
+    "qa_pairs": 158,
+    "evidence_references": 238,
+    "qa_categories": {
+      "2": 24,
+      "1": 30,
+      "3": 7,
+      "4": 62,
+      "5": 35
+    },
+    "avg_turns_per_session": 24.1
+  },
+  {
+    "conv_id": "conv-47",
+    "sessions": 31,
+    "total_turns": 689,
+    "qa_pairs": 190,
+    "evidence_references": 246,
+    "qa_categories": {
+      "3": 13,
+      "2": 34,
+      "1": 20,
+      "4": 83,
+      "5": 40
+    },
+    "avg_turns_per_session": 22.2
+  },
+  {
+    "conv_id": "conv-48",
+    "sessions": 30,
+    "total_turns": 681,
+    "qa_pairs": 239,
+    "evidence_references": 344,
+    "qa_categories": {
+      "2": 42,
+      "1": 21,
+      "3": 10,
+      "4": 118,
+      "5": 48
+    },
+    "avg_turns_per_session": 22.7
+  },
+  {
+    "conv_id": "conv-49",
+    "sessions": 25,
+    "total_turns": 509,
+    "qa_pairs": 196,
+    "evidence_references": 368,
+    "qa_categories": {
+      "1": 37,
+      "2": 33,
+      "3": 13,
+      "4": 73,
+      "5": 40
+    },
+    "avg_turns_per_session": 20.4
+  },
+  {
+    "conv_id": "conv-50",
+    "sessions": 30,
+    "total_turns": 568,
+    "qa_pairs": 204,
+    "evidence_references": 269,
+    "qa_categories": {
+      "2": 32,
+      "1": 32,
+      "3": 7,
+      "4": 87,
+      "5": 46
+    },
+    "avg_turns_per_session": 18.9
+  }
+]

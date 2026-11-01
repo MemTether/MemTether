@@ -1,0 +1,20 @@
+{
+  "experiment": "Feature set ranking changes under temporal split",
+  "finding": "CRITICAL: System rankings change when switching from random CV to temporal split",
+  "random_cv_ranking": [
+    {"rank": 1, "name": "With leaked features", "f1": 0.904},
+    {"rank": 2, "name": "Full (no leak)", "f1": 0.650},
+    {"rank": 3, "name": "Metadata only", "f1": 0.557},
+    {"rank": 4, "name": "Content only", "f1": 0.509},
+    {"rank": 5, "name": "Content extended", "f1": 0.508}
+  ],
+  "temporal_split_ranking": [
+    {"rank": 1, "name": "Metadata only", "f1": 0.483},
+    {"rank": 2, "name": "With leaked features", "f1": 0.360},
+    {"rank": 3, "name": "Full (no leak)", "f1": 0.253},
+    {"rank": 4, "name": "Content only", "f1": 0.242},
+    {"rank": 5, "name": "Content extended", "f1": 0.241}
+  ],
+  "key_insight": "Features that improve random CV performance (q_value, use_count, days_since) actually HURT temporal generalization. The best feature set under temporal split is the simplest one (metadata only), suggesting that complex features overfit to temporal patterns that do not generalize.",
+  "implication": "Published rankings based on random CV may be incorrect. Cross-system comparisons using random CV should be re-evaluated using temporal splits."
+}

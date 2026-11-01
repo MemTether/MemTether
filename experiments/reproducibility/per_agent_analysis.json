@@ -1,0 +1,126 @@
+{
+  "workbuddy": {
+    "total": 678,
+    "superseded_pct": 10.9,
+    "avg_entities": 14.0,
+    "with_entities_pct": 74.0,
+    "avg_confidence": 0.79,
+    "avg_q_value": 0.53,
+    "avg_use_count": 12.4,
+    "types": {
+      "fact": 342,
+      "experience": 214,
+      "decision": 62,
+      "incident": 47,
+      "procedure": 1,
+      "correction": 12
+    }
+  },
+  "legacy": {
+    "total": 59,
+    "superseded_pct": 27.1,
+    "avg_entities": 7.1,
+    "with_entities_pct": 72.9,
+    "avg_confidence": 0.72,
+    "avg_q_value": 0.57,
+    "avg_use_count": 9.6,
+    "types": {
+      "experience": 30,
+      "fact": 29
+    }
+  },
+  "reflector": {
+    "total": 6,
+    "superseded_pct": 0.0,
+    "avg_entities": 4.5,
+    "with_entities_pct": 83.3,
+    "avg_confidence": 0.92,
+    "avg_q_value": 0.53,
+    "avg_use_count": 7.2,
+    "types": {
+      "fact": 6
+    }
+  },
+  "doubao_a": {
+    "total": 44,
+    "superseded_pct": 0.0,
+    "avg_entities": 0.0,
+    "with_entities_pct": 0.0,
+    "avg_confidence": 0.8,
+    "avg_q_value": 0.48,
+    "avg_use_count": 0.7,
+    "types": {
+      "fact": 44
+    }
+  },
+  "workbuddy_ai": {
+    "total": 382,
+    "superseded_pct": 12.0,
+    "avg_entities": 12.4,
+    "with_entities_pct": 65.7,
+    "avg_confidence": 0.81,
+    "avg_q_value": 0.53,
+    "avg_use_count": 12.6,
+    "types": {
+      "fact": 134,
+      "experience": 147,
+      "decision": 25,
+      "incident": 76
+    }
+  },
+  "tool_audit": {
+    "total": 6,
+    "superseded_pct": 0.0,
+    "avg_entities": 5.8,
+    "with_entities_pct": 100.0,
+    "avg_confidence": 0.99,
+    "avg_q_value": 0.57,
+    "avg_use_count": 46.3,
+    "types": {
+      "fact": 4,
+      "decision": 2
+    }
+  },
+  "zcode": {
+    "total": 5,
+    "superseded_pct": 80.0,
+    "avg_entities": 6.2,
+    "with_entities_pct": 20.0,
+    "avg_confidence": 0.84,
+    "avg_q_value": 0.52,
+    "avg_use_count": 0.8,
+    "types": {
+      "decision": 2,
+      "experience": 3
+    }
+  },
+  "tabbit": {
+    "total": 5,
+    "superseded_pct": 20.0,
+    "avg_entities": 33.4,
+    "with_entities_pct": 80.0,
+    "avg_confidence": 0.84,
+    "avg_q_value": 0.59,
+    "avg_use_count": 17.6,
+    "types": {
+      "fact": 3,
+      "decision": 2
+    }
+  },
+  "codex": {
+    "total": 1441,
+    "superseded_pct": 17.0,
+    "avg_entities": 3.6,
+    "with_entities_pct": 24.6,
+    "avg_confidence": 0.8,
+    "avg_q_value": 0.52,
+    "avg_use_count": 19.7,
+    "types": {
+      "fact": 769,
+      "experience": 31,
+      "incident": 172,
+      "decision": 341,
+      "procedure": 128
+    }
+  }
+}

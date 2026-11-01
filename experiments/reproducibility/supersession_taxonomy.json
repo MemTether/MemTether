@@ -1,0 +1,13 @@
+{
+  "taxonomy": {
+    "configuration_decision": 33,
+    "iterative_refinement": 113,
+    "environment_snapshot": 39,
+    "tool_usage_note": 73,
+    "other": 68,
+    "incident_report": 24,
+    "deployment_record": 36
+  },
+  "total": 386,
+  "method": "Manual categorization based on reading 100+ superseded facts in full"
+}

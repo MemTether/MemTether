@@ -1,0 +1,30 @@
+{
+  "All features": {
+    "f1": 0.93,
+    "ci_low": 0.93
+  },
+  "Metadata only": {
+    "f1": 0.972,
+    "ci_low": 0.972
+  },
+  "Temporal only": {
+    "f1": 0.56,
+    "ci_low": 0.56
+  },
+  "Content only": {
+    "f1": 0.571,
+    "ci_low": 0.571
+  },
+  "Metadata + Temporal": {
+    "f1": 0.936,
+    "ci_low": 0.936
+  },
+  "Metadata + Content": {
+    "f1": 0.977,
+    "ci_low": 0.977
+  },
+  "Temporal + Content": {
+    "f1": 0.559,
+    "ci_low": 0.559
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "interaction_analysis": {
+    "entity_x_type": "Entity grounding effect SIGNIFICANT in all 5 types (chi2 > 3.84). No interaction - universal main effect within MemTether.",
+    "entity_x_source": "Effect consistent across all sources (codex, workbuddy, workbuddy_ai, legacy).",
+    "procedure_by_source": "Procedure supersession 92.2% only for Codex (only source with n>=5)."
+  },
+  "content_type_analysis": {
+    "procedure": {"superseded_pct": 91.5, "with_entities_pct": 7.8},
+    "config_related": {"superseded_pct": 12.4, "with_entities_pct": 71.5},
+    "code_related": {"superseded_pct": 9.5, "with_entities_pct": 46.3},
+    "incident": {"superseded_pct": 16.6, "with_entities_pct": 38.3},
+    "decision": {"superseded_pct": 7.8, "with_entities_pct": 30.8},
+    "other": {"superseded_pct": 11.5, "with_entities_pct": 51.0}
+  },
+  "key_insight": "Procedures have the LOWEST entity grounding (7.8%) but the HIGHEST supersession (91.5%). Config facts have the HIGHEST entity grounding (71.5%) but only 12.4% supersession. The 10 procedures WITH entities have 0% supersession. Solution: improve entity extraction for procedures, don't treat them differently in governance."
+}
