@@ -2,6 +2,10 @@
 
 # MemTether
 
+<p align="center">
+  <a href="README.md">English</a> | <a href="README.zh-CN.md">中文</a>
+</p>
+
 **你的 agent 记住了什么，谁来审计？**
 
 <a href="https://pypi.org/project/memtether/"><img src="https://img.shields.io/pypi/v/memtether?style=flat-square&color=blue" alt="PyPI"/></a>

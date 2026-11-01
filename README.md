@@ -2,6 +2,10 @@
 
 # MemTether
 
+<p align="center">
+  <a href="README.md">English</a> | <a href="README.zh-CN.md">中文</a>
+</p>
+
 **The only AI agent memory with a tamper-evident audit chain.**
 
 *If your agent can't prove what it knows, it doesn't know.*
