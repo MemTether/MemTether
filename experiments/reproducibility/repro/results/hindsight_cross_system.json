@@ -1,0 +1,11 @@
+{
+  "system": "Hindsight 1.1.0",
+  "architecture": "bi-temporal + learn",
+  "llm": "Kimi-k2.6 via Loomy",
+  "embedder": "local",
+  "phase1_retained": 15,
+  "phase1_recall": 1,
+  "phase2_retained": 15,
+  "phase2_recall": 1,
+  "total_memory_units": 1
+}

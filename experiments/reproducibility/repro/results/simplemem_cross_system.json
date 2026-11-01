@@ -1,0 +1,8 @@
+{
+  "system": "SimpleMem 0.1.0",
+  "architecture": "semantic lossless compression",
+  "llm": "Kimi-k2.6 via Loomy",
+  "embedder": "all-MiniLM-L6-v2 local",
+  "dialogues_added": 15,
+  "status": "ingested"
+}
