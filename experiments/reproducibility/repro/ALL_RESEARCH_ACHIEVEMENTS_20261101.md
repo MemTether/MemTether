@@ -533,3 +533,89 @@
 - 原始声称 "up to 100x" 膨胀
 - 修正为 "1.2-1.6x"（绝对差 0.133-0.271）
 - 100x 来自 leaked feature（0.930 vs 0.008），不是 honest model 的 temporal gap
+
+---
+
+## ⚠️ 第七轮补充：5 项细分子发现（从 SGM 论文逐行扫描）
+
+### 55. Temporal Patterns: Friday = 41.3% / 11AM = 46.7%
+- **Facts written on Fridays are superseded at 41.3%** (172/416), vs 2.9-3.1% for Monday-Wednesday
+- **Facts written at 11:00 AM are superseded at 46.7%** (105/225), vs 2.9-4.6% for early morning/afternoon
+- 假说：end-of-week 和 pre-lunch writes 更可能是 speculative/incomplete reasoning
+- 这是 governance routing 的输入信号
+
+### 56. Never-Read Facts = 52.4% Supersession Rate
+- **从未被读取的 facts 有 52.4% 被 supersede**
+- 读取一次后降到 1.4%
+- 这是 never-read heuristic 的数据基础
+- 与 governance comparison 中 never-read 的 93.9% recall 一致
+
+### 57. LangMem NOT_FOUND = 79.2%
+- LangMem 在 LongMemEval 上返回 NOT_FOUND for 79.2% of questions
+- 这是 structural extraction bottleneck，不是 retrieval failure
+- 说明有些 memory 系统在 benchmark 上根本无法正常工作
+
+### 58. Event Ledger Semantic = 76.0%（+9.3pp over Oracle Ceiling）
+- Event Ledger（结构化事件存储）= 68.0% strict / 76.0% semantic
+- +9.3pp semantic improvement over oracle ceiling（不用 event ledger 时）
+- 这是 supersession 的替代方案
+
+### 59. Procedure Supersession 91.5% vs Decision 7.8%
+- **Procedural memories 被 supersede 比率 = 91.5%**
+- **Decision memories = 7.8%**
+- **差 = 83.7pp（同为 entity-free 条件下）**
+- 说明 memory type 本身就是 stability 的强预测信号
+- Procedure 天然不稳定（每次执行环境都不同），Decision 天然稳定
+
+---
+
+## ⚠️ 第八轮补充：9 项细节数据（从各论文逐行扫描）
+
+### 60. LongMemEval Run Variance
+- **Strict: mean 55.1%, SD 10.4%** (range 43.2%-62.6%, 4 time points)
+- **Judge: mean 59.6%, SD 7.4%** (range 53.0%-68.8%)
+- Variance 是 system-side changes，不是 judge instability
+- 10-18 run (strict 62.4%, judge 68.8%) 是 headline number
+
+### 61. LME-V2 Per-Type Strict（V2 独有类别）
+- llm_abstention_checker: 16.4%
+- llm_gotchas_checker: 14.3%
+- mc_choice_set_match: 0.0%
+- 这些类别在 LongMemEval-500 中不存在
+
+### 62. Power Law 详细分布
+- Top 10 memories = 15.0% of retrievals
+- Top 20 = 21.3%
+- Top 50 = 30.3%
+- Top 100 = 40.1%
+- 确认 steep power law（不是 linear）
+
+### 63. Legacy Source Dead Rate = 13.6%
+- Legacy source: 44 records, 6 dead = 13.6%
+- 高于 average 9.5%，说明 legacy 数据质量较差
+- (已合并入 dataset provenance 分析)
+
+### 64. Information Decomposition Chain Rule 细节
+- I(Y; type) = 0.118 bits (19.7%)
+- I(Y; entities | type) = 0.131 bits (21.8%)
+- I(Y; reads | type, entities) = 0.165 bits (27.4%)
+- **Total explained: 0.414 bits (68.9%)**
+- **Residual: 0.187 bits (31.1%)**
+- 注意：这是旧版数据（joint MI 后来更新为 0.581 = 96.7%）
+
+### 65. Governance Comparison 完整表
+| 策略 | Reviewed | Caught | Precision | Transparency |
+|---|---|---|---|---|
+| No governance | 0% | 0% | --- | --- |
+| Review all | 100% | 100% | 0.150 | High |
+| **Never-read** | **16.8%** | **93.9%** | **0.842** | **High** |
+| ML model | 77.5% | 91.9% | 0.178 | Low |
+| Combined | 79.2% | 98.5% | 0.187 | Medium |
+| Flag procedures | 4.9% | 30.8% | 0.953 | High |
+| Flag entity-free | 83.5% | 99.5% | 0.179 | High |
+
+### 66. P5 Refusal Gate Hallucination Reduction
+- **Hallucination rate: 71.9% → 0.8%**（gate on vs off）
+- **代价：94.3% 的 valid queries 被拒绝**
+- 这是一个 extreme trade-off：完全消除 hallucination 但几乎无法回答任何问题
+- 确认 embedding similarity thresholding alone 不能解决 refusal problem
