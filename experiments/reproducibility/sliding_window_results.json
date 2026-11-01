@@ -1,0 +1,49 @@
+{
+  "method": "Train on [0, i%], test on [i%+5%, i%+5%+10%], slide i from 20% to 80%",
+  "experiment": "Sliding window temporal CV",
+  "sliding_results": [
+    {
+      "test_pos": 13,
+      "f1": 0.63,
+      "train_pct": 20
+    },
+    {
+      "test_pos": 8,
+      "f1": 0.695,
+      "train_pct": 25
+    },
+    {
+      "test_pos": 5,
+      "f1": 0.499,
+      "train_pct": 30
+    },
+    {
+      "test_pos": 89,
+      "f1": 0.673,
+      "train_pct": 35
+    },
+    {
+      "test_pos": 197,
+      "f1": 0.709,
+      "train_pct": 40
+    },
+    {
+      "test_pos": 187,
+      "f1": 0.921,
+      "train_pct": 45
+    },
+    {
+      "test_pos": 83,
+      "f1": 0.841,
+      "train_pct": 50
+    },
+    {
+      "test_pos": 9,
+      "f1": 0.344,
+      "train_pct": 55
+    }
+  ],
+  "reference_random_cv_f1": 0.678,
+  "interpretation": "Prediction performance depends on distributional similarity between training and test periods. Random CV artificially ensures this similarity. Temporal split correctly removes it, exposing the true generalization ability.",
+  "key_finding": "F1 varies from 0.344 to 0.921 depending on temporal position. The variation is driven by test set composition (number of positive examples), not simply by temporal distance. Prediction performance depends on distributional similarity between training and test periods."
+}
