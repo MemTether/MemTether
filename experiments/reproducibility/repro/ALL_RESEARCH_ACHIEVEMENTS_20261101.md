@@ -435,3 +435,49 @@
 - Overall 平均 4.77，≥7 分仅 6.6%（44/662）
 - **Evidence 平均 4.24 是最大瓶颈**（75.5% 的低分评审中 evidence ≤ 4）
 - Honesty 平均 6.53 是最强维度
+
+---
+
+## ⚠️ 第五轮补充：8 项从 fuseeval 审稿意见中提取的发现
+
+### 47. Cross-Agent Contradiction Rate = 0.044%
+- 生产环境中 cross-agent contradictions 的实际发生率只有 0.044%（极低）
+- 这意味着 73pp 虽然大，但发生频率极低
+- 审稿人指出：0.044% 矛盾率 + n=11 不足以构成从现有系统迁移的理由
+- **这是 governance 论文必须诚实面对的核心 tension**
+
+### 48. Entity→NLI Extraction 实验
+- Day 1: entity→NLI = 196/874 (22.4%)，大量 false positive
+- Day 2: embedding→NLI = 41/2xx，更好的 precision
+- MCV (Memory Correctness Verification) 的 3 天实验
+
+### 49. Entity Extraction Enhancement
+- English regex extractor (TitleCase + acronym + filename + hyphenated)
+- 给 827 个未链接 facts 新增 4,136 条 entity links
+- Hybrid+Enhanced precision@10 从 47% → 53%
+
+### 50. LongMemEval Strict Score Is Retrieval-Depth Independent
+- k=5/10/15/20 四组 100 题 strict 结果完全相同 = 53.12%
+- Gold evidence 在 k=5 就能找到，strict 不随 k 变化
+- 证明 strict score 是 retrieval-depth 无关的
+
+### 51. Multi-Session Judge = 79.7%
+- EAF v2 完整数据中 multi-session judge = 79.7% (106/133)
+- 超过 mem0 60.2% by **19.5pp**
+- 这是所有 per-type 中最显著的改进
+
+### 52. Judge Cross-Model Agreement 不一致
+- GPT-5.6 agreement = 96.4% vs GPT-6 agreement = 96.6% vs 454/470 = 96.6%
+- 三个不同口径的数字在论文中混用
+- 需要统一为一个数字并说明差异原因
+
+### 53. Index Staleness = 3.8%
+- Vector index 包含 65 个多余 entries（test artifacts + deleted records）
+- 占 active facts 的 3.8%
+- 这是 SQLite/ChromaDB 不一致的具体表现
+
+### 54. EAF 三重矛盾（v5 审查发现）
+- EAF ON=75.7% vs EAF A/B ON=33.5%（42.2pp 矛盾）
+- EAF OFF/baseline=62.6% vs EAF A/B OFF=12.9%（49.7pp 矛盾）
+- mem0 matched subset 上 78.5% > MemTether 66.7%（mem0 反超 11.8pt）
+- 这些矛盾在后续版本中被修复/解释
