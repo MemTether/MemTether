@@ -219,6 +219,9 @@ results = search("dark mode")
 ```bash
 # Or as an MCP server for Claude Code / Cursor
 memtether mcp
+
+# First run: pre-download the embedding model (optional, semantic search)
+memtether download-models
 ```
 
 ## Framework Integrations
@@ -343,6 +346,9 @@ Gemini CLI ─────┤                  ├─── WorkBuddy
 ```bash
 # All detected clients (recommended)
 memtether init
+
+# Verify what was wired
+memtether connect verify
 
 # One at a time
 memtether setup claude-code

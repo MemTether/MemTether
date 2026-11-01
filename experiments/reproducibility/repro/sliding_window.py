@@ -148,10 +148,11 @@ for train_pct in range(20, 81, 5):
 indices = list(range(n))
 # Use a deterministic shuffle
 random_seed = 42
-state = random_seed
+_state = random_seed
 def pseudo_random():
-    state = (state * 1103515245 + 12345) % (2**31)
-    return state / (2**31)
+    global _state
+    _state = (_state * 1103515245 + 12345) % (2**31)
+    return _state / (2**31)
 
 # Fisher-Yates shuffle
 for i in range(n-1, 0, -1):
