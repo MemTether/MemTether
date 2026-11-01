@@ -603,6 +603,25 @@ Other systems *describe* governance. MemTether ships it as commands you can run:
   queue (`memtether conflicts --list`) — agents propose, humans adjudicate,
   and the verdict becomes part of the audited record.
 
+### Session capture (experimental)
+
+"Write coverage is the system's job, not the agent's judgement." `scripts/watch.py`
+extracts decisions and lessons from a session transcript at a boundary and pushes
+them through the governed pipeline (near-dup gate, hash chain, mandatory source):
+
+```bash
+# preview what would be written
+python scripts/watch.py ingest --file session.jsonl --source claude-code --dry-run
+
+# real ingest (governed: dedup + attribution + chain)
+python scripts/watch.py ingest --file session.jsonl --source claude-code
+```
+
+Extraction is deliberately narrow (decision/lesson heuristics only) — better to
+miss than to flood the store. Honest limitation: batch-at-boundary; a live-tail
+daemon is future work. Hook installation per harness is planned via the adapter
+framework.
+
 ## Security
 
 - **Poisoning defense**: `memtether_guard` detects prompt injection, code execution, sensitive info (OWASP LLM01/02/06), 12 rules

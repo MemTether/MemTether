@@ -2,6 +2,12 @@
 
 ### Added
 
+- **`scripts/watch.py` session capture (experimental)**: extracts decisions and
+  lessons from a session transcript (JSONL or text) at a boundary and writes
+  them through the governed pipeline. Narrow heuristics by design; dry-run
+  mode; honest limitation = batch-at-boundary, live tail is future work.
+  End-to-end tested: 3/3 candidates extracted from a synthetic transcript,
+  3 governed writes, search-back + hash-chain intact.
 - **`@memtether/client` npm package** (`npm-client/`): zero-dependency thin REST
   wrapper — health / stats / remember / search / correct / retire / list /
   timeline / courtVerify / court. End-to-end tested against a live demo server
