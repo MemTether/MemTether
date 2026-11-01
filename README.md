@@ -2,7 +2,9 @@
 
 # MemTether
 
-**Your agent remembers things. Who audits what it remembers?**
+**The only AI agent memory with a tamper-evident audit chain.**
+
+*If your agent can't prove what it knows, it doesn't know.*
 
 <a href="https://pypi.org/project/memtether/"><img src="https://img.shields.io/pypi/v/memtether?style=flat-square&color=blue" alt="PyPI"/></a>
 <img src="https://img.shields.io/pypi/dm/memtether?style=flat-square&color=green" alt="Downloads"/>
@@ -71,6 +73,19 @@ $ memtether court fact-20261007-abc
 
 ![Memory Court](assets/court_demo.gif)
 
+
+
+## Why MemTether Instead of mem0?
+
+| Feature | MemTether | mem0 | Hindsight | EverOS |
+|---|---|---|---|---|
+| Audit hash chain (tamper-evident) | ✅ | ❌ | ❌ | ❌ |
+| Bi-temporal supersession | ✅ | ❌ | ❌ | ❌ |
+| Conflict gate (human adjudication) | ✅ | ❌ | ❌ | ❌ |
+| Source attribution (mandatory) | ✅ | ⚠️ optional | ❌ | ❌ |
+| Memory Court (visual audit) | ✅ | ❌ | ❌ | ❌ |
+| Local SQLite (no cloud) | ✅ | ⚠️ needs setup | ⚠️ needs server | ✅ |
+| Zero cloud dependency | ✅ | ❌ | ❌ | ✅ |
 
 ## TL;DR
 
@@ -188,45 +203,17 @@ mcp-name: io.github.lanbass869-cell/memtether
 
 ## Quick Start
 
-```bash
-pip install memtether -i https://pypi.org/simple/
-memtether init    # creates DB + connects all detected AI clients
+```python
+from memtether import remember, search
+
+remember("User prefers dark mode", source="my-agent")
+results = search("dark mode")
 ```
 
-That's it. MemTether detects Claude Code, Cursor, Windsurf, Codex, Gemini CLI and 18 more clients on your machine, writes MCP config, and verifies.
-
-> **China users**: if `pip install memtether` fails with `No matching distribution`, the Tsinghua mirror may lag behind PyPI. Use: `pip install memtether -i https://pypi.org/simple/`
-
-<details>
-<summary>More install options</summary>
-
 ```bash
-# One client at a time
-memtether setup claude-code
-memtether setup cursor
-memtether setup gemini-cli    # run `memtether setup list` for all 23
-
-# With semantic search (local embedding, no cloud):
-pip install "memtether[vector]"          # 1. deps (chromadb, onnxruntime)
-memtether download-models                # 2. weights (bge-m3-int8 ~560MB, or --profile bge-small-zh ~46MB)
-python -m memsearch --rebuild            # 3. build the vector index
-# Skip any of these and search gracefully degrades to keyword + BM25.
-
-# With REST API server + web dashboard
-pip install "memtether[server]"
-memtether dashboard
-
-# Docker
-docker-compose up
-
-> **Security note**: the REST API is unauthenticated unless you set MEMTETHER_API_KEY. Only expose port 8080 to trusted networks — on a shared machine, set the key in .env before docker-compose up.
-> **`memtether init` caveat**: auto-detection works for clients in standard install paths. Clients in custom locations may be missed or falsely reported — use `memtether connect verify` to confirm, and see docs/ADAPTERS.md for manual MCP config.
-
+# Or as an MCP server for Claude Code / Cursor
+memtether mcp
 ```
-
-</details>
-
----
 
 ## Framework Integrations
 
