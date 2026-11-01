@@ -136,7 +136,7 @@ $ python examples/audit_chain_demo.py
 mcp-name: io.github.lanbass869-cell/memtether
 [![MCP Registry](https://img.shields.io/badge/MCP_Registry-io.github.lanbass869--cell%2Fmemtether-blue)](https://registry.modelcontextprotocol.io)
 
-[**在线试用**](https://huggingface.co/spaces/lanbass/memtether-demo) · [安装](#快速开始) · [文档站](https://memtether.github.io/MemTether/site/en/) · [复现指南](https://memtether.github.io/MemTether/site/en/reproduce.html) · [English](README.md)
+[**在线试用**](https://huggingface.co/spaces/lanbass/memtether-demo) · [安装](#快速开始) · [文档站](https://github.com/MemTether/MemTether#readme) · [复现指南](https://github.com/MemTether/MemTether#readmereproduce.html) · [English](README.md)
 
 </div>
 
