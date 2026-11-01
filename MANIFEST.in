@@ -21,3 +21,6 @@ include LICENSE
 include README.md
 include CHANGELOG.md
 include INSTALL.md
+
+# Agent skills ship in the wheel (a83): three SKILL.md docs
+recursive-include skills *.md

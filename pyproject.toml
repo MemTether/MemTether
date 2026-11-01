@@ -93,6 +93,7 @@ include-package-data = false
 
 py-modules = [
     "api_server",
+    "cli_out",
     "consolidation",
     "embed_local",
     "extract",
@@ -119,8 +120,11 @@ py-modules = [
 # P0-fix (a41): dashboard.html is a py-module data file — the old package-data
 # entry on "*" never applied to py-modules and was silently dead since a17.
 # Ship it via the memtether_assets package instead (verified: setuptools 84).
+# Skills ship in the wheel so `npx skills add MemTether/MemTether` works for
+# pip-installed users too (a83): the three agent skills are documentation assets.
 [tool.setuptools.package-data]
 "memtether_assets" = ["dashboard.html"]
+"skills" = ["*/*.md", "*/references/*.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -12,6 +12,8 @@
 
 *If your agent can't prove what it knows, it doesn't know.*
 
+**Remember** every fact with its source · **Recall** it at three depths · **Audit** who changed what, when, and why — with corrections that never delete and a hash chain anyone can verify.
+
 <a href="https://pypi.org/project/memtether/"><img src="https://img.shields.io/pypi/v/memtether?style=flat-square&color=blue" alt="PyPI"/></a>
 <img src="https://img.shields.io/pypi/dm/memtether?style=flat-square&color=green" alt="Downloads"/>
 <a href="https://github.com/MemTether/MemTether/blob/main/LICENSE"><img src="https://img.shields.io/github/license/MemTether/MemTether?style=flat-square" alt="Apache-2.0"/></a>
@@ -53,6 +55,12 @@ hash chain** anyone can verify — no code, no dependencies. Retrieval is
 provided (SGM deterministic SQL routing + hybrid embedding), but it is
 not the headline: agent memory that you can **audit, correct, and trust**
 is.
+
+Think of it as an **append-only memory ledger**: every fact is a frame
+with its source and checksum attached; correcting a fact appends a new
+frame instead of overwriting the old one; and `as_of` rewinds the whole
+ledger to any past date. The DB is the source of truth — `export-md`
+gives you a human-readable, diffable, Git-friendly view of it anytime.
 
 Coming from mem0, Zep, or Letta? [`examples/mem0_migration.py`](examples/mem0_migration.py)
 shows a complete round-trip migration from a mem0 JSON export — no mem0
@@ -209,10 +217,30 @@ mcp-name: io.github.lanbass869-cell/memtether
 
 ## Quick Start
 
+### 30 seconds, zero keys
+
+```bash
+pip install memtether
+
+# generate a 100-fact demo DB and query it immediately
+memtether demo
+memtether search "投影" --list
+```
+
+```text
+$ memtether search "投影" --list
+  1. [incident/deltahub] 巡检发现投影超限：3904 / 3900 字符——超限是静默整体截断
+     uid=demo-incident-0100  1.0000
+  2. [fact/epsilon_ai] 投影是给注入侧看的精简版，真源始终是数据库文件。
+     uid=demo-fact-0061  0.0536
+```
+
+### In your agent
+
 ```python
 from memtether import remember, search
 
-remember("User prefers dark mode", source="my-agent")
+remember("User prefers dark mode", source="my-agent")   # hash-chained on write
 results = search("dark mode")
 ```
 
@@ -220,9 +248,25 @@ results = search("dark mode")
 # Or as an MCP server for Claude Code / Cursor
 memtether mcp
 
-# First run: pre-download the embedding model (optional, semantic search)
+# Optional: pre-download the embedding model (semantic search works
+# without it too — keyword path is always on)
 memtether download-models
 ```
+
+## Agent Skills
+
+MemTether ships skills that teach your coding agent *when* to use memory — install
+with [`npx skills add`](https://github.com/vercel-labs/skills):
+
+```bash
+npx skills add MemTether/MemTether
+```
+
+| Skill | What it teaches your agent |
+|---|---|
+| [`agent-memory`](skills/agent-memory/SKILL.md) | Install, core concepts, CLI + MCP surface |
+| [`agent-memory-recall`](skills/agent-memory-recall/SKILL.md) | Search-before-answer: check L0 recall before answering from memory |
+| [`agent-memory-court`](skills/agent-memory-court/SKILL.md) | Write-then-verify: hash-chain check + timeline after memory writes |
 
 ## Framework Integrations
 
@@ -448,6 +492,13 @@ memtether dashboard                    # Web UI
 
 ## Benchmarks
 
+> **Every number below is reproducible from this repo** — per-question records ship in
+> [releases/eaf_artifact_bundle/](releases/eaf_artifact_bundle/), and the LoCoMo adapter is
+> `scripts/bench_memtether_adapter.py`. We report each metric under the exact scoring rule that
+> produced it (strict / judge / answer-quality vs retrieval-recall) because mixing denominators
+> is how memory benchmarks lie — see our [Simpson's-paradox analysis](docs/site/en/reproduce.html)
+> for the 27× inflation this causes when ignored.
+
 <details>
 <summary>LongMemEval (500 questions, full run, 2026-10-02)</summary>
 
@@ -469,6 +520,13 @@ memtether dashboard                    # Web UI
 | temporal-reasoning | 133 | 60.7% | 40.5% |
 
 > Results use our own harness. Not directly comparable with mem0's reported numbers.
+>
+> EAF (75.7%) is not a "we win" number — it is the retrieval variant that removes
+> contradiction-induced context from the window before answering. Paired McNemar on the
+> same 334 questions: +19.4pp, p=7.8e-7. Governance pays here: uncorrected cross-agent
+> contradictions cost up to 73pp of downstream accuracy in our causal experiment
+> (entity-conflict: 90% vs 0% supersession under imposed rules). See
+> experiments/reproducibility/ for the JSON records.
 
 </details>
 
