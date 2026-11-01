@@ -2,6 +2,10 @@
 
 ### Added
 
+- **`@memtether/client` npm package** (`npm-client/`): zero-dependency thin REST
+  wrapper — health / stats / remember / search / correct / retire / list /
+  timeline / courtVerify / court. End-to-end tested against a live demo server
+  (remember PASS → search PASS → courtVerify verified:true).
 - **`memtether handoff --to <agent>`**: exports a governed handoff bundle
   (pinned memories, recent decisions/lessons, open-conflict count, integrity
   pointer) for the next agent. Privacy by construction — MemTether stores no

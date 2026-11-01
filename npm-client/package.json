@@ -1,0 +1,35 @@
+{
+  "name": "@memtether/client",
+  "version": "0.1.0",
+  "description": "Thin REST client for MemTether \u2014 the governed AI agent memory with a tamper-evident audit chain",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "scripts": {
+    "test": "node test.js"
+  },
+  "keywords": [
+    "ai",
+    "agents",
+    "memory",
+    "mcp",
+    "audit-chain",
+    "governed-memory",
+    "local-first",
+    "llm"
+  ],
+  "author": "MemTether Contributors",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MemTether/MemTether.git"
+  },
+  "homepage": "https://github.com/MemTether/MemTether#readme",
+  "engines": {
+    "node": ">=16"
+  },
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "README.md"
+  ]
+}

@@ -253,6 +253,11 @@ memtether mcp
 memtether download-models
 ```
 
+```bash
+# Node.js / TypeScript — thin REST client, zero dependencies
+npm install @memtether/client
+```
+
 ## Agent Skills
 
 MemTether ships skills that teach your coding agent *when* to use memory — install
@@ -277,6 +282,7 @@ MemTether works with any agent framework via its Python API or MCP server. Ready
 | [CrewAI](examples/crewai_integration.py) | Multi-agent crews | Governed shared memory with audit chains and conflict gating |
 | [AutoGen](examples/autogen_integration.py) | Multi-agent conversations | Memory poisoning protection via provenance and tamper detection |
 | [LangChain](examples/langchain_integration.py) | Persistent memory | Cross-session recall with bi-temporal corrections |
+| [Node.js — `@memtether/client`](npm-client/) | Any JS/TS runtime | Thin REST wrapper: remember / search / correct / courtVerify, zero deps |
 
 All examples are self-contained and compile-verified. See `examples/` for the full list.
 
