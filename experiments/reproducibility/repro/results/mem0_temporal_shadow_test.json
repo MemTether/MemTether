@@ -1,0 +1,10 @@
+{
+  "before_count": 20,
+  "added": 50,
+  "after_count": 20,
+  "survived": 20,
+  "deleted_overwritten": 0,
+  "new_added": 0,
+  "shadow_ratio": 0.0,
+  "test": "Does adding later records shadow/overwrite earlier memories in mem0?"
+}

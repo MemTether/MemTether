@@ -1,0 +1,35 @@
+{
+  "mem0_version": "2.0.20",
+  "llm_backend": "Loomy DeepSeek-V4.1-Flash",
+  "embedder": "all-MiniLM-L6-v2",
+  "initial_ingestion": 100,
+  "queries_before": [
+    {
+      "query": "What configuration changes were made?",
+      "n_results": 0
+    },
+    {
+      "query": "What tools or APIs were mentioned?",
+      "n_results": 0
+    },
+    {
+      "query": "What decisions were recorded?",
+      "n_results": 0
+    }
+  ],
+  "queries_after_adding_50_later_records": [
+    {
+      "query": "What configuration changes were made?",
+      "n_results": 0
+    },
+    {
+      "query": "What tools or APIs were mentioned?",
+      "n_results": 0
+    },
+    {
+      "query": "What decisions were recorded?",
+      "n_results": 0
+    }
+  ],
+  "test": "Does adding later records shadow earlier records in retrieval?"
+}
