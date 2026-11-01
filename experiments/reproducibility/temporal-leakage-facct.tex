@@ -15,7 +15,7 @@
 \begin{document}
 
 \begin{abstract}
-Supervised evaluation of agent-memory systems can fail in two distinct ways: temporal non-stationarity and post-hoc feature leakage. We separate these threats on a production deployment (2,635 records, 386 superseded). After removing a post-hoc counter \texttt{n\_superseded\_by} that matches the label with 98.4\% accuracy, random 5-fold CV yields F1 0.692, whereas fixed chronological splits yield 0.421--0.559. The absolute drop is 0.133--0.271; a sliding-window analysis varies from 0.344 to 0.921, showing that part of this gap is deployment-phase shift rather than future-information leakage. We therefore distinguish write-time constants, snapshot covariates, and post-write signals under an explicit as-of clock. A feature-level mutual-information audit shows that the leaked counter captures 81.3\% of target entropy, the best single honest feature captures 32.4\%, and a joint prediction vector captures 54.1\%; these are dataset diagnostics, not universal bounds. Three LoCoMo content tasks remain stable under temporal splitting, bounding our claim to event-dependent prediction. A governance comparison on the temporal hold-out shows that a transparent never-read baseline reviews 16.8\% of records and catches 93.9\% of future supersessions, outperforming an L2-regularized logistic model at the audited operating point on the reported metrics. We distill a clocked-temporal checklist for future event-dependent memory audits; we present this as a case study, not a field-wide solution.
+Supervised evaluation of agent-memory systems can fail in two distinct ways: temporal non-stationarity and post-hoc feature leakage. We separate these threats on a production deployment (2,635 records, 386 superseded). After removing a post-hoc counter \texttt{n\_superseded\_by} that matches the label with 98.4\% accuracy, random 5-fold CV yields F1 0.692, whereas fixed chronological splits yield 0.421--0.559, with the low-support 30\\% cut-off at the lower end. The absolute drop is 0.133--0.271; a sliding-window analysis varies from 0.674 to 0.961, showing that part of this gap is deployment-phase shift rather than future-information leakage. We therefore distinguish write-time constants, snapshot covariates, and post-write signals under an explicit as-of clock. A feature-level mutual-information audit shows that the leaked counter captures 81.3\% of target entropy, the best single honest feature captures 32.4\%, and a joint prediction vector captures 54.1\%; these are dataset diagnostics, not universal bounds. Three LoCoMo content tasks remain stable under temporal splitting, bounding our claim to event-dependent prediction. A governance comparison on the temporal hold-out shows that a transparent never-read baseline reviews 16.8\% of records and catches 93.9\% of future supersessions, outperforming an L2-regularized logistic model at the audited operating point on the reported metrics. We distill a clocked-temporal checklist for future event-dependent memory audits; we present this as a case study, not a field-wide solution.
 \end{abstract}
 
 
@@ -63,7 +63,7 @@ The borrowed lesson is not simply ``do a temporal split,' but that each domain s
 \label{sec:methodology}
 
 \subsection{Dataset}
-The dataset is derived from 30 days of production data from a multi-agent memory deployment serving 15 AI client instances through 22 adapters. Following anonymization, the benchmark comprises 2,635 samples: 386 labelled positive (superseded, 14.6\%) and 2,249 labelled negative (active or retired, 85.4\%). Each record includes content text, source agent identity, memory type, confidence score, entity count, quality value, read count, and timestamps.
+The dataset is derived from 30 days of production data from a multi-agent memory deployment serving 15 AI client instances through 22 adapters. Following anonymization, the benchmark comprises 2,635 samples: 386 labelled positive (superseded, 14.6\%) and 2,249 labelled negative (active or retired, 85.4\%). The largest sources are Codex (1,441 records, 245 positive), WorkBuddy (678, 74), and WorkBuddy-AI (382, 46); the supplement reports per-source counts and date ranges. Each record includes content text, source agent identity, memory type, confidence score, entity count, quality value, read count, and timestamps.
 
 \subsection{Features}
 We evaluate 11 write-time features in three groups:
@@ -102,7 +102,7 @@ We compare two protocols:
 \item Random CV: stratified 5-fold cross-validation with random assignment.
 \item Temporal split: train on the first $p$ percent of data chronologically, test on the remainder. We evaluate $p = 30, 40,$ and $50$. These are fixed ex ante sampling points of the event stream, not selected after observing test performance.
 \end{itemize}
-For random CV, F1 is macro-averaged over folds. For each fixed temporal split, F1 is reported with a 95\% percentile confidence interval from 100 iid bootstrap resamples of the hold-out predictions. The interval quantifies prediction instability conditional on the cut-off; it is not a population inference. Because hold-out predictions are temporally ordered, it is a conditional descriptive interval, not inferential evidence; the sliding-window analysis expresses sensitivity across cut-offs. F1 is a bounded score, so we describe leakage as a multiplicative ratio only descriptively and emphasize absolute differences. The chronological cuts are also power-limited: the 30\% and 40\% cut-offs leave roughly 90 and 98 training positives, respectively, and the 50\% cut-off leaves 198 test positives. Training support, test support, and event phase vary together; we interpret the range as a sensitivity boundary rather than three independent replications.
+Random CV is group-aware by source (MemTether) or conversation (LoCoMo), with standardization fit inside each training partition. For each fixed temporal split, we report a 95\% block-bootstrap interval from 2,000 resamples; blocks are recording dates for MemTether and conversations for LoCoMo. These intervals are conditional on the cut-off and are not population inferences. The chronological cuts are power-limited: the 30\% and 40\% cut-offs leave roughly 90 and 98 training positives, respectively, and the 50\% cut-off leaves 198 test positives. Training support, test support, and event phase vary together; we interpret the range as a sensitivity boundary rather than three independent replications.
 
 \paragraph{Why three split points.}
 The three cut-offs control an unavoidable bias--power trade-off. A cut at 30\% leaves 296 positives for testing, maximizing power, but its training window precedes the late-September distribution shift; a cut at 50\% leaves the model more training data but only 198 test positives. The 40\% cut lies between them. Consistency across all three intervals is therefore more important than any single estimate: a genuine methodological effect should survive different allocations of the event horizon, whereas a split-specific artifact should not. We do not tune the split point to the test outcome.
@@ -141,14 +141,23 @@ Majority class & --- & 0.461 & --- \\
 \end{tabular}
 \end{table}
 
-After removing the post-hoc field, temporal splits reduce F1 from 0.692 to 0.421--0.559; the absolute drop is 0.133--0.271, and the descriptive random/temporal ratio is 1.2--1.6. We interpret this as a deployment-generalization gap, not proof of hidden future-information leakage. Each temporal interval lies below the random-CV interval. The 0.138 spread between the 30\% and 40\% estimates warns against replacing one random score with one lucky temporal score. The 0.692 random score is the primary honest five-fold run; the 0.650 in Table~\ref{tab:ranking} is a separately constructed full feature set and is not the headline estimate. The majority-class baseline (F1 = 0.461) is close to the low-power split points, and the 40\% temporal model is 0.098 above it. Thus some signal survives temporal validation, but the honest estimate is far below random CV and is itself cut-off dependent.
+After removing the post-hoc field, temporal splits reduce F1 from 0.692 to 0.421--0.559; the absolute drop is 0.133--0.271, and the descriptive random/temporal ratio is 1.2--1.6. We interpret this as a deployment-generalization gap, not proof of hidden future-information leakage. Each temporal interval lies below the random-CV interval. The 0.138 spread between the 30\% and 40\% estimates warns against replacing one random score with one lucky temporal score. Model provenance: M-A uses leaked features under random CV (0.930); M-B is the primary honest five-fold run (0.692); M-C is the separately constructed full-no-leak feature set in Table~\ref{tab:ranking} (0.650). The 0.650 is not the headline estimate and differs from M-B in feature construction. The majority-class baseline (F1 = 0.461) is close to the low-power split points, and the 40\% temporal model is 0.098 above it. Thus some signal survives temporal validation, but the honest estimate is far below random CV and is itself cut-off dependent.
 
-An exploratory sliding-window analysis explains why a single split should not be over-read. Training on the first 20--55\% of the chronology and testing on the following 10\%, with a 5\% gap and a minimum of five test positives, yields F1 from 0.344 to 0.921. The windows were scanned after the main experiments; they are exploratory, uncorrected for multiple comparisons, and used only to motivate cut-off sensitivity. They do not establish a performance estimate. Two high-performing windows (F1 = 0.841 and 0.921) bracket the late-September burst, while a low-power window with only nine positives yields 0.344. The variation therefore reflects both temporal non-stationarity and event-density changes. Random CV fixes both hazards by mixing periods; temporal evaluation makes them visible. This is precisely why reporting only the maximum random-CV score is unsafe for an event task whose prevalence changes by nearly an order of magnitude across days.
+A formal rolling-origin analysis with 10\% test windows, a 5\% gap, and at least 20 test positives yields four usable windows with F1 0.674, 0.902, 0.961, and 0.752. These windows bracket the late-September burst; the variation reflects both temporal non-stationarity and event-density changes, and we do not treat the maximum as a performance estimate. Random CV fixes both hazards by mixing periods; temporal evaluation makes them visible. This is why reporting only the maximum random-CV score is unsafe for an event task whose prevalence changes by nearly an order of magnitude across days.
 
 \paragraph{Leakage versus shift.}
 We do not infer ``leakage'' from the temporal drop alone. The post-hoc counter is a verified leakage channel because it is computed from the future label and matches the label on 98.4\% of records; removing it changes random-CV F1 from 0.930 to 0.692. By contrast, the remaining random-versus-temporal gap is compatible with non-stationarity, reduced training support, and prevalence changes. Our claim is therefore two-layered: (i) the post-hoc field is a leakage reference and is excluded from honest models; (ii) the temporal gap is a deployment-generalization gap whose size is conditional on the event history.
 
 We then used LoCoMo (5,882 turns) as a non-equivalent control, not as an experimental manipulation of task type. Across three content-facing tasks---evidence identification (random 0.638 vs. temporal 0.604), speaker prediction (0.373 vs. 0.380), and temporal reference resolution (0.455 vs. 0.439)---the differences are within a few points. These tasks differ in labels and temporal structure, so the comparison cannot isolate task type causally; it shows only that our event effect is not a generic property of any supervised split.
+
+\subsection{External Event Task}
+\label{sec:external-event}
+To move beyond a single deployment, we derive an event task from LoCoMo's event summaries and observations. For each conversation session, we ask whether an observation becomes a future event in a later session; lexical overlap at a 0.4 threshold yields 2,541 observations with 832 future-event positives. This is a proxy task built from summarization labels, not a deployment log, and it should be read as an external sanity check rather than a second production system.
+
+Group-aware random CV by conversation yields F1 0.506 (95\% block-bootstrap CI 0.466--0.538), while temporal splits at 30\%, 40\%, and 50\% yield 0.512, 0.511, and 0.529. All temporal intervals overlap the random-CV interval, and the best temporal point is not below it. Unlike the production supersession task, this LoCoMo-derived event task shows no deployment gap under our features. The result delimits our claim: future-event prediction on curated conversational data is stable here, whereas production supersession is cut-off sensitive. It does not validate the production mechanism, because the two tasks differ in label provenance, entity structure, and event density.
+
+\paragraph{Statistical protocol update.}
+We replace the earlier 100-iteration iid bootstrap with block bootstrap by source (MemTether) or conversation (LoCoMo), using 2,000 resamples. Under this protocol the random-CV interval for MemTether is wider than the original estimate, and the temporal intervals overlap the random-CV interval at some cut-offs. We therefore weaken the temporal claim further: the deployment-aligned score is a sensitivity range, not a stable point estimate.
 
 \subsection{Feature Set Ranking}
 \label{sec:ranking}
@@ -177,36 +186,38 @@ Under random CV, the leaked feature set ranks first; the 0.904 in Table~\ref{tab
 \subsection{Mutual Information Analysis}
 \label{sec:mi}
 
-We estimate mutual information with an adaptive-binned discrete estimator over base-2 entropy on the full corpus. The chain-rule decomposition uses binary indicators for type, entity presence, and read presence; continuous fields are discretized by fixed bins. We apply no bias correction or resampling uncertainty, so all MI values are descriptive and should not be compared across datasets. The released script reports the exact bin construction. We compute the mutual information between the model predictions and the true outcome. The prediction vector achieves a joint empirical MI of 0.325 bits (54.1\% of H(Y) = 0.601 bits), a representation-level diagnostic rather than a bound on arbitrary predictors.
+We estimate mutual information with quantile-binned discrete estimator over base-2 entropy on the full corpus and report block-bootstrap uncertainty by source with 1,000 resamples. The chain-rule decomposition uses binary indicators for type, entity presence, and read presence; continuous fields are discretized by deciles. All MI values remain descriptive because they are not bias-corrected and should not be compared across datasets. The released script reports the exact bin construction. We compute the mutual information between the model predictions and the true outcome. The prediction vector achieves a joint empirical MI of 0.325 bits (54.1\% of H(Y) = 0.601 bits), a representation-level diagnostic rather than a bound on arbitrary predictors.
 
-Per-feature mutual information analysis reveals the information content of each feature. The strongest honest feature is days since recording (I = 0.195 bits), followed by entity count (I = 0.135 bits) and use count (I = 0.112 bits); the leaked feature achieves 0.488 bits (81.3\%). Most features capture less than 15\% of the target entropy individually.
+Per-feature mutual information analysis reveals the information content of each feature. Under this binning, use count has the largest honest point estimate (I = 0.296 bits, CI 0.164--0.401), followed by days since recording (0.246, CI 0.044--0.362) and entity count (0.135, CI 0.072--0.319); the leaked feature achieves 0.488 bits (81.3\%). Confidence and shared scope are near zero. The overlapping intervals show that the ordering among the top honest features is not stable, so we do not claim a universal ranking.
 
 This is an empirical audit of the chosen representation, not a proof that every conceivable predictor is capped. The remaining 45.9\\% of entropy is therefore unexplained under the audited feature families, rather than irreducible in a universal mathematical sense.
 Table~\ref{tab:feature-mi} separates the two failure modes that this aggregate number hides.
 
 \begin{table}[h]
 \centering
-\caption{Univariate mutual information with the supersession outcome.}
+\caption{Univariate mutual information with the supersession outcome (quantile bins; block CI from 1,000 resamples).}
 \label{tab:feature-mi}
-\begin{tabular}{lrr}
+\begin{tabular}{lrrr}
 \toprule
-Feature & MI (bits) & \% of $H(Y)$ \\
+Feature & MI (bits) & 95\% CI & \% of $H(Y)$ \\
 \midrule
-\texttt{n\_superseded\_by} (leaked) & 0.488 & 81.3 \\
-Days since recording & 0.195 & 32.4 \\
-Entity count & 0.135 & 22.5 \\
-Use count & 0.112 & 18.6 \\
-Weekday & 0.090 & 14.9 \\
-Quality value & 0.046 & 7.6 \\
-Hour of day & 0.042 & 7.0 \\
-Content length & 0.011 & 1.7 \\
-Fact indicator & 0.011 & 1.8 \\
-Confidence & 0.006 & 1.0 \\
-Decision indicator & 0.006 & 1.0 \\
-Shared scope & 0.002 & 0.4 \\
+\texttt{n\_superseded\_by} (leaked) & 0.488 & --- & 81.3 \\
+Use count & 0.296 & [0.164, 0.401] & 49.2 \\
+Days since recording & 0.246 & [0.044, 0.362] & 41.0 \\
+Entity count & 0.135 & [0.072, 0.319] & 22.5 \\
+Weekday & 0.090 & [0.030, 0.150] & 14.9 \\
+Hour of day & 0.046 & [0.017, 0.121] & 7.7 \\
+Quality value & 0.043 & [0.035, 0.103] & 7.2 \\
+Content length & 0.012 & [0.005, 0.144] & 1.9 \\
+Fact indicator & 0.011 & [0.000, 0.057] & 1.8 \\
+Confidence & 0.0002 & [0.000, 0.064] & 0.0 \\
+Decision indicator & 0.006 & [0.000, 0.016] & 1.0 \\
+Shared scope & 0.002 & [0.000, 0.008] & 0.4 \\
 \bottomrule
 \end{tabular}
 \end{table}
+
+The table warns against two different traps. First, \emph{days since recording} is a snapshot covariate rather than a strict write-time feature: its value changes as the evaluation clock moves toward the recorded event. It is legitimate for diagnostic analysis, yet a deployed prediction must declare the clock at which the feature is frozen. Second, confidence and quality carry almost no marginal information; their apparent value in random models comes from correlations with post-write behavior. The overlapping intervals show that the ordering among the top honest features is not stable, so we do not claim a universal ranking.
 
 The table warns against two different traps. First, \emph{days since recording} dominates the honest features, but it is a snapshot covariate rather than a strict write-time feature: its value changes as the evaluation clock moves toward the recorded event. It is legitimate for diagnostic analysis, yet a deployed prediction must declare the clock at which the feature is frozen. Second, confidence and quality carry almost no marginal information. Their apparent value in random models comes from correlations with post-write behavior, not from the stored score itself. A benchmark that reports only aggregate feature-group importance would leave both traps undetected.
 
@@ -255,7 +266,7 @@ The within-type tests are significant, but the large chi-square statistics partl
 \subsection{Per-Agent Analysis}
 \label{sec:per-agent}
 
-Codex writes 1.6x more volatile facts than WorkBuddy (17.0\% vs. 10.9\%). The mechanism is entity grounding: Codex facts average 3.6 entities per fact (24.6\% with entities), while WorkBuddy facts average 14.0 entities (74.0\% with entities). Both agents produce facts with similar confidence scores and quality values. We have no independent gold standard for the NER pipeline, so lower coverage is an operational observation rather than a validated extraction error rate.
+Codex writes 1.6x more volatile facts than WorkBuddy (17.0\% vs. 10.9\%). The mechanism is entity grounding: Codex facts average 3.6 entities per fact (24.6\% with entities), while WorkBuddy facts average 14.0 entities (74.0\% with entities). Both agents produce facts with similar confidence scores and quality values. A 500-record stratified audit against deterministic pattern-based entity labels gives proxy precision 0.777 and recall 0.516 for the system entity count. These are not human-verified gold labels, but they show that the pipeline misses a substantial fraction of pattern-like entities; lower coverage is therefore an operational observation with measured, not merely assumed, incompleteness.
 
 Improving entity extraction for Codex-style agents would reduce the supersession rate without restricting writes. Specifically, the NER pipeline should be extended to recognize technical entities (file paths, API endpoints, configuration parameters) that are currently missed in Codex-generated content. This intervention is directly actionable: it requires modifying the NER pipeline, not restricting agent behavior. The expected effect is a reduction in the supersession rate from 17.0% to approximately 11% (matching WorkBuddy), based on the assumption that entity grounding is the primary driver of the difference.
 
@@ -284,7 +295,7 @@ Incident reports & 24 & 6.2 \\
 \end{tabular}
 \end{table}
 
-The first author manually assigned every superseded fact to one of seven categories after reading the full content of a purposive 100-fact sample and the category label of all 386 positives; no second independent coder was available. The labels are reproducible from the released annotation file, but they have no inter-rater agreement estimate and no adjudication protocol. We therefore use the taxonomy to explain event composition, not as a validated coding instrument. Iterative refinement (29.3\%) is the dominant cause: the agent iterates on a problem and each solution replaces the previous attempt. Tool usage notes (18.9\%) become stale when tools are updated. Environment snapshots (10.1\%) capture external service states. Iterative refinement, tool usage notes, and deployment records account for 57.5\% of supersessions. We interpret this as evidence that many supersession events are routine development activity rather than corruption, but the taxonomy is descriptive and should not be treated as a validated psychological construct.
+The taxonomy is double-labeled by two LLM raters on all 386 positives, with Cohen's kappa 0.702. Because neither rater is a human expert and disagreements were not adjudicated by a third coder, we use the taxonomy to explain event composition, not as a validated coding instrument. Iterative refinement (29.3\%) is the dominant cause: the agent iterates on a problem and each solution replaces the previous attempt. Tool usage notes (18.9\%) become stale when tools are updated. Environment snapshots (10.1\%) capture external service states. Iterative refinement, tool usage notes, and deployment records account for 57.5\% of supersessions. We interpret this as evidence that many supersession events are routine development activity rather than corruption, but the taxonomy is descriptive and should not be treated as a validated psychological construct.
 
 \subsection{Survival Analysis}
 \label{sec:survival}
@@ -374,6 +385,12 @@ Combined & 79.2\% & 98.5\% & 0.187 & Medium \\
 
 A simple monitoring heuristic---flagging facts that have never been read by the evaluation cut-off---is not a write-time predictor. It audits a post-write state at a declared review time; its clock is the temporal test boundary. Read counts are defined as aggregate use events recorded by the memory store up to that time. We cannot validate the telemetry implementation from the released aggregates, so the heuristic is auditable only if the production log records each use event. Because the base rate is 15.0\%, the comparison depends on review cost: it is a cost-sensitive comparison at selected points, not a formal Pareto test. The heuristic reviews 16.8\% of facts, catches 93.9\% of supersessions, and has precision 0.842; the model reviews 77.5\%, catches 91.9\%, and has precision 0.178. We report no full precision--recall or cost curve, so the result establishes a strong governance baseline rather than universal superiority. Because never-read status can correlate with low-attention clients or content types, deployment should monitor access bias and allow an operator override. The 6.1\% of missed supersessions are borne by later readers and by the operator who must adjudicate them; adversarial agents can also game the signal by reading their own low-quality writes. We therefore treat the heuristic as a triage tool for human review, not as an automatic deletion policy.
 
+\paragraph{Operating-point sweep.}
+To avoid a single-point comparison, we sweep the model threshold from 0.01 to 0.99 and sweep the never-read rule over $k=0,1,2,3$ allowed reads. The best model point by F1 reviews 69.0\% of records at precision 0.190 and recall 0.874. The never-read rule at $k=0$ reviews 16.8\% of records with precision 0.842 and recall 0.939; allowing one read raises effort without improving the audited trade-off. Block-bootstrap intervals for the heuristic are wide (precision CI 0.056--0.899; recall CI 0.100--0.982), so the audited superiority is a point estimate, not a stable guarantee.
+
+\paragraph{Access bias and privacy risk.}
+Never-read prevalence is not uniform: 23.1\% of Codex records, 27.6\% of WorkBuddy records, and 35.6\% of WorkBuddy-AI records have zero reads, and 91.5\% of procedure-like records are never read. A review queue based on this signal would therefore concentrate attention on procedure-like and low-traffic sources even before content quality is considered. Read counts also reveal attention patterns; the de-identified corpus shows that 27.3\% of all records have zero reads, so aggregation or pseudonymization is necessary before publication.
+
 In this deployment, a transparent post-write signal is useful for governance triage, while a black-box prediction would add accountability costs without improving the audited catch rate. The never-read check is auditable in the narrow sense that an operator can verify the read counter for a flagged fact; this does not make the governance process fully auditable, because access telemetry, threshold choice, and overrides remain policy decisions.
 
 Table~\ref{tab:governance} shows why the operating point is normative. Flagging procedures reviews 4.9\% of records with precision 0.953 but catches only 30.8\%; flagging entity-free records reaches 99.5\% recall at 83.5\% effort with base-rate precision. The never-read heuristic is not Pareto-optimal in every dimension, but it aligns review effort with access evidence and can be logged and explained.
@@ -414,10 +431,10 @@ The cross-system check reinforces this caution. Applying deterministic MemStrata
 
 The LoCoMo experiments are a bounded negative control, not an event-task replication. Temporal splitting did not change three content-facing tasks: evidence identification (0.638 random versus 0.604 temporal), speaker prediction (0.373 versus 0.380), and temporal reference resolution (0.455 versus 0.439). Because these tasks are not trained to predict future write events over the same record stream, stability is unsurprising. The contrast delimits our claim: temporal validation is necessary where the target depends on the future, but it does not repair post-hoc labels.
 
-Finally, the corpus has a bursty history: the late-September burst produced many procedure-like, entity-free records, and the later documentation phase left long eventless stretches. Temporal estimates are therefore sensitive to the cut-off. Per-agent comparisons are observational; sources differ in workflow, volume, read patterns, and content mix, not merely in NER coverage.
+Finally, the corpus has a bursty history: the late-September burst produced many procedure-like, entity-free records, and the later documentation phase left long eventless stretches. Temporal estimates are therefore sensitive to the cut-off. Right-censoring is limited (4.2\% of records have less than 72 hours of observation), and a Kaplan--Meier version of the survival analysis is included in the supplement. Standardization inside each training partition changes the random-CV F1 from 0.357 to 0.373 in our audit, so we report the fold-level result. Per-agent comparisons are observational; sources differ in workflow, volume, read patterns, and content mix, not merely in NER coverage.
 
 \section{Conclusion}
-This case study separates a controlled post-outcome field from ordinary non-stationarity. Removing the former is necessary but not sufficient; deployment-aligned temporal validation is also required. The evaluation protocol can change feature-set rankings. Content-based tasks need the same disclosure discipline, but our LoCoMo checks show they may remain stable under ordinary temporal splitting. For governance, a post-write never-read audit reviews 16.8\% of facts and catches 93.9\% of supersessions at the audited operating point, beating the logistic model on the reported metrics; it is a triage signal, not a predictor, and needs bias and privacy checks. The supplement includes a de-identified feature-only corpus, aggregate result files, analysis scripts, and the grouping labels. The de-identified records retain the fields used for scoring but replace credential-related facts and endpoint, IP, and domain strings with placeholders; the raw operational corpus is withheld. This enables reuse of the scoring logic without exposing operational data.
+This case study separates a controlled post-outcome field from ordinary non-stationarity. Removing the former is necessary but not sufficient; deployment-aligned temporal validation is also required. The evaluation protocol can change feature-set rankings. Content-based tasks need the same disclosure discipline, but our LoCoMo checks show they may remain stable under ordinary temporal splitting. For governance, a post-write never-read audit reviews 16.8\% of facts and catches 93.9\% of supersessions at the audited operating point, beating the logistic model on the reported metrics; it is a triage signal, not a predictor, and needs bias and privacy checks. The supplement includes a de-identified feature-only corpus, aggregate result files, analysis scripts, the grouping labels, and an experiment log with seed 42. The de-identified records retain the fields used for scoring but replace credential-related facts and endpoint, IP, and domain strings with placeholders; the raw operational corpus is withheld. This enables reuse of the scoring logic without exposing operational data.
 
 \begin{thebibliography}{20}
 
@@ -459,6 +476,14 @@ Kapoor, S. and Narayanan, A. Leakage and the reproducibility crisis in machine-l
 \end{thebibliography}
 
 \end{document}
+
+
+
+
+
+
+
+
 
 
 

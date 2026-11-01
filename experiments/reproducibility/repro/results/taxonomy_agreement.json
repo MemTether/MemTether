@@ -1,0 +1,82 @@
+{
+  "n": 386,
+  "po": 0.8756476683937824,
+  "pe": 0.5825122822089184,
+  "kappa": 0.7021413413928365,
+  "cats": [
+    "configuration_decision",
+    "deployment_record",
+    "environment_snapshot",
+    "incident_report",
+    "iterative_refinement",
+    "other",
+    "tool_usage_note"
+  ],
+  "confusion": {
+    "configuration_decision": {
+      "configuration_decision": 17,
+      "deployment_record": 0,
+      "environment_snapshot": 4,
+      "incident_report": 1,
+      "iterative_refinement": 3,
+      "other": 0,
+      "tool_usage_note": 14
+    },
+    "deployment_record": {
+      "configuration_decision": 1,
+      "deployment_record": 0,
+      "environment_snapshot": 1,
+      "incident_report": 0,
+      "iterative_refinement": 2,
+      "other": 0,
+      "tool_usage_note": 0
+    },
+    "environment_snapshot": {
+      "configuration_decision": 0,
+      "deployment_record": 0,
+      "environment_snapshot": 5,
+      "incident_report": 0,
+      "iterative_refinement": 0,
+      "other": 0,
+      "tool_usage_note": 0
+    },
+    "incident_report": {
+      "configuration_decision": 0,
+      "deployment_record": 0,
+      "environment_snapshot": 0,
+      "incident_report": 19,
+      "iterative_refinement": 1,
+      "other": 0,
+      "tool_usage_note": 4
+    },
+    "iterative_refinement": {
+      "configuration_decision": 1,
+      "deployment_record": 0,
+      "environment_snapshot": 2,
+      "incident_report": 0,
+      "iterative_refinement": 2,
+      "other": 0,
+      "tool_usage_note": 0
+    },
+    "other": {
+      "configuration_decision": 2,
+      "deployment_record": 0,
+      "environment_snapshot": 6,
+      "incident_report": 0,
+      "iterative_refinement": 3,
+      "other": 286,
+      "tool_usage_note": 0
+    },
+    "tool_usage_note": {
+      "configuration_decision": 2,
+      "deployment_record": 1,
+      "environment_snapshot": 0,
+      "incident_report": 0,
+      "iterative_refinement": 0,
+      "other": 0,
+      "tool_usage_note": 9
+    }
+  },
+  "model1": "Kimi-k2.6",
+  "model2": "qwen-3.8-max"
+}

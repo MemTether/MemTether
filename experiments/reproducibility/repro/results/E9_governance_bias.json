@@ -1,0 +1,138 @@
+{
+  "by_source": {
+    "codex": {
+      "n": 1441,
+      "never_read_pct": 23.108952116585705
+    },
+    "workbuddy": {
+      "n": 678,
+      "never_read_pct": 27.581120943952804
+    },
+    "workbuddy_ai": {
+      "n": 382,
+      "never_read_pct": 35.602094240837694
+    },
+    "legacy": {
+      "n": 59,
+      "never_read_pct": 35.59322033898305
+    },
+    "doubao_a": {
+      "n": 44,
+      "never_read_pct": 63.63636363636363
+    },
+    "reflector": {
+      "n": 6,
+      "never_read_pct": 33.33333333333333
+    },
+    "tool_audit": {
+      "n": 6,
+      "never_read_pct": 0.0
+    },
+    "zcode": {
+      "n": 5,
+      "never_read_pct": 80.0
+    },
+    "tabbit": {
+      "n": 5,
+      "never_read_pct": 40.0
+    },
+    "openclaw": {
+      "n": 4,
+      "never_read_pct": 0.0
+    },
+    "user": {
+      "n": 1,
+      "never_read_pct": 0.0
+    },
+    "nobody_registered_xyz": {
+      "n": 1,
+      "never_read_pct": 100.0
+    },
+    "dsh": {
+      "n": 1,
+      "never_read_pct": 0.0
+    },
+    "dashboard-test": {
+      "n": 1,
+      "never_read_pct": 0.0
+    },
+    "e2e": {
+      "n": 1,
+      "never_read_pct": 0.0
+    }
+  },
+  "by_type": {
+    "fact": {
+      "n": 1336,
+      "never_read_pct": 27.694610778443113
+    },
+    "decision": {
+      "n": 435,
+      "never_read_pct": 9.885057471264368
+    },
+    "experience": {
+      "n": 428,
+      "never_read_pct": 23.130841121495326
+    },
+    "incident": {
+      "n": 295,
+      "never_read_pct": 28.474576271186443
+    },
+    "procedure": {
+      "n": 129,
+      "never_read_pct": 91.47286821705426
+    },
+    "correction": {
+      "n": 12,
+      "never_read_pct": 0.0
+    }
+  },
+  "by_content_len_bucket": {
+    "1": {
+      "n": 990,
+      "never_read_pct": 20.909090909090907
+    },
+    "0": {
+      "n": 831,
+      "never_read_pct": 35.860409145607704
+    },
+    "2": {
+      "n": 500,
+      "never_read_pct": 17.2
+    },
+    "3": {
+      "n": 163,
+      "never_read_pct": 30.061349693251532
+    },
+    "4": {
+      "n": 75,
+      "never_read_pct": 40.0
+    },
+    "5": {
+      "n": 25,
+      "never_read_pct": 52.0
+    },
+    "6": {
+      "n": 21,
+      "never_read_pct": 52.38095238095239
+    },
+    "7": {
+      "n": 13,
+      "never_read_pct": 84.61538461538461
+    },
+    "9": {
+      "n": 7,
+      "never_read_pct": 28.57142857142857
+    },
+    "8": {
+      "n": 6,
+      "never_read_pct": 66.66666666666666
+    },
+    "10": {
+      "n": 4,
+      "never_read_pct": 75.0
+    }
+  },
+  "overall_never_read_pct": 27.09677419354839,
+  "n_unique_sources": 15
+}
