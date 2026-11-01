@@ -123,7 +123,7 @@ py-modules = [
 # Skills ship in the wheel so `npx skills add MemTether/MemTether` works for
 # pip-installed users too (a83): the three agent skills are documentation assets.
 [tool.setuptools.package-data]
-"memtether_assets" = ["dashboard.html"]
+"memtether_assets" = ["dashboard.html", "viewer.html"]
 "skills" = ["*/*.md", "*/references/*.md"]
 
 [tool.pytest.ini_options]

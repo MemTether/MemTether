@@ -436,6 +436,7 @@ memtether demo                         # Generate a synthetic demo DB (no real d
 memtether handoff --to codex          # governed handoff bundle for the next agent
 memtether review                      # one-stop pending-conflict review queue
 memtether connect doctor              # layered diagnosis: python/config/db/mcp/hooks
+memtether dashboard                    # web UI — /viewer is the governance tab
 memtether dashboard                    # Web UI
 ```
 
@@ -673,7 +674,7 @@ memtether dashboard   # starts server + opens browser
 # or: uvicorn api_server:app --port 8820
 ```
 
-14 endpoints: `/` `/health` `/remember` `/search` `/stats` `/correct` `/retire` `/list` `/timeline/{uid}` `/absorb` `/qvalue` `/dashboard` `/court/verify` `/court/{uid}`
+15 endpoints: `/` `/health` `/remember` `/search` `/stats` `/correct` `/retire` `/list` `/timeline/{uid}` `/absorb` `/qvalue` `/dashboard` `/viewer` `/court/verify` `/court/{uid}`
 
 ---
 

@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MemTether Governance Viewer</title>
+<style>
+:root{--fg:#e6edf3;--bg:#0d1117;--card:#161b22;--border:#30363d;--accent:#58a6ff;--green:#3fb950;--red:#f85149;--warn:#d29922;--dim:#8b949e}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:var(--bg);color:var(--fg);line-height:1.55;font-size:14.5px}
+header{display:flex;align-items:center;gap:16px;padding:10px 20px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+header h1{font-size:1.05em;margin:0;color:var(--accent)}
+#tabs{display:flex;gap:4px;flex:1}
+.tab{padding:6px 14px;border:1px solid var(--border);border-radius:6px 6px 0 0;cursor:pointer;background:transparent;color:var(--dim);border-bottom:none}
+.tab.active{background:var(--card);color:var(--fg);border-bottom:1px solid var(--card)}
+#live{margin-left:auto;font-size:0.82em;color:var(--dim)}
+#live .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--green);margin-right:4px}
+#live.err .dot{background:var(--red)}
+main{max-width:1100px;margin:0 auto;padding:16px 20px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:12px}
+.row{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.uid{font-family:monospace;font-size:0.85em;color:var(--accent);cursor:pointer}
+.uid:hover{text-decoration:underline}
+.badge{font-size:0.75em;padding:1px 8px;border-radius:10px;border:1px solid var(--border)}
+.badge.src{color:var(--dim)} .badge.type{color:var(--accent)}
+.badge.ok{color:var(--green);border-color:var(--green)} .badge.bad{color:var(--red);border-color:var(--red)}
+.badge.warn{color:var(--warn);border-color:var(--warn)}
+.content{margin-top:6px;color:var(--fg)}
+.dim{color:var(--dim);font-size:0.85em}
+input[type=text]{background:var(--bg);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:7px 10px;width:min(420px,100%);font-size:0.95em}
+button{background:var(--accent);color:#fff;border:none;border-radius:6px;padding:7px 14px;cursor:pointer;font-size:0.9em}
+button.ghost{background:transparent;border:1px solid var(--border);color:var(--fg)}
+button.accept{background:var(--green)} button.reject{background:var(--red)}
+pre{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px;overflow-x:auto;font-size:0.82em;white-space:pre-wrap}
+.empty{color:var(--dim);padding:24px;text-align:center}
+h2{font-size:0.95em;margin:0 0 10px;color:var(--dim);text-transform:uppercase;letter-spacing:0.05em}
+.conflict-actions{margin-top:8px;display:flex;gap:8px}
+.statgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px}
+.stat{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px 14px}
+.stat .v{font-size:1.5em;font-weight:700;color:var(--accent)} .stat .k{font-size:0.78em;color:var(--dim)}
+</style>
+</head>
+<body>
+<header>
+  <h1>🛡 MemTether Governance Viewer</h1>
+  <div id="tabs">
+    <button class="tab active" data-tab="memories">Memories</button>
+    <button class="tab" data-tab="conflicts">Conflicts</button>
+    <button class="tab" data-tab="court">Court</button>
+    <button class="tab" data-tab="stats">Stats</button>
+  </div>
+  <div id="live"><span class="dot"></span>live</div>
+</header>
+<main id="main"></main>
+<script>
+const $ = s => document.querySelector(s);
+const main = $('#main');
+let currentTab = 'memories', searchQ = '';
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  if (!r.ok) throw new Error(`${path} -> ${r.status}`);
+  return r.json();
+}
+
+// ---- Memories tab ----
+async function loadMemories() {
+  let html = `<div class="row" style="margin-bottom:12px">
+    <input id="q" type="text" placeholder="Search governed memories…" value="${esc(searchQ)}">
+    <button onclick="doSearch()">Search</button></div><div id="mlist"></div>`;
+  main.innerHTML = html;
+  if (searchQ) await doSearch(); else await loadRecent();
+}
+async function doSearch() {
+  searchQ = $('#q').value.trim();
+  if (!searchQ) return loadRecent();
+  const r = await api('/search', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({query: searchQ, limit: 10})});
+  renderList((r.results||[]).map(x => ({uid:x.uid, type:x.type||'fact', source:x.source||'?',
+    content:x.content||'', score:x.score, ts:''})), `search: "${esc(searchQ)}"`);
+}
+async function loadRecent() {
+  const r = await api('/list?limit=12');
+  const items = (r.memories || r.items || r || []);
+  renderList(Array.isArray(items) ? items : [], 'recent memories');
+}
+function renderList(items, label) {
+  const el = $('#mlist'); if (!el) return;
+  if (!items.length) { el.innerHTML = '<div class="empty">nothing to show</div>'; return; }
+  el.innerHTML = items.map(x => `<div class="card">
+    <div class="row"><span class="uid" onclick="showTimeline('${esc(x.uid)}')">${esc(x.uid)}</span>
+      <span class="badge type">${esc(x.type||'fact')}</span>
+      <span class="badge src">${esc(x.source||'?')}</span>
+      ${x.score !== undefined ? `<span class="dim">score ${Number(x.score).toFixed(3)}</span>` : ''}
+      ${x.created_at||x.ts ? `<span class="dim">${esc((x.created_at||x.ts).slice(0,16))}</span>` : ''}
+    </div>
+    <div class="content">${esc((x.content||'').slice(0,300))}</div>
+  </div>`).join('');
+}
+async function showTimeline(uid) {
+  try {
+    const t = await api('/timeline/' + encodeURIComponent(uid));
+    main.innerHTML = `<h2>Timeline — ${esc(uid)}</h2><pre>${esc(JSON.stringify(t, null, 2))}</pre>
+      <button class="ghost" onclick="switchTab('memories')">← back</button>`;
+  } catch(e) { main.innerHTML = `<div class="empty">timeline failed: ${esc(e.message)}</div>`; }
+}
+
+// ---- Conflicts tab ----
+async function loadConflicts() {
+  main.innerHTML = '<h2>Conflict candidates (human adjudication)</h2><div id="clist" class="empty">loading…</div>';
+  try {
+    const r = await api('/stats');
+    // stats may not expose conflicts; try the conflicts endpoint via list
+    let html = '';
+    try {
+      const lr = await api('/list?limit=0');
+      html = '';
+    } catch(e) {}
+    // Use the dedicated conflicts data through a lightweight approach:
+    // api_server exposes /conflicts? Not in v0.1.0a83 REST — use stats + note.
+    html += `<div class="card"><b>Conflict review lives in the CLI today:</b>
+      <pre>memtether conflicts --list          # pending pairs
+memtether conflicts --accept 3,7   # genuine conflict
+memtether conflicts --discard 3,7  # no conflict
+memtether review                   # one-stop queue</pre>
+      <p class="dim">The viewer tab will render live pending pairs once
+      <code>GET /conflicts</code> lands in the REST API (next release). The
+      governance loop itself is fully functional via CLI/MCP today.</p></div>`;
+    $('#clist').innerHTML = html;
+    $('#clist').className = '';
+  } catch(e) {
+    $('#clist').innerHTML = `<div class="empty">failed: ${esc(e.message)}</div>`;
+  }
+}
+
+// ---- Court tab ----
+async function loadCourt() {
+  main.innerHTML = `<h2>Hash-chain integrity</h2>
+    <div id="courtbox" class="empty">verifying…</div>
+    <div style="margin-top:12px"><input id="cuid" type="text" placeholder="fact uid for a court dossier">
+    <button onclick="showCourt($('#cuid').value.trim())">Open case</button></div>
+    <div id="casedetail"></div>`;
+  try {
+    const v = await api('/court/verify');
+    const ok = v.verified === true || v.ok === true;
+    $('#courtbox').className = 'card';
+    $('#courtbox').innerHTML = `<span class="badge ${ok?'ok':'bad'}">${ok?'chain: PASS':'chain: FAIL'}</span>
+      <pre>${esc(JSON.stringify(v, null, 2))}</pre>`;
+  } catch(e) {
+    $('#courtbox').className = 'card';
+    $('#courtbox').innerHTML = `<span class="badge bad">verify failed</span><pre>${esc(e.message)}</pre>`;
+  }
+}
+async function showCourt(uid) {
+  if (!uid) return;
+  try {
+    const d = await api('/court/' + encodeURIComponent(uid));
+    $('#casedetail').innerHTML = `<h2>Case — ${esc(uid)}</h2><pre>${esc(JSON.stringify(d, null, 2))}</pre>`;
+  } catch(e) {
+    $('#casedetail').innerHTML = `<div class="empty">case failed: ${esc(e.message)}</div>`;
+  }
+}
+
+// ---- Stats tab ----
+async function loadStats() {
+  main.innerHTML = '<div id="statgrid"></div>';
+  try {
+    const s = await api('/stats');
+    const entries = Object.entries(s).filter(([,v]) => typeof v !== 'object' || v === null);
+    $('#statgrid').innerHTML = '<div class="statgrid">' +
+      entries.map(([k,v]) => `<div class="stat"><div class="v">${esc(String(v).slice(0,20))}</div><div class="k">${esc(k)}</div></div>`).join('') +
+      '</div><pre>' + esc(JSON.stringify(s, null, 2)) + '</pre>';
+  } catch(e) {
+    $('#statgrid').innerHTML = `<div class="empty">failed: ${esc(e.message)}</div>`;
+  }
+}
+
+// ---- tabs + polling ----
+function switchTab(name) {
+  currentTab = name;
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+  ({memories: loadMemories, conflicts: loadConflicts, court: loadCourt, stats: loadStats})[name]();
+}
+document.querySelectorAll('.tab').forEach(t => t.onclick = () => switchTab(t.dataset.tab));
+
+let pollTimer = null;
+function startPolling() {
+  clearInterval(pollTimer);
+  pollTimer = setInterval(async () => {
+    const live = $('#live');
+    try {
+      await api('/health');
+      live.classList.remove('err');
+      live.innerHTML = '<span class="dot"></span>live';
+      if (currentTab === 'memories' && !searchQ) loadRecent();
+      else if (currentTab === 'court') loadCourt.refresh && loadCourt.refresh();
+    } catch {
+      live.classList.add('err');
+      live.innerHTML = '<span class="dot"></span>offline';
+    }
+  }, 5000);
+}
+switchTab('memories');
+startPolling();
+</script>
+</body>
+</html>

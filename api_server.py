@@ -181,6 +181,20 @@ def dashboard():
         pass
     return "<h1>Dashboard not found</h1><p>Make sure dashboard.html is in the same directory as api_server.py</p>"
 
+@app.get("/viewer", response_class=HTMLResponse)
+def viewer():
+    """Governance viewer (Wave 2 B2): memories / conflicts / court / stats."""
+    vp = os.path.join(os.path.dirname(__file__), "viewer.html")
+    if os.path.exists(vp):
+        with open(vp, encoding="utf-8") as f:
+            return f.read()
+    try:
+        from importlib.resources import files as _resfiles
+        return _resfiles("memtether_assets").joinpath("viewer.html").read_text(encoding="utf-8")
+    except Exception:
+        pass
+    return "<h1>Viewer not found</h1><p>viewer.html missing next to api_server.py</p>"
+
 @app.get("/health")
 def health():
     from importlib.metadata import version as _pkgver

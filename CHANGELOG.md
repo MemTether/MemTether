@@ -2,6 +2,12 @@
 
 ### Added
 
+- **Governance viewer v1** (`/viewer`): 4-tab live panel — Memories
+  (search + recent, click a uid for its timeline), Conflicts (points to the
+  CLI review loop until `GET /conflicts` lands), Court (live hash-chain
+  verify + per-uid dossier), Stats. 5s health polling with live/offline
+  indicator. Ships in the wheel via memtether_assets. E2E tested: /viewer
+  200, court/verify verified:true on a demo server.
 - **`scripts/watch.py` session capture (experimental)**: extracts decisions and
   lessons from a session transcript (JSONL or text) at a boundary and writes
   them through the governed pipeline. Narrow heuristics by design; dry-run
