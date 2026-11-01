@@ -1,0 +1,37 @@
+{
+  "system": "Hindsight 1.1.0",
+  "llm": "Kimi-k2.6 via Loomy",
+  "input_records": 200,
+  "output_memories": 100,
+  "compression_ratio": 0.5,
+  "phase_results": [
+    {
+      "phase": 1,
+      "records": 50,
+      "added": 50,
+      "total_memories": 100,
+      "growth": 100
+    },
+    {
+      "phase": 2,
+      "records": 100,
+      "added": 50,
+      "total_memories": 100,
+      "growth": 0
+    },
+    {
+      "phase": 3,
+      "records": 150,
+      "added": 50,
+      "total_memories": 100,
+      "growth": 0
+    },
+    {
+      "phase": 4,
+      "records": 200,
+      "added": 50,
+      "total_memories": 100,
+      "growth": 0
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "system": "mem0 2.0.20",
+  "llm": "Kimi-k2.6 via Loomy",
+  "input_records": 200,
+  "output_memories": 20,
+  "compression_ratio": 0.1,
+  "phase_results": [
+    {
+      "phase": 1,
+      "records_ingested": 50,
+      "records_added_this_phase": 50,
+      "total_memories": 20,
+      "growth_this_phase": 20
+    },
+    {
+      "phase": 2,
+      "records_ingested": 100,
+      "records_added_this_phase": 50,
+      "total_memories": 20,
+      "growth_this_phase": 0
+    },
+    {
+      "phase": 3,
+      "records_ingested": 150,
+      "records_added_this_phase": 50,
+      "total_memories": 20,
+      "growth_this_phase": 0
+    },
+    {
+      "phase": 4,
+      "records_ingested": 200,
+      "records_added_this_phase": 50,
+      "total_memories": 20,
+      "growth_this_phase": 0
+    }
+  ],
+  "ceiling_detected": true
+}

@@ -1,0 +1,74 @@
+{
+  "experiment": "Cross-system memory growth on 200 identical input records",
+  "dataset": "cross_system_benchmark_200.jsonl (stratified sample, 52 positives, full date range)",
+  "llm_backend": "Kimi-k2.6 via Loomy",
+  "seed": 42,
+  "systems": {
+    "MemTether": {
+      "architecture": "supersession chains + bi-temporal SQLite",
+      "input": 2635,
+      "output": 2635,
+      "ratio": 1.0,
+      "growth": [
+        1317,
+        2635
+      ],
+      "ceiling": false,
+      "behavior": "grows unboundedly",
+      "clockscore": 0.103
+    },
+    "mem0": {
+      "architecture": "LLM extraction + ChromaDB",
+      "input": 200,
+      "output": 20,
+      "ratio": 0.1,
+      "growth": [
+        20,
+        20,
+        20,
+        20
+      ],
+      "ceiling": true,
+      "ceiling_size": 20,
+      "behavior": "hard ceiling",
+      "clockscore": null
+    },
+    "Hindsight": {
+      "architecture": "bi-temporal + consolidate",
+      "input": 200,
+      "output": 100,
+      "ratio": 0.5,
+      "growth": [
+        100,
+        100,
+        100,
+        100
+      ],
+      "ceiling": true,
+      "ceiling_size": 100,
+      "behavior": "soft ceiling",
+      "clockscore": null
+    },
+    "SimpleMem": {
+      "architecture": "semantic lossless compression",
+      "input": 200,
+      "output": 237,
+      "ratio": 1.185,
+      "growth": [
+        67,
+        138,
+        187,
+        237
+      ],
+      "ceiling": false,
+      "behavior": "EXPANDS beyond input",
+      "clockscore": null
+    }
+  },
+  "key_findings": [
+    "Four distinct growth behaviors: unbounded (MemTether), expansion (SimpleMem 1.185x), soft ceiling (Hindsight 0.50x), hard ceiling (mem0 0.10x)",
+    "Not a binary dichotomy but a spectrum: expand → preserve → soft-ceiling → hard-ceiling",
+    "mem0 and Hindsight both hit ceilings after phase 1: consolidation mechanisms saturate immediately",
+    "SimpleMem creates MORE memories than input (1.185x): semantic compression splits complex records"
+  ]
+}
