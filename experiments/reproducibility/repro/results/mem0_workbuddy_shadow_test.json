@@ -1,0 +1,13 @@
+{
+  "system": "mem0 2.0.20",
+  "llm": "Kimi-k2.6 via Loomy",
+  "embedder": "all-MiniLM-L6-v2",
+  "before_count": 20,
+  "records_added": 30,
+  "after_count": 20,
+  "survived": 20,
+  "lost_overwritten": 0,
+  "new_created": 0,
+  "shadow_ratio": 0.0,
+  "test": "Temporal shadow: does mem0 overwrite/shadow earlier memories when later records are added?"
+}

@@ -1,0 +1,36 @@
+{
+  "system": "mem0 2.0.20",
+  "llm": "Kimi-k2.6 via Loomy",
+  "embedder": "all-MiniLM-L6-v2 (local)",
+  "ingested": 30,
+  "later_added": 30,
+  "queries_before": [
+    {
+      "query": "What configuration changes were made?",
+      "n": 0
+    },
+    {
+      "query": "What tools or APIs were mentioned?",
+      "n": 0
+    },
+    {
+      "query": "What decisions were recorded?",
+      "n": 0
+    }
+  ],
+  "queries_after": [
+    {
+      "query": "What configuration changes were made?",
+      "n": 0
+    },
+    {
+      "query": "What tools or APIs were mentioned?",
+      "n": 0
+    },
+    {
+      "query": "What decisions were recorded?",
+      "n": 0
+    }
+  ],
+  "test": "Temporal shadow: do later records shadow earlier ones in mem0?"
+}
