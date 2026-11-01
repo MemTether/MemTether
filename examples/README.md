@@ -9,9 +9,9 @@
 - `qvalue_demo.py` — Q-value usage-based ranking
 
 ## Framework Integrations
-- `crewai_integration.py` — CrewAI multi-agent crews with governed memory
-- `autogen_integration.py` — AutoGen memory poisoning protection
-- `langchain_integration.py` — LangChain persistent memory with audit trails
+- `integrations/crewai_integration.py` — CrewAI multi-agent crews with governed memory
+- `integrations/autogen_integration.py` — AutoGen memory poisoning protection
+- `integrations/langchain_integration.py` — LangChain persistent memory with audit trails
 
 ## Migration
 - `mem0_migration.py` — migrate from mem0 to MemTether

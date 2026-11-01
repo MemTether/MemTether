@@ -10,8 +10,12 @@ Usage: pip install langchain langchain-openai memtether
 import os, tempfile
 os.environ["MEM_DB"] = os.path.join(tempfile.mkdtemp(), "lc_memory.db")
 
-from langchain_openai import ChatOpenAI
-from langchain_core.messages import HumanMessage, AIMessage
+try:
+    from langchain_openai import ChatOpenAI
+    from langchain_core.messages import HumanMessage, AIMessage
+except ImportError:
+    print("pip install langchain langchain-openai to run the full example — showing MemTether API only")
+    ChatOpenAI = None
 import memtether
 from gateway import correct, as_of
 

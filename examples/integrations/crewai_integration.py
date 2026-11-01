@@ -8,7 +8,12 @@ supersession, and conflict detection — all via a simple Python API.
 Usage: pip install crewai memtether
 """
 
-from crewai import Agent, Task, Crew
+try:
+    from crewai import Agent, Task, Crew
+except ImportError:
+    print("pip install crewai to run the full example — showing MemTether API only")
+    Agent = None
+
 import memtether
 from gateway import correct, as_of
 
