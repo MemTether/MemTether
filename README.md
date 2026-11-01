@@ -427,6 +427,8 @@ memtether reconcile --dry-run          # SQLite <-> vector drift report
 memtether import-docs ./docs           # Cold-start from a directory
 memtether remember-batch mems.json     # Batch write from JSON
 memtether demo                         # Generate a synthetic demo DB (no real data)
+memtether handoff --to codex          # governed handoff bundle for the next agent
+memtether review                      # one-stop pending-conflict review queue
 memtether dashboard                    # Web UI
 ```
 
@@ -571,12 +573,37 @@ it imports the published `memtether` package (no local path injection), so
 
 ---
 
+## Governance, provably
+
+Other systems *describe* governance. MemTether ships it as commands you can run:
+
+- **Tamper-evident by construction.** Every write joins a SHA-256 hash chain with
+  periodic anchors. Prove it:
+
+  ```bash
+  python examples/audit_chain_demo.py   # PASS → tamper → FAIL
+  memtether court --verify
+  ```
+
+- **Deletion is a proposal, never a physical delete.** `retire` marks a row
+  superseded and keeps the content; corrections append. The old truth stays
+  queryable — `memtether court <uid>` shows the full chain.
+
+- **Attribution is mandatory, not optional.** A write without a registered
+  source is rejected, so "who told you that?" always has an answer.
+
+- **Conflicts go to a human gate.** Contradictory writes land in a review
+  queue (`memtether conflicts --list`) — agents propose, humans adjudicate,
+  and the verdict becomes part of the audited record.
+
 ## Security
 
 - **Poisoning defense**: `memtether_guard` detects prompt injection, code execution, sensitive info (OWASP LLM01/02/06), 12 rules
 - **Input validation**: content ≤10K, type whitelist, source format, confidence range, scope whitelist
 - **Scope isolation**: `shared` / `private` / `restricted`
 - **Concurrency**: Hubguard file lock + atomic write (WAL mode)
+- **Fail-closed setup**: connecting a client never silently overwrites an
+  unrelated setting — conflicting config aborts the setup instead
 - **SQL**: All parameterized. No f-string SQL
 
 ---

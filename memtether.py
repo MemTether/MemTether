@@ -926,6 +926,140 @@ def _cmd_connect(args):
         cmd.append("detect")
     os.execv(sys.executable, cmd)
 
+def _cmd_review(args):
+    """Wave1.5/B6: one-stop governance review queue.
+
+    Aggregates pending conflict-candidate pairs into a single surface:
+      - no flags: list pending items (id, pair preview)
+      --accept/--discard: record verdicts via the existing conflicts pipeline
+    Verdicts are written to conflict_reviews (human adjudication on record).
+    """
+    def _run_conflicts(extra):
+        here = os.path.dirname(os.path.abspath(__file__))
+        cmd = [sys.executable, os.path.join(here, "memtether.py"), "conflicts"] + extra
+        return subprocess.run(cmd).returncode
+
+    listing = ["--list", "--limit", str(args.limit)]
+    rc = _run_conflicts(listing)
+    if args.accept or args.discard:
+        extra = []
+        if args.accept:
+            extra += ["--accept", args.accept]
+        if args.discard:
+            extra += ["--discard", args.discard]
+        if args.by:
+            extra += ["--by", args.by]
+        if args.note:
+            extra += ["--note", args.note]
+        rc2 = _run_conflicts(extra)
+        rc = rc or rc2
+        print("Verdicts recorded. Queue state:")
+        _run_conflicts(["--stats"])
+    return rc
+
+
+def _cmd_handoff(args):
+    """Wave1.5-2: export a governed handoff package for the next agent.
+
+    A handoff is a *markdown bundle* (no DB write path, no transcripts):
+      - pinned memories (the durable must-know set)
+      - recent decisions/experiences (bounded window)
+      - open conflict-candidate count + Memory Court verify result
+
+    Privacy: only governed memory rows + metadata. MemTether never stores raw
+    session transcripts, so none can leak into the package by construction.
+    """
+    import sqlite3, datetime
+    db_path = os.environ.get("MEM_DB") or DEFAULT_DB
+    if not os.path.exists(db_path):
+        print("No memory DB at %s — run: memtether demo" % db_path)
+        return 1
+    out_path = os.path.abspath(args.out)
+    os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    L = []
+    L.append("# MemTether Handoff")
+    L.append("")
+    L.append("- Generated: %s" % now)
+    L.append("- To agent: %s" % (args.to or "(any agent)"))
+    L.append("- Limit: %d recent memories" % args.limit)
+    L.append("")
+    L.append("> Governed memory only. MemTether stores no raw session transcripts,")
+    L.append("> so none can appear in this package. Every fact below carries its")
+    L.append("> source; audit it with `memtether court <uid>`.")
+    L.append("")
+
+    # 1. pinned (the durable must-know set)
+    L.append("## Pinned (must-know)")
+    L.append("")
+    rows = conn.execute(
+        "SELECT uid, type, source, content FROM facts "
+        "WHERE status='active' AND lower(COALESCE(tags,'')) LIKE '%pin%' "
+        "ORDER BY updated_at DESC LIMIT ?",
+        (args.limit,),
+    ).fetchall()
+    if rows:
+        for r in rows:
+            L.append("- **[%s/%s]** %s  (`%s`)" % (r["type"], r["source"], (r["content"] or "").strip().replace(chr(10), " ")[:220], r["uid"]))
+    else:
+        L.append("(none pinned)")
+    L.append("")
+
+    # 2. recent decisions + experiences (bounded window)
+    L.append("## Recent decisions & lessons")
+    L.append("")
+    rows = conn.execute(
+        "SELECT uid, type, source, created_at, content FROM facts "
+        "WHERE status='active' AND type IN ('decision','experience') "
+        "ORDER BY created_at DESC LIMIT ?",
+        (args.limit,),
+    ).fetchall()
+    if rows:
+        for r in rows:
+            L.append("- **[%s/%s @%s]** %s  (`%s`)" % (
+                r["type"], r["source"], (r["created_at"] or "")[:16],
+                (r["content"] or "").strip().replace(chr(10), " ")[:220], r["uid"]))
+    else:
+        L.append("(none)")
+    L.append("")
+
+    # 3. open conflicts (candidates for human adjudication — counted, not dumped)
+    try:
+        pending = conn.execute(
+            "SELECT COUNT(*) FROM conflict_reviews WHERE verdict='pending'"
+        ).fetchone()[0]
+    except Exception:
+        pending = -1  # table not present (demo DBs skip governance tables)
+    L.append("## Open conflicts (human adjudication needed)")
+    L.append("")
+    if pending > 0:
+        L.append("%d candidate pair(s) await review: `memtether conflicts --list`" % pending)
+    elif pending == 0:
+        L.append("Clean — no pending conflict candidates.")
+    else:
+        L.append("(conflict_reviews table unavailable in this DB)")
+    L.append("")
+
+    # 4. integrity
+    L.append("## Integrity")
+    L.append("")
+    try:
+        n_anchors = conn.execute("SELECT COUNT(*) FROM audit_anchors").fetchone()[0]
+        L.append("audit_anchors: %d — run `memtether court --verify` for the full proof." % n_anchors)
+    except Exception:
+        L.append("audit table not present in this DB (demo DBs skip it) — run `memtether court --verify` against a live DB.")
+    conn.close()
+
+    with open(out_path, "w", encoding="utf-8") as f:
+        f.write(chr(10).join(L) + chr(10))
+    print("✓ Handoff written: %s" % out_path)
+    print("  Governed bundle: pinned + recent decisions + open-conflict count + integrity pointer.")
+    print("  No transcripts included (MemTether never stores them).")
+    return 0
+
+
 def _cmd_export_md(args):
     """Export active memories as markdown files — portable, greppable, git-able."""
     import sqlite3, datetime
@@ -1230,6 +1364,11 @@ def main(argv=None):
     sp.add_argument("client", nargs="?", default=None, help="Specific client")
     sp.set_defaults(func=_cmd_connect)
 
+    sp_ho = sub.add_parser("handoff", help="Export a governed handoff bundle for the next agent (pinned + recent decisions + open conflicts + integrity, no transcripts)")
+    sp_ho.add_argument("--to", default=None, help="Name of the receiving agent (informational)")
+    sp_ho.add_argument("--out", default="./HANDOFF.md", help="Output markdown path")
+    sp_ho.add_argument("--limit", type=int, default=15, help="Max pinned + recent items each")
+    sp_ho.set_defaults(func=_cmd_handoff)
     sp = sub.add_parser("export-md", help="Export memories as markdown files (portable, greppable, git-able)")
     sp.add_argument("--out", default="./memtether-export", help="Output directory")
     sp.set_defaults(func=_cmd_export_md)
@@ -1298,6 +1437,13 @@ def main(argv=None):
     sp_import.add_argument("--type", default="fact", help="Memory type")
     sp_import.add_argument("--max-size", type=int, default=100000, help="Max file size in bytes")
     sp_import.set_defaults(func=_cmd_import_docs)
+    sp_rv = sub.add_parser("review", help="One-stop governance review: pending conflicts + candidates, accept/discard by id")
+    sp_rv.add_argument("--accept", default=None, help="Comma-separated conflict ids to accept (genuine conflict)")
+    sp_rv.add_argument("--discard", default=None, help="Comma-separated conflict ids to discard (no conflict)")
+    sp_rv.add_argument("--by", default="", help="Reviewer agent/source name")
+    sp_rv.add_argument("--note", default="", help="Optional review note")
+    sp_rv.add_argument("--limit", type=int, default=20, help="Max pending items to list")
+    sp_rv.set_defaults(func=_cmd_review)
     sp = sub.add_parser("profile", help="Deterministic user/subject representation (no LLM)")
     sp.add_argument("--subject", default="user", help="Subject id (default: user)")
     sp.add_argument("--scope", default=None, help="Optional scope filter")
