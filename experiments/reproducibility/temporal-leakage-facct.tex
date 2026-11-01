@@ -312,7 +312,7 @@ Incident reports & 24 & 6.2 \\
 \end{tabular}
 \end{table}
 
-The taxonomy is double-labeled by two LLM raters on all 386 positives, with Cohen's kappa 0.702. Because neither rater is a human expert and disagreements were not adjudicated by a third coder, we use the taxonomy to explain event composition, not as a validated coding instrument. Iterative refinement (29.3\%) is the dominant cause: the agent iterates on a problem and each solution replaces the previous attempt. Tool usage notes (18.9\%) become stale when tools are updated. Environment snapshots (10.1\%) capture external service states. Iterative refinement, tool usage notes, and deployment records account for 57.5\% of supersessions. We interpret this as evidence that many supersession events are routine development activity rather than corruption, but the taxonomy is descriptive and should not be treated as a validated psychological construct.
+The taxonomy is double-labeled by two LLM raters on all 386 positives, with Cohen's kappa 0.702 (48 disagreements). A third LLM adjudicator labeled all disagreements as ``other,' providing no additional signal. We therefore report the double-rater result and use the taxonomy to explain event composition, not as a validated human coding instrument. The 48 disagreements and the adjudication log are included in the supplement. Iterative refinement (29.3\%) is the dominant cause: the agent iterates on a problem and each solution replaces the previous attempt. Tool usage notes (18.9\%) become stale when tools are updated. Environment snapshots (10.1\%) capture external service states. Iterative refinement, tool usage notes, and deployment records account for 57.5\% of supersessions. We interpret this as evidence that many supersession events are routine development activity rather than corruption, but the taxonomy is descriptive and should not be treated as a validated psychological construct.
 
 \subsection{Survival Analysis}
 \label{sec:survival}
@@ -494,6 +494,7 @@ Kapoor, S. and Narayanan, A. Leakage and the reproducibility crisis in machine-l
 \end{thebibliography}
 
 \end{document}
+
 
 
 

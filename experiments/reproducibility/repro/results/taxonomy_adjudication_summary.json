@@ -1,0 +1,10 @@
+{
+  "kappa_1_2": 0.7021413413928365,
+  "kappa_1_3": 0.0,
+  "kappa_2_3": 0.0,
+  "mean_kappa": 0.23404711379761214,
+  "kappa_majority": 1.0,
+  "n_disagreements": 48,
+  "raters": 3,
+  "raters_desc": "Kimi-k2.6, qwen-3.8-max, GLM-5.3-Flash (adjudicator)"
+}
