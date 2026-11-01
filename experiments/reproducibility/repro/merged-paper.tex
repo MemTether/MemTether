@@ -19,7 +19,7 @@
 \begin{document}
 
 \begin{abstract}
-Agent memory systems are evaluated on retrieval accuracy benchmarks, yet the systems that produce these memories lack three critical capabilities: temporal correctness guarantees, tamper-evident auditability, and deployment-aligned evaluation. We present MemTether, a local-first agent memory system that addresses all three. MemTether's bi-temporal supersession model preserves complete history with four proven correctness properties. Its hash-chained audit layer (Memory Court) detects 5/5 tampering scenarios with browser-verifiable evidence export. On the write side, we analyze 30 days of production data (2,635 records, 15 agents, 22 adapters) and find that 9.5\% of memories are never retrieved, with an injection coverage ratio of only 0.48\%. On the evaluation side, we show that the direction of strict--judge score gaps \emph{reverses} between benchmarks (LongMemEval vs.\ LoCoMo), and we define ClockScore, a metric that quantifies deployment-generalization gaps. We deploy four memory systems (MemTether, mem0, Hindsight, SimpleMem) on identical data and discover a four-way behavioral spectrum from expansion (1.19x) to hard ceiling (0.10x). MemTether achieves 62.4\% strict and 68.8\% judge accuracy on LongMemEval-500, exceeding mem0 by 2.2pp and 3.6pp respectively. We release the system, evaluation framework, and de-identified data as open source.
+Agent memory systems are evaluated on retrieval accuracy, but lack three critical capabilities: temporal correctness guarantees, tamper-evident auditability, and deployment-aligned evaluation. We present MemTether, a local-first system addressing all three. Our bi-temporal supersession model preserves complete history with four proven correctness properties. Memory Court, a hash-chained audit layer, detects 5/5 tampering scenarios with browser-verifiable evidence. On the write side, 9.5% of production memories are never retrieved, with injection coverage of only 0.48%. On the evaluation side, strict--judge gap direction \emph{reverses} between benchmarks, and our ClockScore metric quantifies deployment-generalization gaps across task types. Deploying four memory systems on identical data reveals a behavioral spectrum from expansion (1.19x) to hard ceiling (0.10x). MemTether achieves 62.4% strict and 68.8% judge on LongMemEval-500, exceeding mem0 by 2.2pp and 3.6pp. We release the system, benchmark, and de-identified data as open source.
 \end{abstract}
 
 \ccsdesc[500]{Computing methodologies~Artificial intelligence}
@@ -222,7 +222,6 @@ Experience-type memories have a 14.6\% dead rate, 1.5$\times$ the system average
 \subsection{Cross-Benchmark Direction Reversal}
 We evaluate MemTether and mem0 on three benchmarks and discover that the direction of the strict--judge gap \emph{reverses} between benchmarks.
 
-\section{Methodology}
 \subsection{Paired Per-Question Analysis}
 For each question where both strict and judge scores are available, we construct a 2$\times$2 contingency table and compute the exact McNemar test. The paired gap is $(b - c)/n$, where $b$ = strict-correct-only and $c$ = judge-correct-only. This eliminates denominator mismatch by construction.
 
@@ -309,7 +308,6 @@ Multi-session & 60.0\% & --- \\
 \end{tabular}
 \end{table}
 
-
 mem0 achieves 60.2% strict and 65.2% judge on the same benchmark. MemTether exceeds mem0 by 2.2pp strict and 3.6pp judge. However, note that strict and judge use different denominators (330 vs 494 for MemTether; different for mem0), which is the denominator mismatch problem analyzed in the cross-benchmark section.
 
 \section{Causal Analysis}
@@ -351,8 +349,6 @@ A propensity-score match on source, type, confidence bucket, and read-count buck
 
 \section{Production Deployment}
 \label{sec:production}
-
-
 
 \paragraph{Metric definitions.}
 ``Superseded facts'' counts rows with \texttt{status='superseded'}; ``Retired facts'' counts \texttt{status='retired'}. 256 of 383 superseded rows (67\%) have a non-empty \texttt{valid\_to}; the remaining 127 date from an earlier schema version. ``Data loss'' = zero reported incidents in 30 days, ascertained by manual verification that the active fact count never decreased below expected levels and that no agent reported missing memories. This is a self-reported measure, not an automated monitoring result. ``Operations'' = sum of \texttt{audit\_log} entries (writes) plus acknowledged \texttt{use\_count} increments (reads).
