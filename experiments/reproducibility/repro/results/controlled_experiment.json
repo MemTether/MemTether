@@ -1,0 +1,9 @@
+{
+  "treated_n": 2000,
+  "treated_superseded": 1800,
+  "treated_rate": 90.0,
+  "control_n": 2000,
+  "control_superseded": 0,
+  "control_rate": 0.0,
+  "note": "entity-keyed deterministic rule vs entity-free exact-duplicate-only rule; controlled generation"
+}

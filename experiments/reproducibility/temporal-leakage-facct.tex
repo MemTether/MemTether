@@ -207,7 +207,7 @@ We estimate mutual information with quantile-binned discrete estimator over base
 
 Per-feature mutual information analysis reveals the information content of each feature. Under this binning, use count has the largest honest point estimate (I = 0.296 bits, CI 0.164--0.401), followed by days since recording (0.246, CI 0.044--0.362) and entity count (0.135, CI 0.072--0.319); the leaked feature achieves 0.488 bits (81.3\%). Confidence and shared scope are near zero. The overlapping intervals show that the ordering among the top honest features is not stable, so we do not claim a universal ranking.
 
-This is an empirical audit of the chosen representation, not a proof that every conceivable predictor is capped. A joint discretized MI over all audited features reaches 0.581 bits (96.7\\% of $H(Y)$), and 0.524 bits over strict write-time features only (excluding use count and days since recording). The remaining unexplained entropy is therefore small under these feature families, not irreducible in a universal mathematical sense.
+This is an empirical audit of the chosen representation, not a proof that every conceivable predictor is capped. A joint discretized MI over all audited features reaches 0.581 bits (96.7\% of $H(Y)$), and 0.524 bits over strict write-time features only (excluding use count and days since recording). The remaining unexplained entropy is therefore small under these feature families, not irreducible in a universal mathematical sense.
 Table~\ref{tab:feature-mi} separates the two failure modes that this aggregate number hides.
 
 \begin{table}[h]
@@ -445,6 +445,7 @@ The accountability path has three stakeholders. A \emph{memory owner} needs to k
 The strongest threat to external validity is the deployment footprint: one production system, one operator, and one governance/logging stack, despite 15 client instances and 22 adapters. We do not claim that the 1.2--1.6 descriptive ratio transfers unchanged. The narrower claim is that event predictions depending on future writes are exposed to temporal leakage unless the protocol proves otherwise.
 
 The cross-system check reinforces this caution. Applying deterministic MemStrata-style rules to our records produced 693 supersessions, compared with 386 natively, with Jaccard overlap 0.120; entity-grounded records were no longer protected at the native level (23.0\% versus 0.1\% supersession). The entity-grounding association is therefore system-specific. A controlled counterfactual was underpowered (estimated power 35\%; about 600 paired cases for 80\% power), so we treat the effect as an implementation hypothesis supported by stratified observations.
+A propensity-score match on source, type, confidence bucket, and read-count bucket yields 542 pairs: one treated (entity-grounded) supersession versus 94 control supersessions (McNemar $p<10^{-26}$). A discontinuity check at the entity cutoff shows 26.3\% supersession for entity-free records and 0\% for exactly one entity. These analyses still rely on observational matching and the system-specific supersession rule, so they support a strong implementation association rather than a universal causal law. As a controlled demonstration, we generate 4,000 synthetic records: 2,000 entity-keyed records (200 entities $\times$ 10 writes) and 2,000 matched entity-free records (200 topics $\times$ 10 writes), with identical source, type, confidence, and time distributions. Under an entity-keyed deterministic rule, 90.0\% of entity-anchored records are superseded, while under an exact-duplicate-only rule for entity-free records the rate is 0\%. This is not evidence about real deployments---the rule is imposed by construction---but it shows that the observed gap is mechanically reachable from the coordination mechanism alone.
 
 The LoCoMo experiments are a bounded negative control, not an event-task replication. Temporal splitting did not change three content-facing tasks: evidence identification (0.638 random versus 0.604 temporal), speaker prediction (0.373 versus 0.380), and temporal reference resolution (0.455 versus 0.439). Because these tasks are not trained to predict future write events over the same record stream, stability is unsurprising. The contrast delimits our claim: temporal validation is necessary where the target depends on the future, but it does not repair post-hoc labels.
 
@@ -493,6 +494,7 @@ Kapoor, S. and Narayanan, A. Leakage and the reproducibility crisis in machine-l
 \end{thebibliography}
 
 \end{document}
+
 
 
 

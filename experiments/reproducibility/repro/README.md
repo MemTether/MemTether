@@ -35,3 +35,6 @@ For anonymous review, use the commit hash of this repository and anonymize autho
 - `results/content_type_analysis.json`: content-type classification and supersession rates
 - `results/psm_entity_effect.json`: propensity-score matching and McNemar test
 - `results/rd_analysis.json`: discontinuity check at entity cutoff
+- `results/synthetic_cross_system.json`: deterministic same-entity rule on synthetic_dynamics.db vs native supersessions
+- `results/controlled_experiment.json`: controlled generation (2000 entity-keyed vs 2000 entity-free records) showing 90% vs 0% supersession under imposed rules
+- `controlled_synthetic_dataset.jsonl`: the 4,000-record controlled synthetic dataset

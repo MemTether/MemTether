@@ -1,0 +1,8 @@
+{
+  "n_records": 2000,
+  "n_entities": 492,
+  "rule_superseded": 1508,
+  "native_superseded": 185,
+  "overlap": 140,
+  "jaccard": 0.0901481004507405
+}
