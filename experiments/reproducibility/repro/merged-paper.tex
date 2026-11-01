@@ -389,20 +389,12 @@ The system has been running continuously since September 13, 2026. During the 30
 \textbf{Write governance.} Cache admission policies (TinyLFU, ARC) solve the analogous problem in database buffer pools. LSM-tree compaction provides write-side optimization. Our work adapts these concepts to agent memory where admission must consider semantic novelty and predicted utility.
 
 
-\section{Discussion}
-\label{sec:discussion}
 
 \subsection{Why Not Compete on Retrieval Accuracy Alone}
 Our contribution is not retrieval accuracy but the governance and auditability layer. MemStrata reports 95% on LongMemEval and xmemory reports 97.1% F1. These systems optimize retrieval quality; we optimize correctness guarantees. A memory system that returns the right answer 95% of the time but cannot prove that its memories were not tampered with is insufficient for compliance scenarios.
 
-\subsection{Cross-Agent Power Dynamics}
-In multi-agent deployments, different agents have different write privileges. MemTether's source attribution makes it possible to audit which agent wrote which fact, enabling accountability in scenarios where agent decisions affect users.
-
 \subsection{The Architecture-Evaluation Connection}
-Our cross-system comparison reveals that memory architecture and evaluation methodology are not independent choices. A preservation-oriented system (MemTether) produces temporally dependent data where random CV is invalid. A compression-oriented system (mem0) converges to a fixed-size store where random CV may be valid but information loss is invisible. Researchers choosing a memory architecture are implicitly choosing an evaluation methodology.
-
-\subsection{Practical Governance Routing}
-We demonstrate three scenarios: (1) a Codex procedure with 0 entities should be flagged for review (91.5% supersession rate for this category); (2) a WorkBuddy decision with entities and reads can be auto-approved (6.5% supersession rate); (3) any fact with 0 reads after 24 hours should enter the review queue (52.4% supersession rate).
+Our cross-system comparison reveals that memory architecture and evaluation methodology are not independent choices. A preservation-oriented system produces temporally dependent data where random CV is invalid. A compression-oriented system converges to a fixed-size store where random CV may be valid but information loss is invisible. Researchers choosing a memory architecture are implicitly choosing an evaluation methodology.
 
 \section{Limitations}
 \label{sec:limitations}
@@ -419,7 +411,7 @@ We demonstrate three scenarios: (1) a Codex procedure with 0 entities should be 
 \end{itemize}
 
 \section{Conclusion}
-We present MemTether, a local-first agent memory system with bi-temporal supersession (4 theorems), hash-chained audit (Memory Court), and deployment-aligned evaluation (ClockScore). Our 30-day production deployment validates the architecture across 15 agents and 22 adapters with zero data loss. Our evaluation reveals a cross-benchmark direction reversal and a four-way behavioral spectrum across memory systems. MemTether achieves 62.4\% strict and 68.8\% judge on LongMemEval-500, exceeding mem0.
+We present MemTether, a local-first agent memory system with bi-temporal supersession (4 theorems), hash-chained audit (Memory Court, 5/5 tamper detection), and deployment-aligned evaluation (ClockScore). Our 30-day production deployment (15 agents, 22 adapters, 31K operations) validates the architecture with zero data loss. On LongMemEval-500, MemTether achieves 62.4% strict and 68.8% judge, exceeding mem0 by 2.2pp and 3.6pp. Our cross-benchmark analysis discovers a direction reversal in strict--judge gaps, and our cross-system comparison reveals a four-way behavioral spectrum from expansion (SimpleMem, 1.19x) to hard ceiling (mem0, 0.10x). These findings establish that evaluation methodology must match memory architecture---a connection not previously described in the literature.
 
 \begin{thebibliography}{50}
 
