@@ -395,3 +395,43 @@
 - E2 (Kimi, usability-reviewer) 每篇都给 5-6，其他 judge 给 3-4
 - 结论：**不要跨 judge 比绝对分，只比相对差**
 - Multi-sampling + median 是减少 variance 的最小改动方案
+
+---
+
+## ⚠️ 第四轮补充：7 项遗漏（最终轮）
+
+### 40. DistilBERT CPU Fine-tune
+- **3 epochs CPU-only, ~700 seconds**
+- Macro F1 = 0.690, temporal-reasoning 分数未详细记录
+- 这是 supersession prediction 的 learned classifier baseline
+
+### 41. Learned Classifier（关于 vs 提及分类器）
+- **Binary F1 = 0.984**（判断是否 about 某实体）
+- **Semantic F1 = 0.659**（从 0 提升，用 entity-proximity + binary classifier）
+- 这是 about-vs-mention 问题的 learned solution
+
+### 42. LLM Zero-Shot vs TF-IDF
+- **Kimi-k2.6 zero-shot on 100 test samples: P = 1.0**（零 false positive）
+- 但 recall 极低 → LLM 太保守，不适合做 entity extraction
+- TF-IDF 在 keyword extraction 上更实用
+
+### 43. Injection Coverage 详细数据
+- **3,980 characters of LLM context vs 825K characters of stored content**
+- 覆盖率 = 0.48%
+- 即使 retrieval 完美，95% 的 memories 仍然因为 context 窗口限制而无法被使用
+
+### 44. R72 峰值评分
+- **RouteC-R72 = 6.67/10**（223 轮 fuseeval 中的最高分）
+- E2 (hy3-x) = 7.0, E3 (deepseek-v4-pro) = 7.0, E4 (glm-5.3) = 6.0
+- 这是当前所有论文在 fuseeval 体系下的最高分
+
+### 45. Single-Session-User 94.9%
+- LongMemEval per-type breakdown 中最好的类别
+- Strict = 94.9% (55/59), Judge = 95.7% (67/70)
+- 说明 MemTether 在简单事实存储/检索上非常强
+
+### 46. FuseEval 总规模
+- **197 轮评判，662 份评审**
+- Overall 平均 4.77，≥7 分仅 6.6%（44/662）
+- **Evidence 平均 4.24 是最大瓶颈**（75.5% 的低分评审中 evidence ≤ 4）
+- Honesty 平均 6.53 是最强维度
