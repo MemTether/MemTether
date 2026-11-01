@@ -86,7 +86,10 @@ Each fact carries two time axes: valid time (\texttt{valid\_from}/\texttt{valid\
 Every memory operation is appended to \texttt{audit\_log}. Every 10 entries, a SHA-256 anchor is computed over the batch and chained to the previous anchor. Evidence is exportable as a self-contained ZIP with an embedded HTML verifier for browser-based chain verification. The \texttt{memtether court} CLI provides \texttt{verify}, \texttt{export}, and \texttt{conflicts} commands. See \cite{companionjss} for integration testing and case study.
 
 \subsection{Threat Model}
-The audit log addresses a bounded adversary (read-only access, or write access without knowledge of the anchoring mechanism). Full-write adversaries who can recompute all hashes defeat the in-DB chain; an external filesystem checkpoint partially mitigates this by storing the head anchor hash outside the database.
+\label{sec:threat}
+The audit log addresses a bounded adversary (read-only access, or write access without knowledge of the anchoring mechanism). Full-write adversaries who recompute anchors require external checkpointing, which conflicts with local-first design. Source attribution is permissive by default without a registry; retrieval-layer filtering neutralizes only corrected or retired facts, not newly injected ones. An adversary-aware attack would attempt to recompute the hash chain after modifying entries; our defense relies on the attacker not discovering the anchoring mechanism (security through obscurity for the anchor locations), which is a documented limitation of any locally-stored audit trail.
+
+Two further boundaries must be stated. First, source attribution is \emph{permissive by default} in the open-source distribution: when no source registry (\texttt{agents.json}) is present, an unregistered source string is stored verbatim, and the mechanism is best-effort bookkeeping rather than a security control; deployments with a registry hard-reject unknown sources. Second, the retrieval layer excludes superseded and retired records from default results; cf.\ memory poisoning attacks~\citep{sleeper,agentpoison}) only neutralizes poisoning of facts that have \emph{already} been corrected or retired; a newly injected false fact from a registered source is immediately active and retrievable. This boundary is captured by an executable negative test (test\_F) and residual risk is bounded through complementary safeguards: source attribution, hash-chain verification, and supersession lineage tracking. with an executable negative test (test\_F in our test suite) and rely on post-hoc auditability---source attribution, hash-chained anchors, and supersession provenance---rather than write-time interception.
 
 \subsection{Multi-Client Deployment}
 MemTether supports 22+ adapters sharing a single SQLite database via file-level pointers. Each adapter writes with its own source attribution.
@@ -346,10 +349,14 @@ The per-type evidence identifies where the extraction repair should start. Proce
 
 A propensity-score match on source, type, confidence bucket, and read-count bucket yields 542 pairs: one treated (entity-grounded) supersession versus 94 control supersessions (McNemar $p<10^{-26}$). A discontinuity check at the entity cutoff shows 26.3\% supersession for entity-free records and 0\% for exactly one entity. These analyses still rely on observational matching and the system-specific supersession rule, so they support a strong implementation association rather than a universal causal law. 
 
-\subsection{Production Deployment}
+\section{Production Deployment}
 \label{sec:production}
 
-The system has been running continuously since September 13, 2026. During the 30-day evaluation: 15 agents wrote 2{,}635 facts through 22 adapters. Zero data loss. 347 supersession chains maintained causal ordering. 100\% source attribution accuracy. The hash chain detected all tampering scenarios with 2{,}378 audit entries and 237 anchors.
+
+
+\paragraph{Metric definitions.}
+``Superseded facts'' counts rows with \texttt{status='superseded'}; ``Retired facts'' counts \texttt{status='retired'}. 256 of 383 superseded rows (67\%) have a non-empty \texttt{valid\_to}; the remaining 127 date from an earlier schema version. ``Data loss'' = zero reported incidents in 30 days, ascertained by manual verification that the active fact count never decreased below expected levels and that no agent reported missing memories. This is a self-reported measure, not an automated monitoring result. ``Operations'' = sum of \texttt{audit\_log} entries (writes) plus acknowledged \texttt{use\_count} increments (reads).
+Supersession \\emph{events} (347, rows in the \\texttt{supersessions} edge table created by \\texttt{correct()}) and superseded \\emph{rows} (383, current \\texttt{status='superseded'}) are different units: some rows entered the superseded state through migration and backfill tooling rather than a \\texttt{correct()} event; the two counts are intentionally reported separately. 256 of 383 superseded rows (67\%) have a non-empty \\texttt{valid\_to}; the remaining 127 date from an earlier schema version.
 
 \section{Related Work}
 \label{sec:related}
