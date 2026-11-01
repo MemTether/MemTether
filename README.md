@@ -6,6 +6,8 @@
   <a href="README.md">English</a> | <a href="README.zh-CN.md">中文</a>
 </p>
 
+![MemTether - governed memory with audit chain](assets/banner.svg)
+
 **The only AI agent memory with a tamper-evident audit chain.**
 
 *If your agent can't prove what it knows, it doesn't know.*

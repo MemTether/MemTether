@@ -1,36 +1,28 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 180" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="400" viewBox="0 0 1280 400">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#0f172a"/>
-      <stop offset="50%" stop-color="#1e3a5f"/>
-      <stop offset="100%" stop-color="#0f172a"/>
-    </linearGradient>
-    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stop-color="#38bdf8"/>
-      <stop offset="50%" stop-color="#818cf8"/>
-      <stop offset="100%" stop-color="#e94560"/>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0d1117"/>
+      <stop offset="100%" style="stop-color:#161b22"/>
     </linearGradient>
   </defs>
-  <rect width="1400" height="180" fill="url(#bg)"/>
-
-  <!-- Decorative circuit lines (subtle) -->
-  <g opacity="0.05" stroke="#38bdf8" stroke-width="1">
-    <line x1="0" y1="40" x2="1400" y2="40"/>
-    <line x1="0" y1="90" x2="1400" y2="90"/>
-    <line x1="0" y1="140" x2="1400" y2="140"/>
-  </g>
-
-  <!-- Title: positioned at y=75 (upper-middle area) -->
-  <text x="700" y="80" text-anchor="middle" fill="#e2e8f0" font-size="52" font-weight="800" letter-spacing="6">MemTether</text>
-
-  <!-- Gradient underline -->
-  <rect x="520" y="92" width="360" height="3" fill="url(#accent)" rx="1.5"/>
-
-  <!-- Subtitle: right below underline -->
-  <text x="700" y="118" text-anchor="middle" fill="#94a3b8" font-size="17" font-weight="400">
-    Cross-client AI Memory Hub
-  </text>
-
-  <!-- Bottom gradient line -->
-  <rect x="0" y="174" width="1400" height="6" fill="url(#accent)" opacity="0.3"/>
+  <rect width="1280" height="400" fill="url(#bg)" rx="12"/>
+  <text x="640" y="100" text-anchor="middle" font-family="monospace" font-size="56" font-weight="bold" fill="#58a6ff">MemTether</text>
+  <text x="640" y="150" text-anchor="middle" font-family="sans-serif" font-size="24" fill="#c9d1d9">The only AI agent memory with a tamper-evident audit chain.</text>
+  <rect x="240" y="210" width="140" height="60" rx="8" fill="#161b22" stroke="#30363d" stroke-width="2"/>
+  <text x="310" y="245" text-anchor="middle" font-family="monospace" font-size="14" fill="#8b949e">sha256:001</text>
+  <line x1="380" y1="240" x2="420" y2="240" stroke="#58a6ff" stroke-width="2"/>
+  <polygon points="420,235 430,240 420,245" fill="#58a6ff"/>
+  <rect x="430" y="210" width="140" height="60" rx="8" fill="#161b22" stroke="#30363d" stroke-width="2"/>
+  <text x="500" y="245" text-anchor="middle" font-family="monospace" font-size="14" fill="#8b949e">sha256:002</text>
+  <line x1="570" y1="240" x2="610" y2="240" stroke="#58a6ff" stroke-width="2"/>
+  <polygon points="610,235 620,240 610,245" fill="#58a6ff"/>
+  <rect x="620" y="210" width="140" height="60" rx="8" fill="#161b22" stroke="#30363d" stroke-width="2"/>
+  <text x="690" y="245" text-anchor="middle" font-family="monospace" font-size="14" fill="#8b949e">sha256:003</text>
+  <line x1="760" y1="240" x2="800" y2="240" stroke="#58a6ff" stroke-width="2"/>
+  <polygon points="800,235 810,240 800,245" fill="#58a6ff"/>
+  <rect x="810" y="210" width="140" height="60" rx="8" fill="#161b22" stroke="#30363d" stroke-width="2"/>
+  <text x="880" y="245" text-anchor="middle" font-family="monospace" font-size="14" fill="#8b949e">sha256:004</text>
+  <text x="640" y="320" text-anchor="middle" font-family="sans-serif" font-size="18" fill="#7ee787">Hash-chained audit log | Bi-temporal supersession | Conflict gate | Source attribution</text>
+  <text x="640" y="360" text-anchor="middle" font-family="monospace" font-size="16" fill="#8b949e">pip install memtether</text>
+  <rect x="0" y="0" width="1280" height="400" fill="none" stroke="#30363d" stroke-width="2" rx="12"/>
 </svg>
