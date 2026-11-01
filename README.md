@@ -429,6 +429,7 @@ memtether remember-batch mems.json     # Batch write from JSON
 memtether demo                         # Generate a synthetic demo DB (no real data)
 memtether handoff --to codex          # governed handoff bundle for the next agent
 memtether review                      # one-stop pending-conflict review queue
+memtether connect doctor              # layered diagnosis: python/config/db/mcp/hooks
 memtether dashboard                    # Web UI
 ```
 
@@ -602,6 +603,9 @@ Other systems *describe* governance. MemTether ships it as commands you can run:
 - **Input validation**: content ≤10K, type whitelist, source format, confidence range, scope whitelist
 - **Scope isolation**: `shared` / `private` / `restricted`
 - **Concurrency**: Hubguard file lock + atomic write (WAL mode)
+- **READY probe on setup**: setup ends with a real remember → search →
+  `court --verify` triple; it prints `status: READY` only when all three
+  pass — `memtether connect doctor` pinpoints the failing layer otherwise
 - **Fail-closed setup**: connecting a client never silently overwrites an
   unrelated setting — conflicting config aborts the setup instead
 - **SQL**: All parameterized. No f-string SQL

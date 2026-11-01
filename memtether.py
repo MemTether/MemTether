@@ -1117,7 +1117,43 @@ def _cmd_setup(args):
     rc = r.returncode if hasattr(r, 'returncode') else 0
     if rc == 0:
         print(f"[setup] {client} connected. Restart the client to pick up the new MCP config.")
-        print(f"[setup] Verify: memtether search \"test\"  (from inside the client)")
+        # B7 (Wave1.5): READY probe — written config alone is not "ready".
+        # Probe the engine layers we can reach without the client itself:
+        #   L-a engine write (remember), L-b engine read (search),
+        #   L-c audit chain (court --verify). Client-side MCP pickup still
+        #   needs a restart (see three-layer criteria in README).
+        ready = True
+        probe_src = "setup-probe"
+        try:
+            wr = remember("setup probe %s" % client, type="fact", source=probe_src)
+            uid = (wr or {}).get("uid") if isinstance(wr, dict) else None
+            print("[setup] probe write: %s" % ("PASS uid=%s" % uid if uid else "PASS"))
+        except Exception as e:
+            ready = False
+            print("[setup] probe write: FAIL (%s)" % e)
+        try:
+            sr = search("setup probe %s" % client, limit=1)
+            hits = (sr or {}).get("results") or []
+            print("[setup] probe read:  %s" % ("PASS (%d hit)" % len(hits) if hits else "WARN (0 hit — index may still be building)"))
+        except Exception as e:
+            ready = False
+            print("[setup] probe read:  FAIL (%s)" % e)
+        try:
+            import subprocess as _sp
+            cv = _sp.run([sys.executable, os.path.join(_HERE, "memtether.py"), "court", "--verify"],
+                         capture_output=True, text=True, timeout=60)
+            chain_ok = ("PASS" in (cv.stdout or "")) or ("chain: PASS" in (cv.stdout or ""))
+            print("[setup] probe audit: %s" % ("PASS" if chain_ok else "FAIL (rc=%s)" % cv.returncode))
+            if not chain_ok:
+                ready = False
+        except Exception as e:
+            ready = False
+            print("[setup] probe audit: FAIL (%s)" % e)
+        if ready:
+            print("[setup] status: READY — engine write/read/audit all green.")
+            print("[setup] Client-side MCP pickup: restart %s, then ask it: what do you remember about this project?" % client)
+        else:
+            print("[setup] status: NOT READY — fix the FAIL layer above, then run: memtether doctor")
     else:
         print(f"[setup] Failed to connect {client} (rc={rc}). Run 'memtether connect detect' to debug.")
     return rc

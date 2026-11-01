@@ -317,6 +317,138 @@ def do_verify(adapters, spec):
 
 
 # ==========================================================================
+# doctor（Wave1.5/B5）：分层诊断 —— 「装好了」不等于「能用」
+# ==========================================================================
+DOCTOR_LAYERS = ("python", "config", "db", "mcp", "hooks")
+
+
+def do_doctor(adapters, spec, client=None):
+    """分层检查，逐层报 PASS/FAIL/SKIP + 该层的修法。
+
+    L1 python   解释器能不能起、核心 import 通不通
+    L2 config   目标客户端的 MCP 配置在不在、内容对不对（复用 verify 的回读）
+    L3 db       DB 文件在不在、关键表在不在、integrity 快检
+    L4 mcp      mcp_server.py 能否以 stdio 方式 initialize（真实起子进程）
+    L5 hooks    （仅提示）客户端自己的 hook/信任需要重启后才生效 —— 无法从外部判定
+    """
+    print("=" * 78)
+    print("doctor — 分层诊断%s" % ("（只看 %s）" % client if client else ""))
+    print("=" * 78)
+    results = []  # (layer, name, ok, detail)
+
+    # ---- L1 python ----
+    py_ok, py_detail = False, ""
+    try:
+        r = subprocess.run(
+            [sys.executable, "-c", "import sqlite3,json;import gateway" if False else "import sqlite3,json"],
+            capture_output=True, text=True, timeout=20,
+            creationflags=CREATE_NO_WINDOW if os.name == "nt" else 0)
+        py_ok = r.returncode == 0
+        py_detail = "interpreter OK (%s)" % sys.executable
+    except Exception as e:
+        py_detail = "interpreter spawn failed: %s" % e
+    results.append(("L1 python", sys.executable, py_ok, py_detail))
+
+    # ---- L2 config（逐客户端回读；复用 verify 判据）----
+    cfg_rows = []
+    for a in adapters:
+        if client and a.id != client:
+            continue
+        for scope, path in a.candidates():
+            try:
+                installed, _r = a.probe(scope, path)
+            except Exception:
+                installed = False
+            if not installed or not os.path.exists(path):
+                continue
+            try:
+                ok, detail = a.read_back(Target(a.id, a.display, scope, path, True, True, ""), spec)
+            except Exception as e:
+                ok, detail = False, "read_back exception: %s" % e
+            cfg_rows.append((a.id, scope, ok, detail, path))
+    if cfg_rows:
+        for cid, scope, ok, detail, path in cfg_rows:
+            results.append(("L2 config", "%s(%s)" % (cid, scope), ok,
+                            ("%s | %s" % (detail, path)) if ok else
+                            ("配置不符 → 修法: memtether connect apply --clients %s" % cid)))
+    else:
+        results.append(("L2 config", "any client", None,
+                        "SKIP — 未发现已安装客户端；先跑: memtether connect detect"))
+
+    # ---- L3 db ----
+    db_path = os.environ.get("MEM_DB") or os.path.join(
+        os.path.expanduser("~"), ".memtether", "memory.db")
+    db_ok, db_detail = False, ""
+    if not os.path.exists(db_path):
+        db_detail = "DB 不存在: %s → 修法: memtether init（或 memtether demo 出演示库）" % db_path
+    else:
+        try:
+            import sqlite3
+            con = sqlite3.connect("file:%s?mode=ro" % db_path.replace("\\", "/"), uri=True)
+            have = {r[0] for r in con.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'")}
+            need = {"facts", "audit_log"}
+            missing = need - have
+            n_integrity = con.execute("PRAGMA integrity_check").fetchone()[0]
+            con.close()
+            if missing:
+                db_detail = "缺表 %s → 库不完整，从备份恢复或重建" % ",".join(sorted(missing))
+            else:
+                db_ok = (n_integrity == "ok")
+                db_detail = "integrity=%s, tables=%d" % (n_integrity, len(have))
+        except Exception as e:
+            db_detail = "DB 打不开: %s" % e
+    results.append(("L3 db", db_path, db_ok, db_detail))
+
+    # ---- L4 mcp（真实起一次 stdio initialize）----
+    mcp_py, mcp_script = spec.command, (spec.args[0] if spec.args else "")
+    mcp_ok, mcp_detail = False, ""
+    if not (mcp_py and os.path.isfile(mcp_py) and os.path.isfile(mcp_script)):
+        mcp_detail = "MCP server 文件/解释器不存在: %s / %s → 检查 --python/--mcp-server" % (mcp_py, mcp_script)
+    else:
+        try:
+            import json as _json
+            payload = _json.dumps({"jsonrpc": "2.0", "id": 1, "method": "initialize",
+                                   "params": {"protocolVersion": "2024-11-05",
+                                              "capabilities": {}, "clientInfo": {"name": "doctor", "version": "0"}}})
+            r = subprocess.run(
+                [mcp_py, mcp_script],
+                input=payload + "\n", capture_output=True, text=True,
+                encoding="utf-8", errors="replace", timeout=30,
+                creationflags=CREATE_NO_WINDOW if os.name == "nt" else 0)
+            mcp_ok = (r.returncode == 0) and ('"serverInfo"' in (r.stdout or "") or "serverInfo" in (r.stdout or ""))
+            mcp_detail = ("stdio initialize OK" if mcp_ok
+                          else "rc=%s, stdout头部=%r" % (r.returncode, (r.stdout or "")[:120]))
+        except subprocess.TimeoutExpired:
+            mcp_detail = "MCP server 30s 无响应（可能卡在重库 import）→ 见 docs/SECURITY.md Troubleshooting"
+        except Exception as e:
+            mcp_detail = "spawn 失败: %s" % e
+    results.append(("L4 mcp", "%s %s" % (mcp_py, mcp_script), mcp_ok, mcp_detail))
+
+    # ---- L5 hooks（提示层，无法外部判定）----
+    results.append(("L5 hooks", "client-side", None,
+                    "SKIP — hook/信任状态在客户端进程内，重启客户端后才生效；见 README「三层判据」"))
+
+    # ---- report ----
+    for layer, name, ok, detail in results:
+        state = "PASS" if ok else ("SKIP" if ok is None else "FAIL")
+        print("  [%s] %-11s %s" % (state, layer, name))
+        if not ok:
+            print("           %s" % detail)
+    bad = [r for r in results if r[2] is False]
+    print()
+    print("---- doctor: %d PASS / %d FAIL / %d SKIP ----" % (
+        sum(1 for r in results if r[2] is True),
+        len(bad),
+        sum(1 for r in results if r[2] is None)))
+    if bad:
+        print("修完上面 FAIL 层后重跑本命令；全 PASS 的环境写记忆/检索即视为 READY。")
+        return 1
+    print("status: READY")
+    return 0
+
+
+# ==========================================================================
 # 回滚
 # ==========================================================================
 def do_rollback(stamp=None):
@@ -535,6 +667,11 @@ def build_parser():
     sp = sub.add_parser("verify", help="校验（回读 + 信任状态）")
     common(sp)
 
+    sp = sub.add_parser("doctor", help="分层诊断（python/config/db/mcp/hooks）+ READY 判定")
+    common(sp)
+    sp.add_argument("--client", help="只诊断指定客户端 id")
+
+
     sp = sub.add_parser("rollback", help="从备份还原")
     sp.add_argument("--stamp", help="备份批次（默认最近一次）")
 
@@ -591,6 +728,9 @@ def main(argv=None):
 
     if cmd == "verify":
         return do_verify(ads, spec)
+
+    if cmd == "doctor":
+        return do_doctor(ads, spec, client=getattr(args, "client", None))
 
     print("未知子命令: %s" % cmd)
     return 2

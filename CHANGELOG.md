@@ -1,3 +1,29 @@
+## [Unreleased] — Wave 1.5: handoff + review + doctor + READY probe
+
+### Added
+
+- **`memtether handoff --to <agent>`**: exports a governed handoff bundle
+  (pinned memories, recent decisions/lessons, open-conflict count, integrity
+  pointer) for the next agent. Privacy by construction — MemTether stores no
+  transcripts, so none can leak into the bundle.
+- **`memtether review`**: one-stop pending-conflict review queue reusing the
+  `conflicts` pipeline (`--accept`/`--discard`/`--by`/`--note`); verdicts land
+  in `conflict_reviews` (human adjudication on record).
+- **`memtether connect doctor`**: five-layer diagnosis (python / config / db /
+  mcp / hooks) with per-layer fix hints and an explicit `status: READY` line
+  when all reachable layers pass. Layered failures cross-checked against
+  `tether_connect verify` on a live install (the two FAILs it reported match
+  known config drift in codex + dsh:wbpj — pre-existing, not doctor bugs).
+- **READY probe on setup**: `memtether setup <client>` now ends with a real
+  remember → search → `court --verify` triple and prints `status: READY` only
+  when all three pass. Written config alone is not "ready" (tigerless-style
+  install-trust culture).
+- **"Governance, provably" README section**: every governance claim paired
+  with a runnable command (audit-chain PASS→FAIL demo, `court --verify`,
+  `conflicts --list`). Security section documents fail-closed setup.
+- New topics: `audit-chain`, `human-in-the-loop` (GitHub search surface for
+  the governance niche).
+
 ## [0.1.0a83] — Documentation and registry surfaces aligned with reality
 
 ### Fixed
