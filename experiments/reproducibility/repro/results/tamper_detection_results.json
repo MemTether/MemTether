@@ -1,0 +1,51 @@
+{
+  "total_scenarios": 6,
+  "anchored_scenarios": 5,
+  "anchored_detected": 5,
+  "unanchored_tail_detected": false,
+  "scenarios": [
+    {
+      "scenario": "edit_detail_anchored",
+      "row_id": 5,
+      "detected": true
+    },
+    {
+      "scenario": "change_agent_anchored",
+      "row_id": 10,
+      "detected": true
+    },
+    {
+      "scenario": "delete_row_anchored",
+      "row_id": 15,
+      "detected": true
+    },
+    {
+      "scenario": "insert_after_anchor",
+      "row_id": 201,
+      "detected": true,
+      "note": "detected as chain length mismatch"
+    },
+    {
+      "scenario": "swap_rows_anchored",
+      "row_ids": [
+        20,
+        21
+      ],
+      "detected": true
+    },
+    {
+      "scenario": "modify_unanchored_tail",
+      "detected": false,
+      "note": "known limitation: unanchored tail not covered"
+    }
+  ],
+  "baseline_verify": {
+    "anchors": 1,
+    "entries_covered": 200,
+    "unanchored_tail": 0
+  },
+  "final_verify": {
+    "reason": "chain hash mismatch — audit rows edited after restoration (expected: restoration itself was a tamper)"
+  },
+  "note": "Hash chain detects 5/5 anchored-row tampering scenarios on 200-entry test DB. Unanchored tail is a documented limitation."
+}

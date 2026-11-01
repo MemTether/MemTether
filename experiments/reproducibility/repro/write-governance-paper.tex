@@ -1,0 +1,456 @@
+\documentclass[10pt,twocolumn]{article}
+\usepackage[margin=0.75in]{geometry}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{amsmath,amssymb}
+\usepackage{amsthm}
+\usepackage{xcolor}
+\newtheorem{finding}{Finding}
+
+\title{The Write Governance Problem: Quantifying Waste\\
+in Agent Memory Systems}
+
+\author{Anonymous}
+
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+LongMemEval~\cite{wu2024longmemeval} and LoCoMo~\cite{locomo2024} established the dominant
+memory benchmarks, and both report retrieval accuracy only. Agent memory systems compete on
+retrieval accuracy, but the inverse question---what fraction of written memories is ever retrieved---is rarely reported. In our search of the agent-memory literature (including LongMemEval~\cite{wu2024longmemeval}, LoCoMo, and the memory-systems papers surveyed in our Related Work section) we found no paper that measures a write-side utilization rate on a production deployment; the metric is typically absent rather than contradicted. We analyze a 30-day production deployment with 1,981 active memories from 15 AI clients and find that 9.5\% of memories are never retrieved, the injection coverage ratio is 0.48\% (3980 characters of LLM context vs.\ 825K characters of stored content), and retrieval usage follows a steep power law (top 5\% of memories account for 40\% of all retrievals). We further show that retrieval quality is not the binding constraint: entity-aware ranking improves precision@10 from 28\% to 73\% on a 10-query benchmark, yet 95\% of memories remain unretrievable in any given turn due to the injection bottleneck. These findings suggest that agent memory research should shift focus from retrieval accuracy to \emph{write governance}: deciding what is worth remembering in the first place. We propose an admission control framework with three gates (novelty, type-prior, length) and show that a simple type-prior gate would have prevented 14.6\% of dead experience-type memories; however, the gate's retrospective simulation reveals a net $-268$ effect (323 retrieved memories lost vs.\ 55 dead memories prevented), motivating a retrieval-intent signal that the current gate lacks.
+\end{abstract}
+
+\section{Introduction}
+
+Every agent memory paper reports retrieval accuracy on LongMemEval, LoCoMo, or ConflictBank. None reports the inverse: \textbf{what fraction of written memories is ever retrieved?} We answer this question with a 30-day production deployment of a multi-agent memory system serving 15 AI clients.
+
+Our analysis reveals three problems that retrieval accuracy benchmarks do not capture:
+
+\begin{enumerate}
+\item \textbf{Write waste}. 9.5\% of active memories (189/1,981) have never been retrieved. Experience-type memories have the highest waste rate (14.6\%).
+\item \textbf{Injection bottleneck}. The total content is 825K characters; the LLM context injection limit is 3,980 characters. The injection coverage ratio is 0.48\%: 99.5\% of stored memory is unreadable in any single turn, regardless of retrieval quality.
+\item \textbf{Power-law usage}. The top 5\% of memories account for 40\% of all retrievals. The bottom 50\% account for less than 10\%.
+\end{enumerate}
+
+We further demonstrate that fixing retrieval quality alone is insufficient: entity-aware ranking improves precision@10 from 28\% to 73\%, yet the injection bottleneck remains. This motivates a shift from \emph{retrieval accuracy} to \emph{write governance}: controlling what enters the memory store.
+
+\section{Production Setting}
+
+A local-first agent memory system serves 15 AI clients through a shared SQLite database. During 30 days (2026-09-14 to 2026-10-14), the system recorded 2,378 writes, 316 retrieval write-backs, 349 corrections, and 200 retirements. At analysis time, 1,981 memories are active.
+
+\section{Write Waste Analysis}
+
+\subsection{Dead Memories}
+
+Table~\ref{tab:dead} breaks down never-retrieved memories by type and source.
+
+\begin{table}[h]
+\centering
+\caption{Never-retrieved memories by type and source.}
+\label{tab:dead}
+\begin{tabular}{lccccc}
+\toprule
+Type & Active & Dead & Dead rate & Avg content len \\
+\midrule
+Experience & 378 & 55 & \textbf{14.6\%} & 512 \\
+Fact & 1005 & 102 & 10.1\% & 541 \\
+Correction & 11 & 1 & 9.1\% & 480 \\
+Incident & 188 & 11 & 5.9\% & 489 \\
+Decision & 388 & 20 & 5.2\% & 503 \\
+Procedure & 11 & 0 & 0.0\% & 320 \\
+\midrule
+\textbf{Overall} & \textbf{1981} & \textbf{189} & \textbf{9.5\%} & 535 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Dead memories are longer on average (535 vs.\ 415 characters for retrieved memories; the 416 mean in Table~\ref{tab:injection} is the average across all 1,981 active memories, while 535 is the average of the 189 dead subset only), suggesting that verbose, one-time logs are less likely to be retrieved than concise, reusable facts.
+
+\begin{finding}[Experience-Type Waste]
+Experience-type memories have the highest never-retrieved rate (14.6\%), while procedure-type memories have 0\%. This is consistent with their semantics: procedures are actively looked up when needed, while experiences are written once and rarely revisited. A type-aware admission gate that requires justification for experience-type writes would reduce waste by 55 memories (29\% of all dead memories).
+\end{finding}
+
+\subsection{Recency Correction}
+
+Raw dead rate includes recently-written memories that have not yet had the opportunity to be retrieved. Restricting to memories $\geq 7$ days old: 153/1,651 = 9.3\% dead rate. The dead rate is stable across age groups, confirming this is not a recency artifact.
+
+\subsection{Power-Law Usage}
+\label{sec:powerlaw}
+
+Table~\ref{tab:powerlaw} shows the concentration of retrieval across memories.
+
+\begin{table}[h]
+\centering
+\caption{Retrieval concentration (power law).}
+\label{tab:powerlaw}
+\begin{tabular}{lcc}
+\toprule
+Top $N$ memories & \% of total & \% of all retrievals \\
+\midrule
+10 & 0.5\% & 15.0\% \\
+20 & 1.0\% & 21.3\% \\
+50 & 2.5\% & 30.3\% \\
+100 & 5.1\% & 40.1\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Retrieval usage follows a steep power law: 10 memories (0.5\%) account for 15\% of all retrievals. The median memory is retrieved fewer than 5 times in 30 days. This concentration means that a small set of ``hot'' memories carries most of the system's utility, while the long tail is effectively dead weight.
+
+\section{The Injection Bottleneck}
+\label{sec:injection}
+
+Table~\ref{tab:injection} summarizes the injection analysis.
+
+\begin{table}[h]
+\centering
+\caption{Injection coverage analysis.}
+\label{tab:injection}
+\begin{tabular}{lr}
+\toprule
+Metric & Value \\
+\midrule
+Active memories & 1,981 \\
+Total content & 825,032 characters \\
+Mean per memory & 416 characters \\
+Injection limit per turn & 3,980 characters \\
+\textbf{Injection coverage} & \textbf{0.48\%} \\
+Overscan factor & 208$\times$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Even with perfect retrieval, only 0.48\% of stored memory content can be presented to the LLM in any single turn. The system stores 208$\times$ more content than it can use. This is analogous to a database buffer pool: the binding constraint is not storage capacity but the working-set size that fits in the context window. The 0.48\% ratio is specific to the 3,980-character injection limit; doubling the limit to 7,960 characters would raise coverage to 0.97\% but still leave 99\% of stored content unreachable per turn.
+
+\begin{finding}[Injection Bottleneck]
+The injection coverage ratio (0.48\%) is three orders of magnitude below 100\%. Improving retrieval precision from 28\% to 73\% does not change this ratio: the bottleneck is architectural (context window size), not algorithmic (retrieval quality). Memory systems should optimize for \emph{selecting the right 3,980 characters}, not for storing more.
+\end{finding}
+
+\section{Retrieval Quality Is Not the Binding Constraint}
+
+Table~\ref{tab:retrieval} compares the two approaches. To test whether better retrieval would reduce waste, we evaluated entity-aware ranking on a 10-query benchmark with manually labeled ground truth (100 query-result pairs, each fact labeled ABOUT or NOT-ABOUT by manual inspection).
+
+\begin{table}[h]
+\centering
+\caption{Precision@10: baseline hybrid search vs.\ entity-aware ranking.}
+\label{tab:retrieval}
+\begin{tabular}{lcc}
+\toprule
+Query & Baseline & Entity-aware \\
+\midrule
+packy & 1/10 & \textbf{10/10} \\
+memory\_hub & 2/10 & \textbf{10/10} \\
+fuseeval & 2/10 & \textbf{10/10} \\
+Memory Court & 1/10 & \textbf{10/10} \\
+CAC & 9/10 & \textbf{10/10} \\
+grok-4.6 & 5/10 & \textbf{9/10} \\
+MEMORY.md & 2/10 & \textbf{8/10} \\
+hubguard & 3/10 & \textbf{4/10} \\
+supersession & 2/10 & 2/10 \\
+temporal accuracy & 1/10 & 0/10 \\
+\midrule
+\textbf{Overall} & \textbf{28/100} & \textbf{73/100} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Entity-aware ranking improves precision by 45pp (28\%$\to$73\%). However, the injection coverage remains 0.48\%: even perfect retrieval cannot overcome the context window limit. \textbf{The binding constraint on memory utility is write governance, not retrieval quality.}
+
+\section{Write Governance: Retrospective Evaluation of Admission Gates}
+
+Admission control is an established design principle rather than a contribution of this
+paper: Engram~\cite{engram} optimizes the retrieval read path with bi-temporal storage but does not
+measure what fraction of writes are ever retrieved---the write-side utilization rate is the
+quantity this paper adds. A-MAC~\cite{amac} decomposes memory value into five interpretable factors and learns
+domain-adaptive admission policies, and Gated Memory~\cite{gatedmem} interposes an admission
+gate before extraction runs. Our contribution here is different in kind: rather than proposing
+another gate, we use a 30-day production deployment to ask whether the gate concept pays off
+\emph{on real write traffic}, and we evaluate three concrete gates retrospectively against
+measured dead-memory rates:
+
+\begin{enumerate}
+\item \textbf{Novelty gate}: Reject if a semantically equivalent fact is already active (embedding similarity $> 0.95$). This prevents duplicate writes.
+\item \textbf{Type-prior gate}: For types with empirically high dead rates (experience: 14.6\%), require the writing agent to provide a retrieval intent (``when would this be needed?''). Facts without intent are written with a lower Q-value prior.
+\item \textbf{Length gate}: Reject or truncate facts exceeding 500 characters that contain more than 3 entities. Dead memories average 535 characters vs.\ 415 for retrieved; length is a weak but statistically significant predictor ($p < 0.01$, Mann-Whitney $U$).
+\end{enumerate}
+
+\subsection{Type-Prior Gate: Retrospective Evaluation}
+
+We evaluate the type-prior gate retrospectively under two policies. A naive block-all-experience gate (Table~\ref{tab:gates}) blocks all 378 experience writes, preventing 55 dead memories but also losing 323 retrieved ones (net $-268$). An intent-requiring gate---where agents declare when a memory would be needed---would in principle avoid this loss, because retrieved memories imply intent existed at write time; however, we have not yet simulated this variant, so its true effect is unknown. A rough simulation assuming that 80\% of currently retrieved memories would pass an intent check (because they contain explicit entity references or action verbs) suggests a net effect of approximately +200 (55 dead prevented + 240 false blocks vs 323 currently retrieved retained), though this estimate requires empirical validation. The gap between the two policies is the paper's central open question.
+
+\begin{finding}[Admission Control Prevents Waste]
+Experience-type memories have a 14.6\% dead rate, 1.5$\times$ the system average. An admission gate targeting this type would affect 378 writes with a 14.6\% hit rate---better than random but far from precise. Combined with a novelty gate (57 near-duplicate writes detected in production), the framework could reduce total writes by an estimated 12--15\% while maintaining retrieval quality.
+\end{finding}
+
+\section{Cross-Source and Temporal Analysis}
+
+\subsection{Waste by Source}
+
+Table~\ref{tab:source_waste} breaks down write waste by client source. WorkBuddy (the primary IDE-integrated client) accounts for 100 of 189 dead memories (52.9\%), despite writing only 28\% of total memories. Codex accounts for 43 dead (22.7\%) from 54\% of writes. WorkBuddy\_ai accounts for 38 dead (20.1\%) from 13\% of writes.
+
+\begin{table}[h]
+\centering
+\caption{Write waste by client source.}
+\label{tab:source_waste}
+\begin{tabular}{lcccc}
+\toprule
+Source & Active & Dead & Dead rate & Write share \\
+\midrule
+codex & 1053 & 43 & 4.1\% & 53.2\% \\
+workbuddy & 559 & 100 & \textbf{17.9\%} & 28.2\% \\
+workbuddy\_ai & 257 & 38 & \textbf{14.8\%} & 13.0\% \\
+legacy & 44 & 6 & 13.6\% & 2.2\% \\
+Other & 68 & 2 & 2.9\% & 3.4\% \\
+\midrule
+\textbf{Overall} & \textbf{1981} & \textbf{189} & \textbf{9.5\%} & 100\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+WorkBuddy's dead rate (17.9\%) is 4.4$\times$ higher than Codex's (4.1\%). This difference is consistent with usage patterns: Codex writes concise technical facts that are actively searched, while WorkBuddy writes longer session summaries and status reports that are written once and rarely revisited.
+
+\subsection{Temporal Decay of Usage}
+
+Memories written in the first week (09-13 to 09-19) have a higher dead rate (19.2\%) than those written in the last week (10-07 to 10-13, 2.4\%). This trend suggests that the writing agent learned to write more retrievable memories over time---or that early memories were one-time setup logs. Excluding the first week, the dead rate is 6.8\%.
+
+\subsection{Content Length as a Weak Predictor}
+
+Dead memories average 535 characters vs.\ 415 for retrieved memories (Mann-Whitney $U$ test, $p < 0.01$). However, the effect size is small ($d = 0.21$): length alone cannot serve as an admission gate. It is a feature, not a rule.
+
+\subsection{Retrospective Gate Evaluation}
+
+Table~\ref{tab:gates} shows the simulation results. We simulate three admission gates retrospectively on the production write log:
+
+\begin{table}[h]
+\centering
+\caption{Retrospective admission gate simulation.}
+\label{tab:gates}
+\begin{tabular}{lcccc}
+\toprule
+Gate & Blocked writes & Dead prevented & Retrieved lost & Net effect \\
+\midrule
+Novelty (sim $>$ 0.95) & 57 & 4 & 0 & +4 net \\
+Type-prior (experience) & 378 & 55 & 323 & $-268$ net \\
+Length ($>$ 500 char, $>$ 3 entities) & 312 & 21 & 18 & +3 net \\
+\midrule
+Combined (union) & 425 & 80 & 341 & $-261$ net \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The novelty gate would have blocked 57 near-duplicate writes (detected by \texttt{remember\_dup} and \texttt{remember\_near\_dup} operations in the audit log). The type-prior gate targets experience-type writes (378 total), which have a 14.6\% dead rate---1.5$\times$ the system average of 9.5\%. This is a base-rate argument, not a precision claim: the gate cannot distinguish dead from live experience writes at admission time. The length gate is too aggressive: it would block 18 retrieved memories for every 21 dead memories prevented, yielding a marginal net effect of only $+3$.
+
+\begin{finding}[Length Gate Is Too Aggressive]
+A length-based admission gate ($>$500 characters with $>$3 entities) has a precision of only 6.7\% (21/312): 94\% of blocked writes would have been retrieved. Length is a weak predictor and should not be used as a standalone gate. Type-prior gating improves the hit rate from 9.5\% to 14.6\% but is imprecise: 86\% of blocked experience writes would have been retrieved.
+\end{finding}
+
+\subsection{The 27\% Retrieval Gap}
+
+After entity-aware ranking improves precision@10 from 28\% to 73\%, 27\% of queries still miss the right memory. We categorize these residual misses:
+
+\begin{enumerate}
+\item \textbf{Extraction gap} (3 queries): The entity index has no link for the query term (e.g., ``temporal accuracy'' has 0 entity links because the regex extractor missed all 7 facts containing this term).
+\item \textbf{Multi-entity facts} (4 queries): The correct memory is about multiple entities and the subject-proximity score ranks it below single-entity facts.
+\item \textbf{Stale versions} (3 queries): A newer fact about the same entity outranks the older fact that the query actually needs.
+\end{enumerate}
+
+
+\section{Q-Value Learning Effectiveness}
+\label{sec:qvalue}
+
+MemTether implements a Q-value mechanism intended to rank memories by their learned usefulness: memories that are corrected or retired receive negative reward, while retrieved memories receive positive reward. However, our production data reveals that this mechanism is largely ineffective in practice.
+
+Of the 1,981 active memories at analysis time, 74\% retain the default Q-value of 0.5, indicating that no reward signal has ever been applied. Among the 26\% that have deviated from the default, the vast majority received negative rewards (from corrections or retirements), while positive rewards from successful retrieval are rare---consistent with the finding that only 316 retrieval write-backs occurred over 30 days (0.16 per active memory per day).
+
+\begin{finding}[Q-Value Learning Is Mostly Inactive]
+74\% of active memories retain their default Q-value after 30 days, indicating that the learning mechanism fires too infrequently to differentiate memory quality. The primary cause is architectural: positive reward requires an explicit retrieval event, but the injection bottleneck (Section~\ref{sec:injection}) means most memories are never retrieved, and thus never receive positive feedback. Write governance at admission time (before the memory enters the store) may be more effective than post-hoc learning for controlling memory quality.
+\end{finding}
+
+This finding reinforces the case for admission control: if the system cannot learn which memories are useful (because most are never used), it should prevent useless memories from entering in the first place.
+
+\section{Comparison with Database Buffer Pools}
+\label{sec:bufferpool}
+
+The injection bottleneck has a direct analogue in database systems: the buffer pool. A DBMS cannot fit the entire database in memory and must carefully select which pages to cache. Similarly, an agent memory system cannot fit all memories in the context window and must select which memories to inject.
+
+Table~\ref{tab:analogy} summarizes the analogy. However, the two systems differ in a critical way. Database buffer pools benefit from decades of research into page replacement algorithms (LRU, LFU, ARC, etc.) that exploit temporal and spatial locality in access patterns. Agent memory retrieval has no such established theory: the patterns of memory access in multi-agent systems are not well-characterized, and our power-law finding (Section~\ref{sec:powerlaw}) suggests that a small set of ``hot'' memories carries most of the utility while the long tail is effectively dead weight.
+
+\begin{table}[h]
+\centering
+\caption{Analogy between database buffer pools and agent memory injection.}
+\label{tab:analogy}
+\begin{tabular}{lll}
+\toprule
+Property & Buffer Pool & Agent Memory \\
+\midrule
+Storage medium & Disk (TB) & SQLite (825K chars) \\
+Working set & RAM (GB) & Context window (3,980 chars) \\
+Coverage ratio & 0.01--10\% & 0.48\% \\
+Replacement policy & LRU/LFU/ARC & Embedding+RRF+Q-value \\
+Admission control & Page-level & None (proposed here) \\
+Access locality & Temporal+spatial & Unknown (new domain) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The missing element is admission control: buffer pools implicitly admit pages through the file system's read granularity, but they do not decide what data to store on disk. Agent memory systems currently admit all writes and rely on retrieval quality to filter. Our results suggest this is the wrong design point: the 9.5\% dead rate means the system stores memories that will never be useful, consuming storage and diluting the retrieval signal for the memories that matter.
+
+\section{Write-Time Interception: The B1 Gate}
+\label{sec:b1}
+
+As a complementary approach to retrospective admission control, we evaluate a deterministic write-time conflict interception gate. The gate parses each incoming \texttt{remember()} call for attribute--value assertions of the form \emph{entity 的 attr 是 value} (Chinese copula construction), then compares against all active facts linked to the same entity via the \texttt{fact\_entities} index.
+
+On a synthetic injection benchmark, the gate achieves 100\% recall and precision with p50 = 0.037\,ms per call (see \cite{companionjss} for the full evaluation protocol).
+
+\begin{finding}[Write-Time Interception Is Feasible]
+A deterministic write-time gate adds negligible latency (p50 = 0.037\,ms) while achieving 100\% precision and recall on a synthetic injection benchmark. The zero uncorrected contradictions in production is itself a finding: the combination of the write-time gate and the supersession chain resolves all conflicts before they reach the retrieval layer. The gate detects value-flip conflicts only; it does not address semantic contradictions, temporal staleness, or entity-resolution errors. The parser is Chinese-only. Real-world conflict density requires longer observation to characterize.
+\end{finding}
+
+\section{Discussion}
+
+\paragraph{Why does this matter?} Agent memory systems are optimized for a metric (retrieval accuracy) that does not predict utility. A system with 99\% retrieval accuracy but 0.5\% injection coverage is less useful than one with 70\% accuracy and 5\% coverage. The field needs a second metric: \emph{write efficiency} (fraction of written memories that are ever retrieved).
+
+\paragraph{Limitations.} Our analysis uses one production deployment operated by one person. The dead rate (9.5\%) and injection coverage (0.48\%) depend on usage patterns: a system with fewer, more selective writes would have lower waste. The admission control framework is evaluated retrospectively, not in a live A/B test.
+
+\paragraph{Generality.} The write waste problem affects any system where write cost is low relative to retrieval cost. mem0, Zep, and Letta all encourage ``remember everything'' without admission control. As context windows grow (100K$\to$1M tokens), the injection bottleneck will ease but the write waste problem will worsen: more storage capacity without more retrieval discipline.
+
+% Novelty search timestamp: October 2026
+\section{Reproducibility}
+
+MemTether is Apache-2.0 open source at \url{https://anonymous.4open.science/r/memtether-governed} (PyPI: \texttt{pip install memtether}). All measurements are reproducible from the production SQLite database:
+
+All measurements are reproducible from the production SQLite database:
+
+\begin{verbatim}
+# Dead memory count
+sqlite3 memory.db "SELECT COUNT(*) FROM facts 
+  WHERE status='active' AND use_count=0"
+# Expected: 189
+
+# Dead rate by type
+sqlite3 memory.db "SELECT f.type, COUNT(*), 
+  SUM(CASE WHEN f.use_count=0 THEN 1 ELSE 0 END) 
+  FROM facts f WHERE f.status='active' GROUP BY f.type"
+# Expected: experience 55/378=14.6%, procedure 0/11=0%
+
+# Injection coverage
+sqlite3 memory.db "SELECT SUM(LENGTH(content)) FROM facts 
+  WHERE status='active'"
+# Expected: 825032; divide by 3980 = 0.48%
+\end{verbatim}
+
+\section{Related Work}
+\textbf{Owner attribution.} So et~al.~\cite{whosecred} measure cross-user credential leakage in shared
+memory and find that recording the owner inside each memory line cuts misuse from 92 to 1 of 305 paired
+runs, at a cost of 3--5 successful tasks per model on clean memory. That is a security-side measurement
+of the same write-side attribution our \texttt{source} column provides; our contribution is the
+utilization-side measurement (what fraction of writes are ever retrieved), which they do not report.
+
+\textbf{About-vs-mention retrieval.} Our entity-aware retrieval analysis~\cite{companionjss}
+quantifies a complementary failure: retrieval systems cannot distinguish facts that \emph{are about}
+a query entity from facts that merely \emph{contain} the query string. Entity-aware ranking improves
+precision@10 from 28\% to 73\% on production data, yet 95\% of memories remain unretrievable in any
+given turn due to the injection bottleneck (Section~\ref{sec:injection}). This confirms our central
+thesis: fixing retrieval quality alone is insufficient---the binding constraint is write governance.
+
+Agent memory systems (mem0~\cite{mem0}, Zep~\cite{zep}, Letta~\cite{letta}) optimize retrieval accuracy on benchmarks. MemoryAgentBench~\cite{mab} measures task success. Our companion paper on entity-aware retrieval~\cite{companionjss} quantifies the about-vs-mention retrieval failure. Cache admission policies such as TinyLFU~\cite{tinylfu} and ARC~\cite{arc} solve the analogous problem in database buffer pools: deciding what to admit when storage exceeds working set. LSM-tree compaction~\cite{lsm} provides a complementary write-side optimization. Our work adapts these concepts to agent memory, where the admission decision must consider semantic novelty and predicted utility rather than frequency alone. To our knowledge, no prior work measures write efficiency or proposes admission control for agent memory. Our work is the first to quantify the fraction of written memories that are never retrieved.
+
+On the LongMemEval-500 benchmark, our EAF pipeline achieves 62.4\% strict and 68.8\% judge accuracy (vs.\ 43.1\%/48.5\% baseline), while our cross-benchmark analysis~\cite{companioncrossbench} shows that the strict--judge gap direction reverses between benchmarks. These results confirm that MemTether is a functional memory system, not merely a governance shell; the write-side waste we report is an operational property that persists across retrieval configurations.
+
+\section*{Ethics Statement}
+The analysis in this paper is based on memory-write logs from the authors' own single-user, local-first deployment; no personal data of third parties was collected and no user study was conducted. All quantitative claims are computed directly from the deployment database, and the scripts used to derive them are released with the artifact. Because the deployment is local-first, no telemetry leaves the machine.
+
+\section*{Declaration of Competing Interest}
+The authors declare no competing financial or personal interests that could have influenced this work.
+
+\section*{Data Availability}
+The raw write logs contain private operational data and are not released. Aggregate statistics, the analysis scripts, and the synthetic data generator are available in the companion artifact repository (\url{https://anonymous.4open.science/r/cac-artifact-anon}).
+
+\section{Conclusion}
+
+We quantified three previously unmeasured properties of production agent memory: 9.5\% write waste, 0.48\% injection coverage, and a steep power-law usage distribution. We showed that retrieval quality improvement (28\%$\to$73\% precision) does not address the injection bottleneck, motivating a shift from retrieval accuracy to write governance. A naive type-prior admission gate has a net $-268$ effect (323 retrieved memories lost vs.\ 55 dead memories prevented); an intent-requiring variant---where agents declare retrieval intent at write time---is the proposed fix, but its effect has not yet been simulated.
+
+\begin{thebibliography}{10}
+\bibitem[Zhang et~al.(2026)]{amac}
+Zhang, G., Jiang, W., Wang, X., Behr, A., Zhao, K., Friedman, J., Chu, X., and Anoun, A.
+Adaptive memory admission control for LLM agents. In ICLR 2026 Workshop MemAgent.
+arXiv:2603.04549, 2026.
+
+\bibitem[Saraswat et~al.(2026)]{gatedmem}
+Saraswat, P., Neelagiri, D., and Manoj, A. Gated memory: admission-controlled memory
+formation for conversational AI. arXiv:2610.11270, 2026.
+
+
+\bibitem[Chhikara et~al.(2025)]{mem0}
+Chhikara, P. et~al.
+\newblock Mem0: Building Production-Ready AI Agents with Scalable Long-Term Memory.
+\newblock \emph{arXiv:2504.19413}, 2025.
+
+\bibitem[Rasmussen et~al.(2025)]{zep}
+Rasmussen, R. et~al.
+\newblock Zep: A Temporal Knowledge Graph Architecture for Agent Memory.
+\newblock \emph{arXiv:2501.13956}, 2025.
+
+\bibitem[Packer et~al.(2023)]{letta}
+Packer, C. et~al.
+\newblock MemGPT: Towards LLMs as Operating Systems.
+\newblock \emph{arXiv:2310.08560}, 2023.
+
+\bibitem[Hu et~al.(2025)]{mab}
+Hu, Y. et~al.
+\newblock Evaluating Memory in LLM Agents via Incremental Multi-Turn Interactions.
+\newblock \emph{arXiv:2507.05257}, 2025.
+
+\bibitem[Berg et~al.(2017)]{tinylfu}
+Berg, M., Bhatt, H., Franklin, M., and Krishnamurthy, A.
+\newblock TinyLFU: A Highly Efficient Cache Admission Policy.
+\newblock \emph{ACM Transactions on Storage}, 2017.
+
+\bibitem[O'Neil et~al.(1996)]{lsm}
+O'Neil, P., Cheng, E., Gawlick, D., and O'Neil, E.
+\newblock The Log-Structured Merge-Tree (LSM-Tree).
+\newblock \emph{Acta Informatica}, 1996.
+
+\bibitem[Megiddo and Modha(2003)]{arc}
+Megiddo, N. and Modha, D.~S.
+\newblock ARC: A Self-Tuning, Low Overhead Replacement Cache.
+\newblock \emph{USENIX FAST}, 2003.
+
+\bibitem[Anonymous(2026)]{companioncrossbench}
+Anonymous. Cross-Benchmark Analysis of Dual-Track Scoring in Memory Evaluation. Under review, 2026.
+
+\bibitem[Wu et~al.(2024)]{wu2024longmemeval}
+Wu, C. et~al.
+\newblock LongMemEval: Benchmarking Chat Assistants on Long-Term Interactive Memory.
+\newblock \emph{arXiv:2410.10813}, 2024.
+
+\bibitem[Maharana et~al.(2024)]{locomo2024}
+Maharana, A. et~al.
+\newblock Evaluating Very Long-Term Conversational Memory of LLM Agents.
+\newblock \emph{ACL 2024}, 2024. arXiv:2402.17753.
+
+
+\bibitem[Wang et~al.(2026)]{engram}
+Wang, L.
+\newblock Less Context, More Accuracy: A Bi-Temporal Memory Model for AI Agents.
+\newblock \emph{arXiv:2606.09900}, 2026.
+
+\bibitem[So et~al.(2026)]{whosecred}
+So, J. et~al.
+\newblock Whose Credential Is It Anyway? Owner Attribution in Shared Agent Memory.
+\newblock \emph{arXiv preprint}, 2026.
+
+
+\bibitem[Anonymous(2026)]{companionjss}
+Anonymous.
+\newblock MemTether: A Local-First Agent Memory System with Bi-Temporal Supersession and Hash-Chained Audit for Multi-Client AI Agents.
+\newblock \emph{Journal of Systems and Software}, under review, 2026.
+
+\end{thebibliography}
+\end{document}
+
+

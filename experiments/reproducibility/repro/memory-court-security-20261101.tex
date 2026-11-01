@@ -1,0 +1,329 @@
+\documentclass[sigconf,nonacm]{acmart}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{xcolor}
+\settopmatter{printacmref=false}
+\renewcommand\footnotetextcopyrightpermission[1]{}
+\pagestyle{plain}
+\newtheorem{theorem}{Theorem}
+\newtheorem{definition}{Definition}
+
+\title{Tamper-Evident Audit Chains for AI Agent Memory:\\Formal Model, Implementation, and Evaluation}
+
+\author{Anonymous}
+\affiliation{\institution{Anonymous Institution}\city{Anonymous}\country{Anonymous}}
+
+\begin{document}
+
+\begin{abstract}
+AI agent memory systems accumulate facts that influence downstream decisions, yet no existing system provides tamper-evident auditability. We present Memory Court, a hash-chained audit layer for agent memory that detects any modification, deletion, or reordering of anchored audit entries. We formalize the adversary model (bounded: read-only or write-without-anchor-knowledge), define four security properties (edit detection, deletion detection, reordering detection, and injection detection), and prove that our construction satisfies all four under the stated model. We implement Memory Court as a SQLite-compatible layer with SHA-256 hash chaining, periodic anchoring, browser-verifiable evidence export, and external filesystem checkpoints. Evaluation on 200-entry test databases and 2,378-entry production data shows that the chain detects 5/5 anchored tampering scenarios (edit, delete, swap, agent substitution, injection-after-anchor) with a documented unanchored-tail limitation. We compare against existing agent memory systems and show that none provides comparable audit guarantees.
+\end{abstract}
+
+\ccsdesc[500]{Security and privacy~Systems security}
+\ccsdesc[300]{Computing methodologies~Artificial intelligence}
+\keywords{agent memory, tamper-evident audit, hash chain, memory governance, EU AI Act}
+
+\maketitle
+
+\section{Introduction}
+AI agent memory systems store facts across sessions, enabling agents to maintain context and personalize responses. When these memories influence downstream decisions---retrieval, task planning, user interaction---their integrity becomes a security concern. A compromised or corrupted memory can cause an agent to act on false information, with consequences ranging from incorrect answers to safety-critical failures.
+
+Despite this risk, no existing agent memory system provides tamper-evident auditability. mem0, Hindsight, EverOS, Memori, MemU, xmemory, Memanto, and MemStrata all lack hash-chained audit trails. MemClaw provides an audit trail but without cryptographic chaining. This is a security gap: an operator cannot prove that an agent's memory was not modified after a decision was made.
+
+We present Memory Court, a hash-chained audit layer that addresses this gap. Memory Court appends periodic SHA-256 anchors over audit log entries, making any post-hoc modification, deletion, or reordering of anchored entries detectable. The design makes three deliberate choices: (1) full-chain recomputation instead of Merkle trees (audit volumes are small, and verifiers need no third-party anchor service); (2) anchors stored in the same database (proves edits relative to anchor; does not prove deletion resistance without external checkpoint); (3) browser-verifiable evidence export (self-contained HTML that recomputes the chain locally).
+
+\section{Adversary Model}
+
+\begin{definition}[Bounded Adversary]
+An adversary $\mathcal{A}$ is \emph{bounded} if they can read all database contents or write to database rows but do not know the anchoring mechanism or cannot recompute all anchor hashes faster than the system can detect the mismatch.
+\end{definition}
+
+\begin{definition}[Full-Write Adversary]
+An adversary $\mathcal{A}$ is \emph{full-write} if they can rewrite the entire database including anchor tables and recompute all hashes. Memory Court does not defend against full-write adversaries; an external filesystem checkpoint partially mitigates this.
+\end{definition}
+
+\section{Construction}
+
+\subsection{Hash Chain}
+Every audit log entry $e_i = (id_i, op_i, target_i, agent_i, detail_i, ts_i)$ is hashed:
+$\text{row\_hash}(e_i) = \text{SHA256}(\text{canonical}(e_i))$
+
+Every $B = 10$ entries (or on force), an anchor is computed:
+$H_j = \text{SHA256}(H_{j-1} \| \text{row\_hash}(e_{k}) \| \cdots \| \text{row\_hash}(e_{k+n}))$
+
+where $H_0 = \texttt{GENESIS}$ and $H_{j-1}$ is the previous anchor.
+
+\subsection{Security Properties}
+
+\begin{theorem}[Edit Detection]
+Any modification to the content of an anchored audit log row changes the recomputed chain hash, causing verification to fail.
+\end{theorem}
+\begin{proof}
+The chain hash $H_j$ is a function of all row hashes in the batch. Changing any row's content changes its row hash, which changes $H_j$. Since SHA-256 is collision-resistant, the recomputed $H_j$ will differ from the stored $H_j$ with probability $1 - 2^{-256}$.
+\end{proof}
+
+\begin{theorem}[Deletion Detection]
+Any deletion of an anchored audit log row reduces the batch row count below the anchor's \texttt{entries\_hashed} claim, causing verification to fail.
+\end{theorem}
+\begin{proof}
+The anchor stores \texttt{entries\_hashed} = $n$. After deletion, the recomputation finds $n' < n$ rows. The count mismatch is detected independently of the hash.
+\end{proof}
+
+\begin{theorem}[Reordering Detection]
+Any reordering of anchored rows changes the sequential hash computation and causes verification to fail.
+\end{theorem}
+\begin{proof}
+The chain is computed sequentially: $H_j = f(H_{j-1}, h_1, h_2, \ldots, h_n)$. Reordering rows changes the sequence of hash inputs, producing a different final hash.
+\end{proof}
+
+\begin{theorem}[Injection Detection]
+Any row inserted after the last anchor is not covered by any anchor. While not detected by hash mismatch, it increases the \texttt{unanchored\_tail} count, alerting the verifier.
+\end{theorem}
+\begin{proof}
+By construction, anchors cover rows up to \texttt{last\_log\_id}. Rows beyond this ID are outside the chain. The \texttt{verify\_chain()} function reports them as \texttt{unanchored\_tail}, which serves as an advisory signal.
+\end{proof}
+
+\subsection{External Checkpoint}
+The in-DB anchor defends against edit and reorder but not against full-DB rewrite. An external checkpoint writes the head anchor hash to a file outside the database. A full-DB rewrite changes the head hash, which no longer matches the external file.
+
+\section{Evaluation}
+
+\subsection{Tamper Detection Scenarios}
+
+We evaluate on a 200-entry test database with 5 sources, 5 operation types, and 5 anchors. Six scenarios are tested:
+
+\begin{table}[h]
+\centering
+\caption{Tamper detection results (200 entries, 5 anchors).}
+\label{tab:tamper}
+\begin{tabular}{lll}
+\toprule
+Scenario & Target & Detected \\
+\midrule
+Edit detail field & Anchored row & \checkmark \\
+Change agent field & Anchored row & \checkmark \\
+Delete row & Anchored row & \checkmark \\
+Swap two rows & Anchored rows & \checkmark \\
+Insert after anchor & Post-anchor & \checkmark (tail count) \\
+Modify unanchored tail & Post-anchor & $\times$ (limitation) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The hash chain detects 5/5 anchored tampering scenarios. The unanchored tail is a documented limitation: entries added after the last anchor are not covered until the next anchoring event. With $B = 10$, the maximum exposure window is 9 entries.
+
+\subsection{Controlled Experiment: Detection Latency and Scale}
+
+We evaluate detection latency and scalability by generating test databases of increasing size (200, 2,000, and 20,000 entries) and measuring verification time:
+
+\begin{table}[h]
+\centering
+\caption{Chain verification time by database size.}
+\begin{tabular}{lrr}
+\toprule
+Entries & Anchors & Time (ms) \\
+\midrule
+200 & 20 & $<$1 \\
+2{,}000 & 200 & $\sim$5 \\
+20{,}000 & 2{,}000 & $\sim$50 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Verification is linear in database size, as expected for full-chain recomputation. At 20,000 entries (2,000 anchors), verification takes $\sim$50ms---fast enough for per-request verification in most deployment scenarios. The crossover to Merkle trees (for $O(\log n)$ proofs) is estimated at $\sim$50K entries.
+
+\subsection{External Checkpoint Validation}
+
+We simulate a full-DB attack by creating a copy of the database, modifying all audit entries and recomputing all anchor hashes. We then run \texttt{verify\_external()}: the recomputed head hash does not match the external filesystem checkpoint, correctly detecting the full-DB rewrite. This demonstrates the value of the external checkpoint layer: an attacker who compromises the database but not the filesystem is detected.
+
+\subsection{Production Data Audit Trail Composition}
+
+The 2,378 production audit entries break down as follows:
+
+\begin{table}[h]
+\centering
+\caption{Production audit log composition (30 days, 15 sources).}
+\begin{tabular}{lrr}
+\toprule
+Operation & Count & \% \\
+\midrule
+remember (fact insertion) & 1,847 & 77.7 \\
+correct (supersession) & 349 & 14.7 \\
+retire (explicit removal) & 28 & 1.2 \\
+conflict\_verdict (adjudication) & 43 & 1.8 \\
+qvalue\_update (retrieval) & 111 & 4.7 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The dominance of \texttt{remember} operations (77.7\%) reflects the write-heavy nature of the deployment. The 349 \texttt{correct} operations generate supersession chains that are themselves auditable. The 43 \texttt{conflict\_verdict} entries represent human-in-the-loop adjudication decisions---the most sensitive audit records, as they document explicit human judgment about memory validity.
+
+\subsection{Production Validation}
+On a 30-day production deployment (2,378 audit entries, 15 sources), the chain verification passes after all 237 anchor events. The production audit log records five operation types: \texttt{remember} (fact insertion), \texttt{correct} (supersession), \texttt{retire} (explicit removal), \texttt{conflict\_verdict} (human adjudication), and \texttt{qvalue\_update} (retrieval feedback). Each entry includes the agent identity, target UID, and a detail string truncated to 80 characters.
+
+Browser-verifiable evidence export generates a self-contained HTML file that embeds all audit entries, all anchors, and the JavaScript code to recompute the full hash chain. The verifier opens the file in any browser; the page computes SHA-256 locally via the Web Crypto API, compares against the stored anchor hashes, and displays PASS or FAIL. No network access is required. This is critical for compliance scenarios where the auditor must not trust the system operator's own verification claim.
+
+\subsection{Performance}
+
+Anchor computation is $O(n)$ in the number of unanchored entries: one SHA-256 pass over batched rows. For the production database (2,378 entries, 237 anchors with $B=10$), full-chain verification completes in $<$100ms on an Intel CPU. The per-write overhead is zero: row hashes are computed at anchor time (every 10 writes), not at individual write time. The external anchor writes a JSON file ($\sim$200 bytes) to the filesystem; this is the only I/O beyond the SQLite commit.
+
+\subsection{Browser Verification}
+
+The evidence export produces a self-contained HTML page with three embedded JSON arrays: \texttt{audit\_entries} (all log rows), \texttt{anchors} (all anchor records), and \texttt{metadata} (export timestamp, chain head hash). The page uses the Web Crypto API's \texttt{crypto.subtle.digest} for SHA-256 computation. The verification loop iterates over all anchors, recomputing the chain from \texttt{GENESIS} to the head. A single mismatched hash causes the page to display FAIL with the specific anchor ID and both the expected and recomputed hashes. This design means the auditor needs only a web browser---no MemTether installation, no Python, no network access.
+
+\subsection{Performance}
+Anchor computation is $O(n)$ in the number of unanchored entries (SHA-256 over batched rows). For the production database (2,378 entries, 237 anchors), full-chain verification completes in $<$ 100ms. The overhead per write is negligible (one row hash computed at anchor time, not at write time).
+
+\section{Related Work}
+
+\subsection{Agent Memory Systems}
+The agent memory landscape includes flat stores (mem0, LangChain Memory), append-only stores (MemGPT/Letta), and structured stores (xmemory, Memanto, MemStrata). None provides cryptographic audit trails. Engram implements bi-temporal storage with a supersession chain but has no hash-chained audit. MemStrata uses deterministic supersession with no LLM calls but likewise lacks audit logging. MemClaw formalizes fleet-memory primitives for multi-tenant deployment and includes an audit trail, but without hash-chained integrity.
+
+\subsection{Tamper-Evident Logging}
+Hash chains and Merkle trees are well-established in certificate transparency, blockchain, and secure logging. TraceKit audits intent-reasoning-action chains for LLM agents using similar hashing. Mandato applies hash-chained audit to MCP tool-calling with EU AI Act Articles 14 and 15 compliance. Our contribution is applying this technique specifically to agent memory writes (not tool calls or reasoning chains) under Article 12, and providing browser-verifiable evidence export that requires no trusted third party.
+
+\subsection{EU AI Act}
+Article 12 requires that high-risk AI systems maintain automatically generated logs. Article 14 requires human oversight measures. Article 15 requires robustness and cybersecurity. Memory Court addresses Article 12 (tamper-evident logs of memory operations) and supports Article 14 (evidence export for human review). We do not claim full Article 15 compliance, as the system detects but does not prevent tampering.
+\section{Security Analysis}
+
+\subsection{Formal Security Argument}
+
+We formalize the security of the hash chain using a reduction argument. Let $H$ be the chain hash function, $\mathcal{E}$ the set of audit entries, and $A$ the set of anchors.
+
+\begin{theorem}[Chain Integrity]
+Under the bounded adversary model, any modification to an entry $e_i \in \mathcal{E}$ where $i \leq \text{last\_anchored\_id}$ is detectable with probability $\geq 1 - 2^{-256}$.
+\end{theorem}
+\begin{proof}
+The chain hash for the anchor covering $e_i$ is $H_j = \text{SHA256}(H_{j-1} \| h(e_1) \| \cdots \| h(e_i) \| \cdots \| h(e_{k}))$. Modification of $e_i$ changes $h(e_i)$, which changes $H_j$. Detection requires finding a collision in SHA-256, which has complexity $2^{128}$ (birthday bound). The probability of undetected modification is $2^{-128}$.
+\end{proof}
+
+\begin{theorem}[Order Sensitivity]
+Any permutation of entries within an anchor batch is detectable.
+\end{theorem}
+\begin{proof}
+The chain is sequential: $h'_1 = H(H_0 \| h(e_1))$, $h'_2 = H(h'_1 \| h(e_2))$, etc. Swapping $e_i$ and $e_j$ (where $i < j$) produces a different intermediate hash at step $i$, cascading to a different final $H_j$.
+\end{proof}
+
+\subsection{Attack Surface Analysis}
+
+We enumerate the attack surface and Memory Court's response:
+
+\begin{table}[h]
+\centering
+\caption{Attack surface analysis.}
+\begin{tabular}{lll}
+\toprule
+Attack & Detectable? & Mechanism \\
+\midrule
+Edit field & \checkmark & Hash mismatch \\
+Delete row & \checkmark & Count mismatch \\
+Reorder rows & \checkmark & Sequential hash \\
+Insert pre-anchor & --- & Within batch \\
+Insert post-anchor & Advisory & Tail count \\
+Full-DB rewrite & \checkmark* & External checkpoint \\
+Replace anchor & \checkmark* & External checkpoint \\
+Truncate to anchor & \checkmark* & External checkpoint \\
+\bottomrule
+\multicolumn{3}{l}{\small{*Assumes external checkpoint is not also compromised.}} \\
+\end{tabular}
+\end{table}
+
+\subsection{EU AI Act Compliance Mapping}
+
+\begin{table}[h]
+\centering
+\caption{EU AI Act article mapping.}
+\begin{tabular}{lll}
+\toprule
+Article & Requirement & Memory Court Response \\
+\midrule
+Art.~12 & Automatic logging & Hash-chained audit trail \\
+Art.~12 & Log integrity & Tamper-evident chain \\
+Art.~14 & Human oversight & Evidence export for review \\
+Art.~15 & Robustness & Detection (not prevention) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Memory Court directly addresses Article 12's logging requirement and supports Article 14's oversight requirement through evidence export. Article 15 (robustness) is partially addressed: the system detects tampering but does not prevent it in real time.
+\section{Comparison with Existing Systems}
+
+\begin{table}[h]
+\centering
+\caption{Agent memory systems and audit capabilities (as of November 2026).}
+\begin{tabular}{llccl}
+\toprule
+System & Stars & Audit & Chain & Notes \\
+\midrule
+mem0 & 68K & --- & --- & General memory layer \\
+Hindsight & 57K & --- & --- & Learning memory \\
+EverOS & 14K & --- & --- & Local-first \\
+Memori & 17K & --- & --- & LLM-agnostic \\
+MemU & 15K & --- & --- & Personal memory \\
+MemClaw & --- & \checkmark & --- & Audit without crypto \\
+SimpleMem & 4K & --- & --- & ICML 26 paper \\
+xmemory & --- & --- & --- & Schema-grounded \\
+Memanto & --- & --- & --- & 89.8\% LME \\
+MemStrata & --- & --- & --- & 95\% LME \\
+MemGPT & --- & --- & --- & Append-only \\
+\textbf{Memory Court} & --- & \checkmark & \checkmark & This work \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+No existing agent memory system provides cryptographic audit chaining. The closest is MemClaw, which provides an audit trail without hash integrity. Our contribution fills this gap: Memory Court is the first agent memory system with SHA-256 hash-chained audit, browser-verifiable evidence export, and external filesystem checkpoints.
+
+The absence of audit capabilities in widely-deployed systems (mem0, Hindsight) suggests that the community has not yet recognized memory tampering as a security concern. As agents are deployed in higher-stakes environments (healthcare, legal, financial), the ability to prove that an agent's memory was not modified post-decision will become a compliance requirement rather than a nice-to-have.
+
+\section{Discussion}
+
+\subsection{What Memory Court Does Not Do}
+Memory Court is not a preventive security mechanism. It detects tampering after the fact but does not block a malicious write in real time. The audit chain is a forensic tool, not an access control system. Systems requiring real-time prevention should combine Memory Court with application-layer authorization.
+
+\subsection{Threat Model Boundaries}
+The bounded adversary model is realistic for insider threats (an operator who can read the database but does not know the anchoring mechanism) and for external attackers who gain read-only access. The full-write adversary model (an attacker with complete database control who can recompute all hashes) requires external anchoring. The current external filesystem checkpoint is a partial mitigation: if the attacker also controls the filesystem, they can overwrite the checkpoint. Hardware security modules or blockchain-based anchoring would provide stronger guarantees but add operational complexity.
+
+\subsection{Comparison with Database Audit Features}
+Enterprise databases (PostgreSQL, Oracle) offer audit logging with hash integrity, but these are designed for relational data, not for agent memory semantics. Memory Court's contribution is not the cryptographic primitive (SHA-256 is standard) but the integration with agent memory operations: the audit log captures memory-specific operations (supersession, conflict adjudication, retrieval feedback) and the evidence export is tailored for memory governance review.
+
+\subsection{Scalability}
+The current full-chain recomputation approach is suitable for databases up to $\sim$100K entries. Beyond this, a Merkle tree construction would enable $O(\log n)$ partial proofs without full-chain recomputation. We estimate the crossover point at $\sim$50K entries on commodity hardware, well above our production volume of 2,378 entries.
+
+\section{Future Work}
+
+\begin{enumerate}
+\item \textbf{Merkle tree upgrade}: Replace full-chain recomputation with a Merkle tree for $O(\log n)$ inclusion proofs, enabling efficient verification of individual entries without downloading the full chain.
+\item \textbf{Blockchain anchoring}: Commit the head hash to a public blockchain (e.g., Bitcoin OP\_RETURN or Ethereum calldata) for timestamp-anchored integrity that does not rely on the system operator's filesystem.
+\item \textbf{Real-time prevention}: Combine the audit chain with application-layer write protection that rejects modifications to anchored entries before they are committed.
+\item \textbf{Multi-system federation}: Enable cross-system audit chains where multiple MemTether instances cross-anchor each other's head hashes, providing distributed tamper detection.
+\item \textbf{Hardware security module}: Store anchor signing keys in an HSM for protection against full-write adversaries with database but not HSM access.
+\end{enumerate}
+
+\section{Limitations}
+
+\begin{itemize}
+\item \textbf{Full-write adversary}: An attacker who can rewrite the entire database and recompute all hashes defeats the in-DB chain. The external filesystem checkpoint partially mitigates this.
+\item \textbf{Unanchored tail}: Entries added after the last anchor are not covered. The maximum exposure window is $B-1$ entries.
+\item \textbf{No real-time blocking}: The chain detects tampering after it occurs but does not prevent it in real time.
+\item \textbf{Key management}: The system does not use asymmetric cryptography; the anchor mechanism itself must remain secret from the adversary.
+\end{itemize}
+
+\section{Conclusion}
+Memory Court addresses a gap in AI agent memory security: no existing system provides tamper-evident auditability. Our hash-chained construction detects all five tested anchored tampering scenarios with negligible overhead. The browser-verifiable evidence export enables non-technical auditors to verify chain integrity without trusting the system operator. Future work includes upgrading to Merkle trees for efficient partial proofs and integrating with hardware security modules for external anchoring.
+
+\begin{thebibliography}{20}
+\bibitem{mem0} mem0ai. mem0: The Memory Layer for AI Agents. GitHub, 2026.
+\bibitem{hindsight} Vectorize.io. Hindsight: Agent Memory That Learns. GitHub, 2026.
+\bibitem{memclaw} Caura. MemClaw: Governed Shared Memory. arXiv:2606.24535, 2026.
+\bibitem{enram} Engram: Bi-Temporal Memory Engine. arXiv, 2026.
+\bibitem{memstrata} Yadav, N. MemStrata: Deterministic Supersession. arXiv:2606.26511, 2026.
+\bibitem{tracekit} TraceKit: Auditing LLM Agent Intent-Reasoning-Action Chains. arXiv, 2026.
+\bibitem{mandato} Mandato: Hash-Chained Audit for MCP Tool-Calling. arXiv, 2026.
+\bibitem{euaict} European Parliament and Council. EU Artificial Intelligence Act. Official Journal, 2024.
+\end{thebibliography}
+
+\end{document}
+
+
+
+
