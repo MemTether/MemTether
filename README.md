@@ -555,6 +555,34 @@ memtether dashboard   # starts server + opens browser
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).
 
+
+## Featured In
+
+- [awesome-mcp-servers](https://github.com/punkpeye/awesome-mcp-servers) (97K★) — pending review
+- [awesome-ai-apps](https://github.com/Arindam200/awesome-ai-apps) (16.6K★) — pending review
+- [awesome-claude-code](https://github.com/hesreallyhim/awesome-claude-code) (57K★) — pending review
+- [awesome-copilot](https://github.com/github/awesome-copilot) (40.6K★) — pending review
+- [Awesome-MCP-ZH](https://github.com/yzfly/Awesome-MCP-ZH) (7.8K★) — ✅ merged
+- [awesome-opensource-ai](https://github.com/alvinreal/awesome-opensource-ai) (5K★) — ✅ merged
+- [Awesome-AITools](https://github.com/ikaijua/Awesome-AITools) (6.3K★) — pending review
+- [Awesome-Memory-for-Agents](https://github.com/TsinghuaC3I/Awesome-Memory-for-Agents) (669★) — pending review
+- [Awesome-AI-Memory](https://github.com/IAAR-Shanghai/Awesome-AI-Memory) (1.3K★) — pending review
+- [awesome-agent-cortex](https://github.com/0xNyk/awesome-agent-cortex) (231★) — pending review
+- [mcp.so](https://mcp.so/server/memtether) — indexed
+- [Glama AI](https://glama.ai/mcp/servers/MemTether/MemTether) — maintenance: A, license: A
+- [MCP Registry](https://registry.modelcontextprotocol.io) — `io.github.lanbass869-cell/memtether`
+- [Smithery](https://smithery.ai) — indexed
+
+## Claude Code Integration
+
+MemTether is discoverable in Claude Code's skill system:
+
+- `CLAUDE.md` — project invariants that Claude Code reads on startup
+- `skills/agent-memory/SKILL.md` — skill definition searchable in Claude Code
+- MCP server with 10 tools for memory operations
+
+## License
+
 ## License
 
 [Apache-2.0](LICENSE)

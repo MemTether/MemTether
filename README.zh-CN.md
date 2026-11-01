@@ -394,6 +394,23 @@ prompt 的 L0 摘要）。与 supermemory 的 `get_profile` / honcho 的
 - [GitHub Discussions](https://github.com/MemTether/MemTether/discussions) — 提问 / 分享用例
 - [CONTRIBUTORS.md](CONTRIBUTORS.md) — 如何贡献
 
+
+## 收录于
+
+- [awesome-mcp-servers](https://github.com/punkpeye/awesome-mcp-servers)（97K★）— 审核中
+- [awesome-claude-code](https://github.com/hesreallyhim/awesome-claude-code)（57K★）— 审核中
+- [awesome-copilot](https://github.com/github/awesome-copilot)（40.6K★）— 审核中
+- [Awesome-MCP-ZH](https://github.com/yzfly/Awesome-MCP-ZH)（7.8K★）— ✅ 已合并
+- [awesome-opensource-ai](https://github.com/alvinreal/awesome-opensource-ai)（5K★）— ✅ 已合并
+- [mcp.so](https://mcp.so/server/memtether) — 已收录
+- [Glama AI](https://glama.ai/mcp/servers/MemTether/MemTether) — maintenance: A
+
+## Claude Code 集成
+
+MemTether 可在 Claude Code 技能系统中被搜索：
+- `CLAUDE.md` — 项目规则
+- `skills/agent-memory/SKILL.md` — 技能定义
+
 ## 许可证
 
 [Apache-2.0](LICENSE)
