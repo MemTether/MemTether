@@ -481,3 +481,55 @@
 - EAF OFF/baseline=62.6% vs EAF A/B OFF=12.9%（49.7pp 矛盾）
 - mem0 matched subset 上 78.5% > MemTether 66.7%（mem0 反超 11.8pt）
 - 这些矛盾在后续版本中被修复/解释
+
+---
+
+## ⚠️ 第六轮补充：9 项从实验脚本中发现的遗漏
+
+### 55. CLI Health Score = 92.7-94.5%
+- 55 个 CLI 入口点，0 CRASH，0 SILENT FAILURE
+- 健康度从 92.7% 提升到 94.5%（修复 dual_repo_guard 后）
+
+### 56. Temporal Leakage Survey: 29 篇论文全部未使用 temporal split
+- ** surveyed all 29 agent memory papers in our bibliography for their evaluation methodology**
+- **None reported using temporal split for supersession/lifecycle prediction tasks**
+- 这是"没有人做 temporal split"的直接证据
+
+### 57. Config Change Sub-Categories
+- **269 config changes = 69.7% of all supersessions**
+- 子分类：file_path 99 / api_key 61 / channel_status 47 / api_endpoint 36 / model_version 15 / port_url 14 / timeout 7
+
+### 58. DistilBERT Macro F1 = 0.947（Supersession Prediction）
+- 这是 CAC/JSS 论文中报告的 DistilBERT supersession prediction F1
+- 注意：distilbert_results.json 里的 0.690 是另一个实验（entity grounding，不是 supersession）
+- F1 = 0.947 是 production data 上的 supersession binary classification
+
+### 59. LoCoMo Token-F1 = 0.523 vs mem0 0.344
+- **+17.9pp token-F1 优势**
+- 这是我们唯一在 LoCoMo 上超过 mem0 的指标
+
+### 60. Temporal-Only Detection (without supersession) = 0.819
+- 只用 temporal 规则（不用 supersession chain）检测矛盾的正确率
+- 说明 temporal 信息本身就有很强的信号
+
+### 61. Supersession Prediction "Limited But Real Signal"
+- F1=0.692 (leak-free) vs majority 0.461 vs leaked 0.930
+- **0.692 > 0.461 说明 write-time prediction 有 limited but real signal**
+- 但 joint MI 0.581/0.601 表明信号很弱
+
+### 62. Temporal Leakage Survey: None Used Temporal Split
+- **Surveyed all 29 agent memory papers in our bibliography**
+- **None reported using temporal split for supersession/lifecycle prediction tasks**
+- 这证明 temporal split 在 agent memory 领域是空白
+- 结合 ClockScore 0.103 的 finding → 该领域确实缺少 temporal validation
+
+### 63. F1=0.977 确认为 FAKE
+- **F1=0.977 (Metadata+Content) 是 LEAKED FEATURE 导致的假结果**
+- n_superseded_by 字段直接编码了 label
+- 修复后 honest F1 = 0.692
+- 这是 data leakage 发现的原始证据
+
+### 64. 100x Leakage Claim 修正为 1.2-1.6x
+- 原始声称 "up to 100x" 膨胀
+- 修正为 "1.2-1.6x"（绝对差 0.133-0.271）
+- 100x 来自 leaked feature（0.930 vs 0.008），不是 honest model 的 temporal gap
