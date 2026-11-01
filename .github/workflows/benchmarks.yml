@@ -1,0 +1,49 @@
+name: Weekly Benchmarks
+
+on:
+  schedule:
+    - cron: '0 6 * * 0'  # Sundays 06:00 UTC
+  workflow_dispatch: {}   # manual trigger
+
+permissions:
+  contents: write
+
+jobs:
+  bench:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install package
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[server]"
+          pip install pytest
+
+      - name: Run latency benchmark
+        run: python benchmarks/bench_latency.py --n 200
+
+      - name: Collect test counts
+        id: tests
+        run: |
+          N=$(python -m pytest tests/ -q --tb=no -p no:cacheprovider 2>/dev/null | tail -1)
+          echo "summary=$N" >> "$GITHUB_OUTPUT"
+
+      - name: Update docs/benchmark data
+        run: python scripts/update_bench_page.py --results /tmp/latency_results.json --tests "${{ steps.tests.outputs.summary }}"
+
+      - name: Commit refreshed page
+        run: |
+          git config user.name "benchmark-bot"
+          git config user.email "benchmark-bot@users.noreply.github.com"
+          git add docs/benchmark.html docs/bench_data_latest.json
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "bench: weekly refresh (latency + tests) [skip ci]"
+            git push
+          fi

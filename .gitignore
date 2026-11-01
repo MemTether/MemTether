@@ -65,6 +65,7 @@ toolbox.json
 # 投影与私有文档
 projections/
 docs/
+!docs/bench_data_latest.json
 
 # 打包产物（构建配置在仓库根 pyproject.toml；产物不入库）
 # ★2026-09-16：原先写的是 `packaging/dist/` —— 那时构建配置错放在 packaging/ 里。
@@ -228,3 +229,4 @@ docs/project_overview_*
 mt_*/
 qvalue_test_*/
 bench_data/lme_chroma/
+
