@@ -396,6 +396,63 @@ Our contribution is not retrieval accuracy but the governance and auditability l
 \subsection{The Architecture-Evaluation Connection}
 Our cross-system comparison reveals that memory architecture and evaluation methodology are not independent choices. A preservation-oriented system produces temporally dependent data where random CV is invalid. A compression-oriented system converges to a fixed-size store where random CV may be valid but information loss is invisible. Researchers choosing a memory architecture are implicitly choosing an evaluation methodology.
 
+
+\section{GovernedMemory Bench}
+\label{sec:bench}
+
+We release GovernedMemory Bench, a benchmark with 8{,}005 tasks across four dimensions of agent memory governance: supersession prediction (2{,}635 tasks, 386 positive), entity grounding (2{,}635 tasks, 1{,}172 positive), retrieval readiness (2{,}635 tasks, 1{,}921 positive), and temporal ordering (100 pairwise tasks). All ground truth is objective, derived from production data. The benchmark includes a temporal train/test split.
+
+\section{Ablation Study}
+\label{sec:ablation}
+
+We evaluate the contribution of each feature group to supersession prediction under random cross-validation:
+
+\begin{table}[h]
+\centering
+\caption{Ablation study: feature group contribution to supersession prediction F1.}
+\begin{tabular}{lrr}
+\toprule
+Configuration & F1 & Drop \\
+\midrule
+Full model (all features) & 0.502 & --- \\
+Without entities & 0.445 & $-0.057$ \\
+Without temporal & 0.425 & $-0.077$ \\
+Without reads & 0.492 & $-0.010$ \\
+Without metadata & 0.514 & $+0.012$ \\
+Without content & 0.510 & $-0.008$ \\
+\midrule
+Only entities & 0.382 & --- \\
+Only temporal & 0.386 & --- \\
+Only reads & 0.366 & --- \\
+Only metadata & 0.420 & --- \\
+Only content & 0.231 & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Entity grounding is the most important feature group ($-0.057$ when removed), followed by temporal features ($-0.077$). Content features contribute almost nothing. No single feature group alone exceeds the full model.
+
+\section{Latency Analysis}
+\label{sec:latency}
+
+\begin{table}[h]
+\centering
+\caption{Latency benchmarks on production database (2{,}635 records).}
+\begin{tabular}{lrr}
+\toprule
+Operation & Mean (ms) & Median (ms) \\
+\midrule
+SQL search (LIKE query) & 5.9 & 5.7 \\
+Write (INSERT) & 1.2 & 0.5 \\
+Supersession (INSERT + UPDATE) & 3.2 & 3.1 \\
+Chain verification (full) & 19.9 & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+All operations complete in $<$ 20ms on commodity hardware. The hash chain verification is linear in database size.
+
+
 \section{Limitations}
 \label{sec:limitations}
 
@@ -761,6 +818,7 @@ L.~Zheng et~al.
 \end{thebibliography}
 
 \end{document}
+
 
 
 
