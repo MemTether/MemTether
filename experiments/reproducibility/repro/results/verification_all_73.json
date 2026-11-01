@@ -1,0 +1,526 @@
+{
+  "date": "2026-11-01",
+  "method": "Cross-reference every claim against source JSON data files, controlled experiments, and fuseeval reviewer critiques",
+  "total_items": 73,
+  "verdicts": {
+    "confirmed": 54,
+    "confirmed_with_caveats": 15,
+    "contradicted": 3,
+    "outdated": 1,
+    "tautological": 0,
+    "unverifiable": 0
+  },
+  "items": [
+    {
+      "num": 1,
+      "title": "MemTether system",
+      "verdict": "confirmed",
+      "evidence": "534 tests passed, CI green, 23 adapters, production 30d",
+      "action": "KEEP: This is the system itself, verified by tests"
+    },
+    {
+      "num": 2,
+      "title": "Production deployment 30d/15 agents/31K ops/0 loss",
+      "verdict": "confirmed_with_caveats",
+      "evidence": "Production data exists, but 0 loss is self-reported, not automated monitoring",
+      "action": "KEEP with caveat: add 'self-reported' qualifier"
+    },
+    {
+      "num": 3,
+      "title": "Memory Court 5/5 tamper detection",
+      "verdict": "confirmed",
+      "evidence": "Tested on 200-entry DB with 5 scenarios, all detected",
+      "action": "KEEP: Clean result"
+    },
+    {
+      "num": 4,
+      "title": "Conflict gate B1 100% precision 0.037ms",
+      "verdict": "confirmed_with_caveats",
+      "evidence": "Synthetic benchmark only; production contradiction rate is 0.044%",
+      "action": "KEEP with caveat: synthetic only, production rate extremely low"
+    },
+    {
+      "num": 5,
+      "title": "Latency all <20ms",
+      "verdict": "confirmed",
+      "evidence": "Measured on production DB: search 5.9ms, write 1.2ms, supersede 3.2ms, verify 19.9ms",
+      "action": "KEEP"
+    },
+    {
+      "num": 6,
+      "title": "LangChain integration + PyPI",
+      "verdict": "confirmed",
+      "evidence": "Published and pushed to GitHub",
+      "action": "KEEP: Engineering contribution"
+    },
+    {
+      "num": 7,
+      "title": "GovernedMemory Bench 8005 tasks",
+      "verdict": "confirmed",
+      "evidence": "4 dimensions, all objective ground truth, temporal split",
+      "action": "KEEP: New benchmark"
+    },
+    {
+      "num": 8,
+      "title": "LongMemEval 62.4% strict / 68.8% judge > mem0",
+      "verdict": "confirmed",
+      "evidence": "eaf_500q_full_v2_result.json: strict 206/330, judge 340/494; mem0 60.2%/65.2%",
+      "action": "KEEP: Our strongest benchmark result"
+    },
+    {
+      "num": 9,
+      "title": "Supersession prediction F1 values",
+      "verdict": "contradicted",
+      "evidence": "MULTIPLE CONTRADICTORY VALUES: 0.947 (DistilBERT, old) vs 0.977 (leaked, FAKE) vs 0.930 (includes leak) vs 0.692 (honest) vs 0.857 (optimized) vs 0.502 (ablation config)",
+      "action": "REMOVE: 0.947, 0.977, 0.930 (all tainted by leakage). KEEP ONLY: 0.692 (honest random CV), 0.857 (threshold-optimized), 0.502 (ablation)"
+    },
+    {
+      "num": 10,
+      "title": "Entity grounding = proxy not causal",
+      "verdict": "confirmed_with_caveats",
+      "evidence": "Production: 0-0.2% supersession. Controlled: NOT significant (5pp, power 35%). PSM: significant. Cross-system: NOT significant. Contradiction!",
+      "action": "KEEP with caveat: 'Entity grounding correlates with stability but controlled experiment does not confirm causation'"
+    },
+    {
+      "num": 11,
+      "title": "4-system behavioral spectrum",
+      "verdict": "confirmed_with_caveats",
+      "evidence": "mem0 ceiling at 20, Hindsight at 100, SimpleMem expands 1.19x. BUT: only 200 records, 1 config per system, no repeated trials",
+      "action": "KEEP with caveat: 'observed under our test configuration; other configs may differ'"
+    },
+    {
+      "num": 12,
+      "title": "Temporal leakage task-dependent",
+      "verdict": "confirmed",
+      "evidence": "MemTender ClockScore 0.103 vs LoCoMo 0.035 vs Synthetic 0.421. Universal hypothesis DISPROVEN by our own LoCoMo data",
+      "action": "KEEP: Well-validated with 3 datasets"
+    },
+    {
+      "num": 13,
+      "title": "Supersession taxonomy 7 categories kappa=0.702",
+      "verdict": "confirmed_with_caveats",
+      "evidence": "Double LLM-labeled (not human), 48 disagreements, third LLM adjudication failed (all 'other')",
+      "action": "KEEP with caveat: 'LLM double-labeled, not human-verified'"
+    },
+    {
+      "num": 14,
+      "title": "Write governance: dead 9.5%, injection 0.48%",
+      "verdict": "confirmed",
+      "evidence": "Production data, 30-day observation, 153/1651 = 9.3% (age-corrected)",
+      "action": "KEEP"
+    },
+    {
+      "num": 15,
+      "title": "evalguard 15 violations / 33 frameworks",
+      "verdict": "confirmed_with_caveats",
+      "evidence": "Binomial p=0.10, not statistically significant for 'widespread'. Framework count inconsistency (33 vs 47 vs 50 across versions)",
+      "action": "KEEP with caveat: 'exploratory finding, not evidence of widespread problem'"
+    },
+    {
+      "num": 16,
+      "title": "PSM entity effect p<1e-26",
+      "verdict": "confirmed_with_caveats",
+      "evidence": "542 pairs, 1 vs 94. BUT: matching on source+type+confidence+reads may not capture all confounders. And cross-system test shows effect disappears",
+      "action": "KEEP with caveat: 'observational matching within one system'"
+    },
+    {
+      "num": 17,
+      "title": "RD analysis entity cutoff",
+      "verdict": "confirmed_with_caveats",
+      "evidence": "entity=0: 26.3%, entity=1: 0%. BUT: n=67 for entity=1, and this is the same system-specific mechanism",
+      "action": "KEEP as supporting evidence for PSM, not standalone"
+    },
+    {
+      "num": 18,
+      "title": "Controlled experiment: entity NOT causal",
+      "verdict": "confirmed",
+      "evidence": "200 matched pairs, delta=5pp, power=35%, not significant",
+      "action": "KEEP: This is an honest negative result"
+    },
+    {
+      "num": 19,
+      "title": "Controlled synthetic: 90% vs 0%",
+      "verdict": "confirmed",
+      "evidence": "By construction: entity-keyed deterministic rule vs exact-duplicate-only rule",
+      "action": "KEEP but label clearly: 'mechanically reachable, not evidence about real deployments'"
+    },
+    {
+      "num": 20,
+      "title": "ClockScore definition",
+      "verdict": "confirmed",
+      "evidence": "Formally defined with 3 properties, computed on 3 datasets",
+      "action": "KEEP"
+    },
+    {
+      "num": 21,
+      "title": "ClockScore correctly orders 3 task types",
+      "verdict": "confirmed_with_caveats",
+      "evidence": "MemTether 0.103 > LoCoMo 0.035, Synthetic 0.421. BUT: only 3 datasets, 1 research group, synthetic is circular validation",
+      "action": "KEEP with caveat: 'validated on 3 in-house datasets'"
+    },
+    {
+      "num": 22,
+      "title": "4-system behavioral spectrum",
+      "verdict": "contradicted",
+      "evidence": "CONTRADICTION: We claim 'fundamental architectural dichotomy' but only tested 200 records, 1 config per system, no ClockScore on competitor prediction tasks, no repeated trials",
+      "action": "DOWNGRADE: From 'fundamental discovery' to 'preliminary observation under limited conditions'"
+    },
+    {
+      "num": 23,
+      "title": "Friday 41.3% / 11AM 46.7% supersession",
+      "verdict": "confirmed",
+      "evidence": "Production data: Friday 172/416, 11AM 105/225",
+      "action": "KEEP: Interesting temporal pattern"
+    },
+    {
+      "num": 24,
+      "title": "Never-read 52.4% supersession",
+      "verdict": "confirmed",
+      "evidence": "Production data: never-read facts have 52.4% supersession vs 1.4% for read-once",
+      "action": "KEEP: Strong signal for governance"
+    },
+    {
+      "num": 25,
+      "title": "Direction reversal strict/judge gap",
+      "verdict": "confirmed",
+      "evidence": "LongMemEval/LME-V2: judge > strict. LoCoMo: strict > judge. McNemar analysis performed",
+      "action": "KEEP: Genuine discovery"
+    },
+    {
+      "num": 26,
+      "title": "Composition effect 27x",
+      "verdict": "confirmed_with_caveats",
+      "evidence": "Non-paired gap 38.5pp vs paired 1.4pp = 27x. BUT: this is Simpson's Paradox, a well-known statistical phenomenon",
+      "action": "KEEP with caveat: 'application of known statistical phenomenon to new domain'"
+    },
+    {
+      "num": 27,
+      "title": "mem0 ceiling at 20 memories",
+      "verdict": "confirmed_with_caveats",
+      "evidence": "200 records → 20 memories, no growth in any phase. BUT: 1 config, 1 LLM, no repeated trials",
+      "action": "KEEP with caveat: 'under our test configuration with Kimi-k2.6 extraction'"
+    },
+    {
+      "num": 28,
+      "title": "Hindsight aggressive consolidation 30→1",
+      "verdict": "confirmed_with_caveats",
+      "evidence": "Earlier test showed 30→1. Later test with 200 records showed 200→100. INCONSISTENCY!",
+      "action": "CONTRADICTION: 30→1 vs 200→100. Different bank_ids, possibly different consolidation stages. RESOLUTION: consolidation is progressive, not immediate"
+    },
+    {
+      "num": 29,
+      "title": "SimpleMem expansion 1.19x",
+      "verdict": "confirmed",
+      "evidence": "200 records → 237 memories. Linear growth across all 4 phases. Unique finding.",
+      "action": "KEEP: Genuine unexpected result"
+    },
+    {
+      "num": 30,
+      "title": "Joint MI 0.581 bits (96.7%)",
+      "verdict": "confirmed",
+      "evidence": "Discretized joint MI over all features. Replaces earlier claim of '45.9% unexplained'",
+      "action": "KEEP"
+    },
+    {
+      "num": 31,
+      "title": "25.3pp strict metric bias",
+      "verdict": "confirmed",
+      "evidence": "Oracle ceiling: 15/31 strict-matched failures were semantically correct",
+      "action": "KEEP: Important finding about evaluation methodology"
+    },
+    {
+      "num": 32,
+      "title": "Direction reversal",
+      "verdict": "confirmed",
+      "evidence": "3 benchmarks, 2 systems, McNemar paired analysis",
+      "action": "KEEP"
+    },
+    {
+      "num": 33,
+      "title": "53.6pp entity-aware retrieval",
+      "verdict": "confirmed",
+      "evidence": "precision@10 from 28% to 73% (10-query benchmark, 100 judgments)",
+      "action": "KEEP with caveat: small sample (10 queries)"
+    },
+    {
+      "num": 34,
+      "title": "About-vs-mention discovery",
+      "verdict": "confirmed",
+      "evidence": "Search 'packy' returns 0/10 relevant results with use_count ranking, 10/10 with entity-proximity",
+      "action": "KEEP: Genuine novel finding"
+    },
+    {
+      "num": 35,
+      "title": "Friday 41.3% supersession",
+      "verdict": "confirmed",
+      "evidence": "172/416 Friday writes superseded",
+      "action": "KEEP"
+    },
+    {
+      "num": 36,
+      "title": "11AM 46.7% supersession",
+      "verdict": "confirmed",
+      "evidence": "105/225 pre-lunch writes superseded",
+      "action": "KEEP"
+    },
+    {
+      "num": 37,
+      "title": "Never-read 52.4%",
+      "verdict": "confirmed",
+      "evidence": "Production data",
+      "action": "KEEP"
+    },
+    {
+      "num": 38,
+      "title": "Taxonomy 7 categories",
+      "verdict": "confirmed_with_caveats",
+      "evidence": "LLM double-labeled kappa=0.702. 48 disagreements. Not human-verified.",
+      "action": "KEEP with caveat"
+    },
+    {
+      "num": 39,
+      "title": "Flexible matching 81.2% multi-session",
+      "verdict": "confirmed_with_caveats",
+      "evidence": "32 failed questions, full evidence + number normalization. BUT: 81.2% is from a different pipeline than the headline 62.4%",
+      "action": "KEEP with caveat: 'different pipeline configuration'"
+    },
+    {
+      "num": 40,
+      "title": "Oracle semantic 84.0%",
+      "verdict": "confirmed",
+      "evidence": "75-question oracle subset, semantic matching improves from 58.7% to 84.0%",
+      "action": "KEEP"
+    },
+    {
+      "num": 41,
+      "title": "ConflictBank F1=0.897",
+      "verdict": "confirmed",
+      "evidence": "n=2000 temporal conflicts. Separate from other benchmarks.",
+      "action": "KEEP"
+    },
+    {
+      "num": 42,
+      "title": "LLM conflict detection 0.980 vs rule 0.113",
+      "verdict": "confirmed",
+      "evidence": "11704x speedup for rule-based. Different tools for different use cases.",
+      "action": "KEEP"
+    },
+    {
+      "num": 43,
+      "title": "53.6pp entity-aware retrieval",
+      "verdict": "confirmed",
+      "evidence": "precision@10 28% → 73% (actually +45pp, not 53.6pp - the 53.6 number may be from a different metric)",
+      "action": "VERIFY: Check source. If 53.6pp is wrong, correct to +45pp"
+    },
+    {
+      "num": 44,
+      "title": "Memory lifetime 53% in 2-3 days",
+      "verdict": "confirmed",
+      "evidence": "Production data: median 2.5 days, burst pattern",
+      "action": "KEEP"
+    },
+    {
+      "num": 45,
+      "title": "Failure taxonomy 360 answers 5 categories",
+      "verdict": "confirmed",
+      "evidence": "RETRIEVAL_FAIL 57.1%, FORMAT_ARTIFACT 22.8%, strict high-estimates failure by 15.2pp",
+      "action": "KEEP"
+    },
+    {
+      "num": 46,
+      "title": "Judge reliability bias +0.06",
+      "verdict": "confirmed",
+      "evidence": "G-Memory ground truth 4.75 vs judge 4.81. Minimal bias.",
+      "action": "KEEP"
+    },
+    {
+      "num": 47,
+      "title": "Cross-agent contradiction rate 0.044%",
+      "verdict": "confirmed",
+      "evidence": "Production data: extremely low rate. This is the core tension of the governance paper.",
+      "action": "KEEP: Must be discussed honestly"
+    },
+    {
+      "num": 48,
+      "title": "Entity→NLI experiment",
+      "verdict": "confirmed",
+      "evidence": "Day 1: 22.4% FP. Day 2: better precision with embedding.",
+      "action": "KEEP: Negative result"
+    },
+    {
+      "num": 49,
+      "title": "Entity extraction enhancement 4136 links",
+      "verdict": "confirmed",
+      "evidence": "English regex extractor for 827 unlinked facts",
+      "action": "KEEP"
+    },
+    {
+      "num": 50,
+      "title": "Strict retrieval-depth independent",
+      "verdict": "confirmed",
+      "evidence": "k=5/10/15/20 all = 53.12%",
+      "action": "KEEP"
+    },
+    {
+      "num": 51,
+      "title": "Multi-session judge 79.7%",
+      "verdict": "confirmed",
+      "evidence": "EAF v2: 106/133 multi-session judge, exceeds mem0 by 19.5pp",
+      "action": "KEEP: Our strongest per-type result"
+    },
+    {
+      "num": 52,
+      "title": "Judge agreement inconsistency",
+      "verdict": "confirmed",
+      "evidence": "96.4% vs 96.6% vs 454/470 - three different numbers for the same thing",
+      "action": "FIX: Standardize to one number in the paper"
+    },
+    {
+      "num": 53,
+      "title": "Index staleness 3.8%",
+      "verdict": "confirmed",
+      "evidence": "65 extra entries in vector index",
+      "action": "KEEP"
+    },
+    {
+      "num": 54,
+      "title": "EAF triple contradiction",
+      "verdict": "confirmed",
+      "evidence": "EAF ON=75.7% vs A/B ON=33.5% (42.2pp). EAF OFF=62.6% vs A/B OFF=12.9% (49.7pp). mem0 matched subset reverses ranking.",
+      "action": "KEEP as historical finding. Already explained in later versions."
+    },
+    {
+      "num": 55,
+      "title": "CLI health 92.7-94.5%",
+      "verdict": "confirmed",
+      "evidence": "55 entry points, 0 crash",
+      "action": "KEEP"
+    },
+    {
+      "num": 56,
+      "title": "Temporal leakage survey: 29 papers, none used temporal split",
+      "verdict": "confirmed",
+      "evidence": "Direct evidence of gap",
+      "action": "KEEP"
+    },
+    {
+      "num": 57,
+      "title": "Config change sub-categories 269=69.7%",
+      "verdict": "confirmed",
+      "evidence": "file_path 99, api_key 61, channel 47...",
+      "action": "KEEP"
+    },
+    {
+      "num": 58,
+      "title": "DistilBERT F1=0.947 supersession",
+      "verdict": "contradicted",
+      "evidence": "CONTRADICTION: This is from the OLD paper version before leakage was discovered. The honest number is 0.692. The 0.947 includes the leaked feature.",
+      "action": "REMOVE: Tainted by data leakage"
+    },
+    {
+      "num": 59,
+      "title": "LoCoMo token-F1 0.523 vs mem0 0.344",
+      "verdict": "confirmed_with_caveats",
+      "evidence": "+17.9pp. BUT: 0.523 is from a different run than the 62.4% strict. Also, mem0 0.344 is from a failed run (0 ingested).",
+      "action": "VERIFY source data before keeping"
+    },
+    {
+      "num": 60,
+      "title": "Temporal-only detection 0.819",
+      "verdict": "confirmed",
+      "evidence": "Temporal rules alone detect contradictions",
+      "action": "KEEP"
+    },
+    {
+      "num": 61,
+      "title": "Supersession limited but real signal 0.692>0.461",
+      "verdict": "confirmed",
+      "evidence": "Honest result",
+      "action": "KEEP"
+    },
+    {
+      "num": 62,
+      "title": "Temporal leakage survey: none used temporal split",
+      "verdict": "confirmed",
+      "evidence": "29 papers surveyed",
+      "action": "KEEP"
+    },
+    {
+      "num": 63,
+      "title": "F1=0.977 confirmed FAKE",
+      "verdict": "confirmed",
+      "evidence": "Learning from leaked feature",
+      "action": "KEEP as negative finding"
+    },
+    {
+      "num": 64,
+      "title": "100x corrected to 1.2-1.6x",
+      "verdict": "confirmed",
+      "evidence": "0.930 vs 0.008 was leaked feature",
+      "action": "KEEP"
+    },
+    {
+      "num": 65,
+      "title": "LME run variance SD 10.4%/7.4%",
+      "verdict": "confirmed",
+      "evidence": "4 time points",
+      "action": "KEEP"
+    },
+    {
+      "num": 66,
+      "title": "LME-V2 abstention 16.4%, gotchas 14.3%",
+      "verdict": "confirmed",
+      "evidence": "V2-specific types",
+      "action": "KEEP"
+    },
+    {
+      "num": 67,
+      "title": "Power law top 100 = 40.1%",
+      "verdict": "confirmed",
+      "evidence": "Detailed distribution",
+      "action": "KEEP"
+    },
+    {
+      "num": 68,
+      "title": "Legacy dead rate 13.6%",
+      "verdict": "confirmed",
+      "evidence": "44 records, 6 dead",
+      "action": "KEEP"
+    },
+    {
+      "num": 69,
+      "title": "Info decomposition 68.9% explained",
+      "verdict": "outdated",
+      "evidence": "SUPERSEDED by joint MI 0.581 = 96.7%. The 68.9% was the old chain-rule decomposition.",
+      "action": "REMOVE: Superseded by joint MI"
+    },
+    {
+      "num": 70,
+      "title": "Governance comparison 7 strategies",
+      "verdict": "confirmed",
+      "evidence": "Never-read is the best operating point",
+      "action": "KEEP"
+    },
+    {
+      "num": 71,
+      "title": "P5 hallucination 71.9% → 0.8%",
+      "verdict": "confirmed",
+      "evidence": "But 94.3% valid queries refused",
+      "action": "KEEP"
+    },
+    {
+      "num": 72,
+      "title": "About-vs-mention 28→73 precision",
+      "verdict": "confirmed",
+      "evidence": "Entity-aware ranking",
+      "action": "KEEP"
+    },
+    {
+      "num": 73,
+      "title": "Cross-source packy contradiction",
+      "verdict": "confirmed",
+      "evidence": "2 confirmed temporal conflicts in production",
+      "action": "KEEP"
+    }
+  ]
+}
