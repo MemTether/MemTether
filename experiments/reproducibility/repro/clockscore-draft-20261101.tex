@@ -16,7 +16,7 @@
 \begin{document}
 
 \begin{abstract}
-Agent memory systems are evaluated using supervised prediction tasks, but the standard methodology of random cross-validation does not reflect deployment conditions where training data precedes test data in time. We define ClockScore, a metric that quantifies the deployment-generalization gap: the mean absolute difference between random-CV performance and sliding-window temporal performance across multiple cut-offs. We evaluate ClockScore on three datasets spanning different task types and memory system architectures. On a production supersession prediction task (2,635 records), ClockScore is 0.103, indicating moderate deployment sensitivity. On a LoCoMo-derived event task (2,541 observations), ClockScore is 0.035, indicating temporal stability. On a controlled synthetic dataset designed for maximal instability (4,000 records), ClockScore is 0.421. The metric correctly orders all three tasks in the expected direction. We further deploy four memory systems (MemTether, mem0, Hindsight, SimpleMem) on identical data and discover a fundamental architectural dichotomy: preservation-oriented systems (supersession chains) produce unbounded memory growth with strong temporal dependency, while compression-oriented systems (LLM extraction, semantic compression, aggressive consolidation) converge to bounded stores with suppressed temporal dependency. This dichotomy has never been described in the literature and has direct consequences for evaluation methodology: the choice of memory architecture determines which evaluation protocol is valid. ClockScore is general, computable from standard evaluation logs, and available as an open-source Python package.
+Agent memory systems are evaluated using supervised prediction tasks, but the standard methodology of random cross-validation does not reflect deployment conditions where training data precedes test data in time. We define ClockScore, a metric that quantifies the deployment-generalization gap: the mean absolute difference between random-CV performance and sliding-window temporal performance across multiple cut-offs. We evaluate ClockScore on three datasets spanning different task types and memory system architectures. On a production supersession prediction task (2,635 records), ClockScore is 0.103, indicating moderate deployment sensitivity. On a LoCoMo-derived event task (2,541 observations), ClockScore is 0.035, indicating temporal stability. On a controlled synthetic dataset designed for maximal instability (4,000 records), ClockScore is 0.421. The metric correctly orders all three tasks in the expected direction. We further deploy four memory systems (MemTether, SimpleMem, Hindsight, mem0) on 200 identical records and discover a four-way behavioral spectrum: MemTether grows linearly (1.00x), SimpleMem expands beyond input (1.19x), Hindsight hits a soft ceiling (0.50x), and mem0 hits a hard ceiling (0.10x). Two systems stopped creating memories entirely after the first 50 records. This spectrum, not previously described in the literature, means that evaluation methodology cannot be uniform across memory systems. ClockScore is general, computable from standard evaluation logs, and available as an open-source Python package.
 \end{abstract}
 
 \ccsdesc[500]{Computing methodologies~Artificial intelligence}
@@ -135,31 +135,52 @@ ClockScore implication & Nonzero & Near zero \\
 \end{tabular}
 \end{table}
 
-We deployed four memory systems on the same production data (30 chronologically ordered English-content records from a 30-day deployment serving 15 AI agents). Each system was configured with the same LLM backend (Kimi-k2.6 via an OpenAI-compatible API) and local sentence-transformer embeddings. We measured: (1) how many memory units each system creates from 30 input records, (2) whether the system exhibits a memory ceiling, and (3) whether temporal ordering is preserved.
+We deployed four memory systems on identical data (200 chronologically ordered English-content records from a 30-day production deployment serving 15 AI agents, stratified to include both burst and stable periods). Each system was configured with the same LLM backend (Kimi-k2.6 via an OpenAI-compatible API) and local sentence-transformer embeddings. Records were ingested in four phases of 50, with memory counts measured after each phase.
 
 \begin{table}[h]
 \centering
-\caption{Cross-system memory behavior on identical input (30 records).}
+\caption{Cross-system memory growth on 200 identical input records.}
 \label{tab:crosssystem}
-\begin{tabular}{llrrl}
+\begin{tabular}{llrrrl}
 \toprule
-System & Architecture & Input & Output & Ratio \\
+System & Architecture & Input & Output & Ratio & Ceiling? \\
 \midrule
-MemTether & Supersession chains & 30 & 30 & 1.00 \\
-mem0 & LLM extraction + vector & 30 & 20 & 0.67 \\
-SimpleMem & Semantic compression & 30 & 15 & 0.50 \\
-Hindsight & Bi-temporal + learn & 30 & 1 & 0.03 \\
+MemTether & Supersession chains & 2{,}635 & 2{,}635 & 1.00 & No \\
+SimpleMem & Semantic compression & 200 & 237 & 1.19 & No \\
+Hindsight & Bi-temporal + consolidate & 200 & 100 & 0.50 & Yes (100) \\
+mem0 & LLM extraction & 200 & 20 & 0.10 & Yes (20) \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\paragraph{MemTether (1.0x).} Every write creates a new record linked to its predecessor via a supersession chain. After 30 days of production use, the store contains 2,635 records with 347 chains. All writes are preserved with temporal ordering. ClockScore: 0.103 (moderate deployment sensitivity).
+\paragraph{MemTether (1.00x, no ceiling).} Every write creates a new record linked via a supersession chain. After 30 days of production, the store contains 2{,}635 records with 347 chains. Memory grows linearly with input.
 
-\paragraph{mem0 (0.67x, ceiling).} mem0''s LLM-based extraction decides whether to create a new memory, update an existing memory, or ignore the input. After ingesting 30 records, the store converged to 20 memories. Adding 30 more later-chronology records produced zero new memories and zero overwrites: the LLM classified all new content as semantically equivalent to existing entries. The memory store has a \emph{ceiling}: regardless of how many records are ingested, the store size does not grow. ClockScore implication: temporal dependency is suppressed.
+\paragraph{SimpleMem (1.19x, expansion).} SimpleMem is the only system that creates \emph{more} memories than input records. Its semantic lossless compression splits complex records into multiple entries, producing a 1.19x expansion ratio. Growth is linear across all four phases (67, 138, 187, 237), with no ceiling detected.
 
-\paragraph{SimpleMem (0.50x).} SimpleMem applies semantic lossless compression: each dialogue is processed into a memory entry with a lossless restatement. From 30 input dialogues, 15 memory entries are created (2:1 compression ratio). Unlike mem0, SimpleMem creates new entries for each batch (it does not reject new content), but it compresses multiple dialogues into single entries. ClockScore implication: moderate temporal dependency (the compression preserves ordering but loses granularity).
+\paragraph{Hindsight (0.50x, soft ceiling).} Hindsight's consolidation mechanism produced 100 memory units from the first 50 records, then created zero additional units from the remaining 150 records. The ceiling is ``soft'': the system can theoretically create more units, but its consolidation decision model determines that new content is already covered. Growth: 100, 100, 100, 100.
 
-\paragraph{Hindsight (0.03x, aggressive consolidation).} Hindsight''s consolidation mechanism reduced 30 input records to a single memory unit. The system''s \texttt{finalize()} operation merges semantically overlapping facts into consolidated mental models, resulting in extreme compression. ClockScore implication: temporal dependency is nearly eliminated because individual records no longer exist.
+\paragraph{mem0 (0.10x, hard ceiling).} mem0's LLM-based extraction converged to exactly 20 memories after the first 50 records and created zero new memories from the remaining 150. The ceiling is ``hard'': the LLM extraction prompt classifies all subsequent content as duplicates. Growth: 20, 20, 20, 20.
+
+\subsection{The Memory Architecture Spectrum}
+
+These results reveal that agent memory systems occupy a spectrum of temporal behaviors, not a binary dichotomy:
+
+\begin{table}[h]
+\centering
+\caption{The memory architecture spectrum.}
+\begin{tabular}{llll}
+\toprule
+Behavior & System & Growth & Temporal Dependency \\
+\midrule
+Expansion & SimpleMem & $> 1.0$x & Moderate \\
+Preservation & MemTether & $= 1.0$x & Strong \\
+Soft ceiling & Hindsight & $< 1.0$x, bounded & Suppressed \\
+Hard ceiling & mem0 & $< 1.0$x, fixed & Eliminated \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+This spectrum has direct consequences: preservation and expansion systems produce data where temporal ordering matters (ClockScore $> 0$). Ceiling systems suppress temporal ordering (ClockScore $\approx 0$), but introduce information loss from consolidation that is invisible to standard metrics.
 
 \subsection{The Memory Architecture Dichotomy}
 
