@@ -226,56 +226,62 @@ Experience-type memories have a 14.6\% dead rate, 1.5$\times$ the system average
 
 
 
+
 \section{Evaluation Methodology}
 \label{sec:evaluation}
 
 \subsection{Cross-Benchmark Direction Reversal}
-We evaluate MemTether and mem0 on three benchmarks (LongMemEval, LoCoMo, LongMemEval-V2) and discover that the direction of the strict--judge gap \emph{reverses} between benchmarks: on LongMemEval and LME-V2, judge scores exceed strict scores; on LoCoMo, strict scores nominally exceed judge scores. We formalize the necessary condition for denominator mismatch ($\alpha < 1$) and demonstrate that while necessary, it is not sufficient for score inflation---the per-type composition of the non-overlapping subset determines whether inflation occurs.
+We evaluate MemTether and mem0 on three benchmarks and discover that the direction of the strict--judge gap \emph{reverses} between benchmarks.
 
-\begin{table}[h]
-\centering
-\caption{Cross-benchmark strict--judge comparison.}
-\begin{tabular}{llrrrrr}
-\toprule
-Benchmark & System & $n_S$ & $n_J$ & Strict & Judge & Gap \\
-\midrule
-LongMemEval & MemTether & 313 & 470 & 43.1 & 48.5 & $-5.4$ \\
-LongMemEval & mem0 & 334 & 397 & 60.2 & 65.2 & $+5.1$ \\
-LoCoMo & MemTether & 82 & 82 & 13.4 & 8.5 & $+4.9$ \\
-LME-V2 & MemTether & 295 & 451 & 58.3 & 61.6 & $-3.3$ \\
-\bottomrule
-\end{tabular}
-\end{table}
+\section{Methodology}
+\subsection{Paired Per-Question Analysis}
+For each question where both strict and judge scores are available, we construct a 2$\times$2 contingency table and compute the exact McNemar test. The paired gap is $(b - c)/n$, where $b$ = strict-correct-only and $c$ = judge-correct-only. This eliminates denominator mismatch by construction.
+
+\subsection{Strict Applicability Rate}
+We define $\alpha = n_{\text{strict}}/N$ as the fraction of questions where strict scoring is applicable. When $\alpha < 1$, denominators differ.
+
+\subsection{Systems}
+\textbf{MemTether}: A cross-client memory sharing system with hybrid search (vector + keyword + cross-encoder rerank), bi-temporal model, and supersession chains. Uses bge-m3 (int8) for embeddings.
+\textbf{mem0}: A hosted memory platform with LLM-based fact extraction and retrieval.
+
+
+
+\subsection{Experimental Setup}
+All experiments use a single local machine (Intel CPU, 32GB RAM, no GPU) with bge-m3 (int8 quantization) for embeddings. Strict matching uses content-word AND matching on generated answers (words $\geq$3 characters, stopwords excluded), with prose-type golds ($>$120 characters or $\geq$2 sentence-ending punctuation) excluded from strict scoring. Judge scoring uses a single LLM per benchmark: DeepSeek-V4-Flash for LongMemEval and mem0, and glm-4-flash for LoCoMo and LME-V2. The judge evaluates semantic correctness of the generated answer against the gold answer on a 0/1 scale. mem0 (v2.0.20) uses its default LLM-based fact extraction pipeline with the same judge model. Bootstrap confidence intervals use 10{,}000 resamples with seed 42. McNemar tests use exact binomial computation.
+
+
+
+Query latency for MemTether averages 2{,}386ms with cross-encoder reranking (2{,}287ms rerank overhead) and 99ms without reranking, measured over 20 queries on the production system.\subsection{The Denominator Mismatch Condition}
+\subsection{The Denominator Mismatch Condition}
+\begin{proposition}[Strict Applicability and Denominator Gap]
+\label{prop:strictgap}
+Let $N$ be the total number of questions and $n_S$ the number where strict scoring is applicable. The strict applicability rate is $\alpha = n_S / N$. When $\alpha < 1$, the non-paired strict score $S = s/n_S$ and judge score $J = j/N$ are computed on different question sets. The difference $S - J$ conflates two effects: (1) the metric difference (strict vs.\ judge scoring criteria) and (2) the question-set difference (the $N - n_S$ questions excluded from strict). Only paired analysis on $S \cap J$ isolates effect (1).
+\end{proposition}
+When $\alpha < 1$, the strict score is computed on a strict subset $S \subsetneq Q$ of the question set $Q$. The non-paired comparison $S - J$ where $J = j/|Q|$ and $S = s/|S|$ conflates the per-question metric difference
 
 \subsection{ClockScore}
 
 \begin{definition}[ClockScore]
 ClockScore$(\mathcal{D}) = \frac{1}{W} \sum_{w=1}^{W} |M_{\text{random}} - M_{\text{temporal}}(w)|$
-where $M_{\text{random}}$ is the metric under random cross-validation and $M_{\text{temporal}}(w)$ is the metric under the $w$-th temporal window.
 \end{definition}
 
-ClockScore quantifies the deployment-generalization gap: higher values indicate that random-CV estimates are unreliable for deployment predictions.
-
-\subsection{Cross-System Behavioral Spectrum}
-
-We deploy four memory systems on 200 identical records (stratified from the production dataset):
+ClockScore quantifies the deployment-generalization gap.
 
 \begin{table}[h]
 \centering
-\caption{Cross-system memory growth on 200 identical records.}
-\begin{tabular}{llrrrl}
+\caption{ClockScore across three datasets.}
+\begin{tabular}{lrrl}
 \toprule
-System & Architecture & Input & Output & Ratio & Ceiling \\
+Dataset & Records & ClockScore & Task Type \\
 \midrule
-MemTether & Supersession chains & 200 & 200 & 1.00 & No \\
-SimpleMem & Semantic compression & 200 & 237 & 1.19 & No \\
-Hindsight & Bi-temporal + learn & 200 & 100 & 0.50 & Yes (100) \\
-mem0 & LLM extraction & 200 & 20 & 0.10 & Yes (20) \\
+MemTether & 2{,}635 & 0.103 & Event-dependent \\
+LoCoMo Event & 2{,}541 & 0.035 & Content-determined \\
+Controlled Synth. & 4{,}000 & 0.421 & Designed unstable \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-The four systems occupy a spectrum from expansion (SimpleMem, 1.19x) through preservation (MemTether, 1.00x) to soft ceiling (Hindsight, 0.50x) and hard ceiling (mem0, 0.10x). Both ceiling systems stopped creating memories entirely after the first 50 records. This spectrum means evaluation methodology cannot be uniform across memory systems.
+
 
 
 \section{Benchmark Results}
@@ -310,28 +316,60 @@ On LongMemEval-500, MemTether's EAF pipeline achieves 62.4\% strict (206/330) an
 On LoCoMo (conv0 subset, 82 QA pairs): 13.4\% strict, 8.5\% judge. On LongMemEval-V2: 58.3\% strict, 61.6\% judge. Our cross-benchmark analysis shows that the strict--judge gap direction \emph{reverses} between benchmarks: judge scores exceed strict on LongMemEval and LME-V2 (negative gap = J$>), while on LoCoMo strict exceeds judge (positive gap = S$>). This reversal is driven by the interaction between strict matching applicability and per-type performance heterogeneity.
 
 We recommend paired per-question McNemar analysis as the default protocol for any benchmark reporting dual-track scores.
+
 \section{Causal Analysis}
 \label{sec:causal}
 
-\subsection{Entity Grounding}
-Entity-anchored facts are superseded at near-zero rates across all memory types ($\chi^2 = 358.1$, $p < 0.001$). A propensity-score match yields 542 pairs: 1 treated supersession vs.\ 94 control supersessions (McNemar $p < 10^{-26}$). A controlled experiment with 200 matched pairs shows the effect is not causal ($\Delta = 5.0$pp, power 35\%), indicating that entity grounding is a proxy for stability, not a causal mechanism.
+\subsection{Entity Grounding and Memory Stability}
+\label{sec:entity}
 
-\subsection{Controlled Synthetic Experiment}
-We generate 4,000 synthetic records (2,000 entity-keyed, 2,000 entity-free) with identical metadata distributions. Under entity-keyed deterministic rules, 90\% of entity-anchored records are superseded vs.\ 0\% for entity-free records, demonstrating that the observed gap is mechanically reachable from the coordination mechanism.
+Entity-anchored facts are superseded at near-zero rates across all memory types, while entity-free facts are superseded at elevated rates.
+
+\begin{table}[h]
+\centering
+\caption{Supersession rate by memory type and entity presence.}
+\begin{tabular}{lrrrr}
+\toprule
+Type & No Ent \% & With Ent \% & Chi-sq & p \\
+\midrule
+Procedure & 99.2 & 0.0 & 116.3 & <0.001 \\
+Experience & 58.2 & 0.0 & 227.7 & <0.001 \\
+Incident & 26.9 & 0.0 & 36.5 & <0.001 \\
+Fact & 17.8 & 0.2 & 108.1 & <0.001 \\
+Decision & 11.3 & 0.0 & 16.4 & <0.001 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The within-type tests are significant, but the large chi-square statistics partly reflect the sample sizes and near-zero cell counts for grounded records; we interpret the direction and stratified consistency, not the p-values alone. The odds ratio is 0.002: entity-anchored facts are much less likely to be superseded. This effect is not driven by a confound with memory type, as it holds within every type. However, cross-system validation using MemStrata rules shows that this effect does not generalize beyond entity-keyed supersession mechanisms. Within MemTether, the mechanism is structural: entity-keyed records can be deterministically matched for supersession, while entity-free records lack this coordination point. The coordination point is analogous to a primary key in databases: keyed records have unambiguous identity and can be updated deterministically; non-keyed records allow duplicates. When a new fact targets the same entity, the system detects the match and applies supersession. Entity-free facts lack this key, so new facts do not explicitly target them and semantic overlap goes undetected.
+
+\subsection{Per-Agent Analysis}
+\label{sec:per-agent}
+
+Codex writes 1.6x more volatile facts than WorkBuddy (17.0\% vs. 10.9\%). The mechanism is entity grounding: Codex facts average 3.6 entities per fact (24.6\% with entities), while WorkBuddy facts average 14.0 entities (74.0\% with entities). Both agents produce facts with similar confidence scores and quality values. A 500-record stratified audit against deterministic pattern-based entity labels gives proxy precision 0.777 and recall 0.516 for the system entity count. These are not human-verified gold labels, but they show that the pipeline misses a substantial fraction of pattern-like entities; lower coverage is therefore an operational observation with measured, not merely assumed, incompleteness.
+
+Improving entity extraction for Codex-style agents would reduce the supersession rate without restricting writes. Specifically, the NER pipeline should be extended to recognize technical entities (file paths, API endpoints, configuration parameters) that are currently missed in Codex-generated content. This intervention is directly actionable: it requires modifying the NER pipeline, not restricting agent behavior. The expected effect is a reduction in the supersession rate from 17.0% to approximately 11% (matching WorkBuddy), based on the assumption that entity grounding is the primary driver of the difference.
+
+The per-type evidence identifies where the extraction repair should start. Procedures written by Codex have a 7.8\% entity-grounding rate but a 92.2\% supersession rate, whereas the ten procedures that do acquire an entity reference have no observed supersession. By contrast, configuration-related records are grounded 71.5\% of the time and are superseded only 12.4\% of the time. Thus the instability is not a generic Codex artifact. It concentrates in procedure-like records whose natural-language text names commands or file locations without emitting a machine-comparable key. Pattern-based recognition of shell commands, relative and absolute paths, service names, and registry or configuration keys would target exactly this residue. Because this is a stratified observational result, the estimate is directional rather than causal; a before--after d
+
+A propensity-score match on source, type, confidence bucket, and read-count bucket yields 542 pairs: one treated (entity-grounded) supersession versus 94 control supersessions (McNemar $p<10^{-26}$). A discontinuity check at the entity cutoff shows 26.3\% supersession for entity-free records and 0\% for exactly one entity. These analyses still rely on observational matching and the system-specific supersession rule, so they support a strong implementation association rather than a universal causal law. 
 
 \section{Production Deployment}
 \label{sec:production}
 
 The system has been running continuously since September 13, 2026. During the 30-day evaluation: 15 agents wrote 2{,}635 facts through 22 adapters. Zero data loss. 347 supersession chains maintained causal ordering. 100\% source attribution accuracy. The hash chain detected all tampering scenarios with 2{,}378 audit entries and 237 anchors.
 
+
 \section{Related Work}
 \label{sec:related}
 
-\textbf{Agent memory systems.} mem0 provides production-ready memory with scalable storage. Zep tracks superseded facts with bi-temporal knowledge graphs. MemGPT pages context across hierarchical memory tiers. Engram implements bi-temporal storage with supersession chain. MemStrata uses deterministic supersession. Hindsight focuses on learning over time. SimpleMem applies semantic lossless compression. CALM decouples lifecycle preservation from query-time admission.
+\textbf{Agent memory systems.} mem0 provides production-ready memory with scalable storage and 68K GitHub stars. Hindsight focuses on learning over time with semantic compression. Zep implements a temporal knowledge graph. MemGPT pages context across hierarchical memory tiers. Engram implements bi-temporal storage with a supersession chain. MemStrata uses deterministic supersession with no LLM calls. SimpleMem applies semantic lossless compression. CALM decouples lifecycle preservation from query-time admission. MemClaw formalizes fleet-memory primitives for multi-tenant deployment. xmemory achieves 97.1% F1 on end-to-end memory benchmarks. Memanto achieves 89.8% on LongMemEval with typed semantic memory.
 
-\textbf{Tamper-evident logging.} TraceKit audits intent-reasoning-action chains. Mandato applies hash-chained audit to MCP tool-calling. Our work applies hash-chain auditing to memory writes specifically.
+\textbf{Tamper-evident logging.} TraceKit audits intent-reasoning-action chains. Mandato applies hash-chained audit to MCP tool-calling. Proof-of-Execution Memory defends against forged-reasoning attacks. MemMark uses watermarking for state-evolution attribution. Our work applies hash-chain auditing specifically to memory writes.
 
-\textbf{Evaluation methodology.} LongMemEval established the dominant benchmark. Tashman established rolling-origin evaluation. Bergmeir and Benítez analyzed cross-validation for time series. Kaufman et al.\ formalized data leakage. Kapoor and Narayanan documented the reproducibility crisis.
+\textbf{Evaluation methodology.} LongMemEval established the dominant benchmark with 500 questions across five dimensions. Tashman established rolling-origin evaluation for forecasting. Bergmeir and Benitez analyzed cross-validation for time series. Kaufman et al. formalized data leakage. Kapoor and Narayanan documented the reproducibility crisis. Gama et al. surveyed concept drift adaptation. MemoryAgentBench measures task success. Our work contributes ClockScore for deployment-aligned evaluation and discovers cross-benchmark direction reversal.
+
+\textbf{Write governance.} Cache admission policies (TinyLFU, ARC) solve the analogous problem in database buffer pools. LSM-tree compaction provides write-side optimization. Our work adapts these concepts to agent memory where admission must consider semantic novelty and predicted utility.
 
 \section{Limitations}
 \label{sec:limitations}
