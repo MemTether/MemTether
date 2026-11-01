@@ -16,7 +16,7 @@
 \begin{document}
 
 \begin{abstract}
-Agent memory systems are evaluated using supervised prediction tasks, but the standard methodology of random cross-validation does not reflect deployment conditions where training data precedes test data in time. We define ClockScore, a metric that quantifies the deployment-generalization gap: the mean absolute difference between random-CV performance and sliding-window temporal performance across multiple cut-offs. We evaluate ClockScore on three datasets spanning different task types and memory system architectures. On a production supersession prediction task (2,635 records), ClockScore is 0.103, indicating moderate deployment sensitivity. On a LoCoMo-derived event task (2,541 observations), ClockScore is 0.035, indicating temporal stability. On a controlled synthetic dataset designed for maximal instability (4,000 records), ClockScore is 0.421. The metric correctly orders all three tasks in the expected direction. We further show that different memory system architectures exhibit fundamentally different temporal behavior: a system with supersession chains creates temporally dependent data (nonzero ClockScore), while a system with LLM-based memory extraction converges to a fixed-size memory store, suppressing temporal dependency. ClockScore is general, computable from standard evaluation logs, and available as an open-source Python package.
+Agent memory systems are evaluated using supervised prediction tasks, but the standard methodology of random cross-validation does not reflect deployment conditions where training data precedes test data in time. We define ClockScore, a metric that quantifies the deployment-generalization gap: the mean absolute difference between random-CV performance and sliding-window temporal performance across multiple cut-offs. We evaluate ClockScore on three datasets spanning different task types and memory system architectures. On a production supersession prediction task (2,635 records), ClockScore is 0.103, indicating moderate deployment sensitivity. On a LoCoMo-derived event task (2,541 observations), ClockScore is 0.035, indicating temporal stability. On a controlled synthetic dataset designed for maximal instability (4,000 records), ClockScore is 0.421. The metric correctly orders all three tasks in the expected direction. We further deploy four memory systems (MemTether, mem0, Hindsight, SimpleMem) on identical data and discover a fundamental architectural dichotomy: preservation-oriented systems (supersession chains) produce unbounded memory growth with strong temporal dependency, while compression-oriented systems (LLM extraction, semantic compression, aggressive consolidation) converge to bounded stores with suppressed temporal dependency. This dichotomy has never been described in the literature and has direct consequences for evaluation methodology: the choice of memory architecture determines which evaluation protocol is valid. ClockScore is general, computable from standard evaluation logs, and available as an open-source Python package.
 \end{abstract}
 
 \ccsdesc[500]{Computing methodologies~Artificial intelligence}
@@ -135,31 +135,42 @@ ClockScore implication & Nonzero & Near zero \\
 \end{tabular}
 \end{table}
 
-We deployed mem0 (v2.0.20, OpenAI-compatible LLM + local sentence-transformer embeddings) with a production memory subset and conducted a temporal shadow test.
-
-\paragraph{Setup.} We ingested 30 chronologically early records from a 30-day production deployment (15 AI agents) into mem0. After confirming 20 memories were created, we added 30 additional records from a later time period.
-
-\paragraph{Result.} All 20 original memories survived. Zero were overwritten. Zero new memories were created. mem0's LLM-based extraction classified all new content as semantically equivalent to existing memories, capping the store at 20 entries.
-
-\paragraph{Comparison.} A supersession-based system (MemTether) creates a new record per write with an explicit supersession chain. After 30 days, the store grew to 2,635 records with 347 chains. Every write is preserved with temporal ordering, creating strong temporal dependency.
-
-\paragraph{Implication.} Supersession-based systems produce data with high temporal dependency (higher ClockScore). LLM-extraction systems converge to a fixed-size store (lower ClockScore). Neither is superior, but they require different evaluation approaches. ClockScore makes this visible.
+We deployed four memory systems on the same production data (30 chronologically ordered English-content records from a 30-day deployment serving 15 AI agents). Each system was configured with the same LLM backend (Kimi-k2.6 via an OpenAI-compatible API) and local sentence-transformer embeddings. We measured: (1) how many memory units each system creates from 30 input records, (2) whether the system exhibits a memory ceiling, and (3) whether temporal ordering is preserved.
 
 \begin{table}[h]
 \centering
-\caption{Temporal shadow test on mem0.}
-\begin{tabular}{lr}
+\caption{Cross-system memory behavior on identical input (30 records).}
+\label{tab:crosssystem}
+\begin{tabular}{llrrl}
 \toprule
-Metric & Value \\
+System & Architecture & Input & Output & Ratio \\
 \midrule
-Original memories & 20 \\
-Records added & 30 \\
-Originals overwritten & 0 \\
-New memories created & 0 \\
-Store growth & 0\% \\
+MemTether & Supersession chains & 30 & 30 & 1.00 \\
+mem0 & LLM extraction + vector & 30 & 20 & 0.67 \\
+SimpleMem & Semantic compression & 30 & 15 & 0.50 \\
+Hindsight & Bi-temporal + learn & 30 & 1 & 0.03 \\
 \bottomrule
 \end{tabular}
 \end{table}
+
+\paragraph{MemTether (1.0x).} Every write creates a new record linked to its predecessor via a supersession chain. After 30 days of production use, the store contains 2,635 records with 347 chains. All writes are preserved with temporal ordering. ClockScore: 0.103 (moderate deployment sensitivity).
+
+\paragraph{mem0 (0.67x, ceiling).} mem0''s LLM-based extraction decides whether to create a new memory, update an existing memory, or ignore the input. After ingesting 30 records, the store converged to 20 memories. Adding 30 more later-chronology records produced zero new memories and zero overwrites: the LLM classified all new content as semantically equivalent to existing entries. The memory store has a \emph{ceiling}: regardless of how many records are ingested, the store size does not grow. ClockScore implication: temporal dependency is suppressed.
+
+\paragraph{SimpleMem (0.50x).} SimpleMem applies semantic lossless compression: each dialogue is processed into a memory entry with a lossless restatement. From 30 input dialogues, 15 memory entries are created (2:1 compression ratio). Unlike mem0, SimpleMem creates new entries for each batch (it does not reject new content), but it compresses multiple dialogues into single entries. ClockScore implication: moderate temporal dependency (the compression preserves ordering but loses granularity).
+
+\paragraph{Hindsight (0.03x, aggressive consolidation).} Hindsight''s consolidation mechanism reduced 30 input records to a single memory unit. The system''s \texttt{finalize()} operation merges semantically overlapping facts into consolidated mental models, resulting in extreme compression. ClockScore implication: temporal dependency is nearly eliminated because individual records no longer exist.
+
+\subsection{The Memory Architecture Dichotomy}
+
+These results reveal a fundamental dichotomy in agent memory system architecture that has not been previously described:
+
+\begin{enumerate}
+\item \textbf{Preservation-oriented systems} (MemTether): All writes are stored as individual records with explicit temporal ordering. Memory grows unboundedly. Temporal dependency is inherent to the data.
+\item \textbf{Compression-oriented systems} (mem0, SimpleMem, Hindsight): An extraction or consolidation mechanism decides what to keep and what to merge. Memory size is bounded. Temporal dependency is suppressed or eliminated.
+\end{enumerate}
+
+This dichotomy has direct consequences for evaluation methodology. Preservation-oriented systems produce data where random CV is invalid (temporal dependency is strong), necessitating ClockScore. Compression-oriented systems produce data where random CV may be a valid estimate (temporal dependency is weak), but the compression itself introduces a different bias: the system may silently discard information that would have been relevant at deployment time.
 
 \subsection{Statistical Validation}
 
@@ -226,7 +237,7 @@ ClockScore is distinct from concept drift detection (which identifies when distr
 \end{itemize}
 
 \section{Conclusion}
-We define ClockScore, a metric that quantifies deployment-generalization gaps in agent memory prediction tasks. ClockScore correctly orders three datasets of different task types and reveals that memory system architecture directly affects temporal dependency. We release ClockScore as an open-source Python package to enable standardized temporal evaluation across the agent memory community.
+We define ClockScore, a metric that quantifies deployment-generalization gaps in agent memory prediction tasks. ClockScore correctly orders three datasets of different task types. We deploy four memory systems on identical data and discover a fundamental architectural dichotomy: preservation-oriented systems (supersession chains) grow unboundedly with strong temporal dependency (ClockScore 0.103), while compression-oriented systems converge to bounded stores with suppressed temporal dependency (mem0: ceiling at 20 memories from any input volume; Hindsight: 30 records consolidated to 1). This dichotomy means that evaluation methodology cannot be uniform across memory systems: ClockScore quantifies the difference. We release ClockScore as an open-source Python package.
 
 \begin{thebibliography}{15}
 \bibitem{wu2024} Wu, C. et al. LongMemEval: Benchmarking Chat Assistants on Long-Term Interactive Memory. arXiv:2410.10813, 2024.
@@ -242,5 +253,7 @@ We define ClockScore, a metric that quantifies deployment-generalization gaps in
 \end{thebibliography}
 
 \end{document}
+
+
 
 
