@@ -148,6 +148,8 @@ Install from PyPI for a validated build:
 
 ## Documentation
 
+- [**REPRODUCING.md**](REPRODUCING.md) - Paper numbers to commands: every headline number in the paper maps to an artifact or command here
+
 Under the hood: **supersession chains** (corrections never delete),
 **bi-temporal timestamps** (when facts were true vs when the system
 learned them), **human-adjudicated conflict resolution**, and a
