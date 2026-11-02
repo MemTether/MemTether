@@ -14,6 +14,8 @@ COPY clients/ clients/
 COPY scripts/ scripts/
 COPY integrations/ integrations/
 COPY memtether_assets/ memtether_assets/
+COPY skills/ skills/
+COPY viewer.html viewer.html
 
 # Install the package
 RUN pip install --no-cache-dir .
