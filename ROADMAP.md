@@ -47,6 +47,14 @@ planned, in progress, and deliberately out of scope.
 
 ## Mid-term
 
+- [ ] **Read-side audit log** (inspired by brain0's DLP read audit; relevant to
+      EU AI Act record-keeping which covers reads as well as writes). Our
+      `audit_log` records the write/correct/retire chain; who *read* which fact
+      and when is currently untracked. Schema-level addition: a `read_log` table
+      fed by the REST/MCP search paths, with the same hash-chain anchoring. Must
+      be opt-in — read-logging changes the privacy tradeoff for local users.
+
+
 - [ ] Required-and-registered `source` at write time. The junk gate's reliable
       signal is the source blacklist, but a blank source with bare "probe"
       wording is still undetectable without re-introducing false hits

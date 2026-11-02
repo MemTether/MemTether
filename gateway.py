@@ -641,6 +641,23 @@ def remember(content, type='fact', source=DEFAULT_SOURCE, scope='shared', subjec
             conn.commit()
             return {'ok': True, 'uid': existing['uid'], 'op': 'noop_dup'}
 
+        # W1.6-5 (2026-11-02): cross-source feedback-loop gate.
+        # A memory recalled by one agent and re-ingested under a DIFFERENT
+        # source must not create a second active row (memoripy calls this
+        # "refusing to re-ingest retrieved memory as fresh evidence").
+        # Exact content match across sources → attribute to the ORIGINAL
+        # row, note the echo, do not insert.
+        echo = conn.execute(
+            "SELECT uid, source FROM facts WHERE status='active' AND content=? AND source<>? LIMIT 1",
+            (content, source)).fetchone()
+        if echo:
+            conn.execute("UPDATE facts SET updated_at=? WHERE uid=?", (now(), echo['uid']))
+            audit(conn, 'remember_echo', echo['uid'], source,
+                  'cross-source echo of %s' % echo['source'])
+            conn.commit()
+            return {'ok': True, 'uid': echo['uid'], 'op': 'noop_echo',
+                    'original_source': echo['source']}
+
         # 近义去重（2026-09-13）：向量相似度 + 文本相似度双确认，视为同一事实
         try:
             sys.path.insert(0, HUB)

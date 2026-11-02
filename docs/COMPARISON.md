@@ -4,18 +4,18 @@
 
 ## Quick Comparison
 
-| Feature | MemTether | mem0 | Hindsight | EverOS | Cognee | Engram |
+| Feature | MemTether | mem0 | Hindsight | EverOS | Cognee | Engram | Caura | LongMemory |
 |---|---|---|---|---|---|---|
-| Audit hash chain (tamper-evident) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Bi-temporal supersession | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Conflict gate (human adjudication) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Source attribution (mandatory) | ✅ | ⚠️ optional | ❌ | ❌ | ❌ | ❌ |
-| Memory Court (visual audit) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Cross-client file-level pointers | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Q-value usage ranking | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Local SQLite (no cloud) | ✅ | ⚠️ | ⚠️ | ✅ | ❌ | ⚠️ |
-| Zero API keys | ✅ | ❌ | ⚠️ | ✅ | ❌ | ✅ |
-| MCP server | ✅ (10 tools) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Audit hash chain (tamper-evident) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ⚠️ broker-side log | ❌ |
+| Bi-temporal supersession | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ⚠️ temporal truth |
+| Conflict gate (human adjudication) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Source attribution (mandatory) | ✅ | ⚠️ optional | ❌ | ❌ | ❌ | ❌ | ⚠️ broker namespace | ⚠️ runtime identity |
+| Memory Court (visual audit) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Cross-client file-level pointers | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Q-value usage ranking | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Local SQLite (no cloud) | ✅ | ⚠️ | ⚠️ | ✅ | ❌ | ⚠️ | ⚠️ core-api | ✅ sqlite |
+| Zero API keys | ✅ | ❌ | ⚠️ | ✅ | ❌ | ✅ | ⚠️ standalone mode | ✅ |
+| MCP server | ✅ (10 tools) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ (13 tools) |
 
 ## Why Audit Matters
 
@@ -105,6 +105,24 @@ memory = {}
 import memtether
 memtether.remember("fact", source="my-agent")
 ```
+
+
+## Governance has (at least) two routes
+
+As of 2026-11-02, "governed memory" is claimed by three different
+architectures. We describe them neutrally — each solves a real problem:
+
+| Route | Example systems | What "governance" means there | What it does not include |
+|---|---|---|---|
+| **Organizational governance** | [Caura](https://github.com/caura-ai/caura) (544★, eToro production) | Fleet trust tiers, policy enforcement, redaction at a local broker, per-agent digests | Per-fact cryptographic verification; human conflict adjudication per pair |
+| **Query-semantic governance** | [LongMemory](https://github.com/CaviraOSS/LongMemory) (4.6K★) | Five recall modes with temporal/contradiction/confidence gates; runtime-identity-bound tools | Per-fact hash chain; a court-style human verdict workflow |
+| **Evidence governance (MemTether)** | this repo | Per-fact SHA-256 hash chain with anchors; mandatory source attribution; conflicts queue to a human verdict that joins the audited record | Fleet management, org policy streams, LLM enrichment |
+
+**How to choose:** if you need fleet-wide policy and org dashboards, Caura's
+route is built for that. If you need semantically filtered recall modes,
+LongMemory's is. If you need *provable* memory integrity that anyone can
+verify with one command and no dependencies — that is what MemTether
+optimizes for. The routes can coexist; they are not mutually exclusive.
 
 ## License
 

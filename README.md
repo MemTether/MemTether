@@ -657,6 +657,30 @@ Export to markdown anytime — but keep the governed database as the source of t
 
 ---
 
+## What we do NOT claim
+
+In the spirit of our [evaluation-integrity work](docs/benchmark.html)
+(we documented a 27× inflation from mixed denominators in memory benchmarks),
+here is what MemTether does **not** claim:
+
+- **Not the highest LongMemEval score.** We report 62.6% strict / 75.7% EAF
+  under our own harness with per-question records. Others report higher on
+  different denominators — those numbers are not comparable to ours, and
+  vice versa.
+- **Not a conversational-memory champion.** Our differentiator is governance
+  (audit chain, bi-temporal, human adjudication), not dialogue recall. If you
+  need the best chat-memory RAG, several systems beat us on raw retrieval.
+- **Not certified EU AI Act compliant.** Memory Court is *designed with* Art. 12
+  record-keeping in mind — that is not a compliance certification.
+- **Not a distributed system.** File-level pointers are single-machine by
+  design. Cross-machine sync is out of scope (see ROADMAP).
+- **Not tested on macOS/Linux at production level.** CI covers them, but our
+  daily dogfooding is Windows-first.
+- **Not multi-tenant at the auth layer.** `tenant_id` scoping exists; the REST
+  API has a single-key guard, not per-tenant RBAC.
+- **Not zero-noise.** The near-dup gate catches repeats; it is not a general
+  fact-checker. Garbage in, garbage out — attributed and hash-chained.
+
 ## Known Limitations
 
 1. `tether_connect detect` may falsely report "not connected" for same-source-different-path configs
