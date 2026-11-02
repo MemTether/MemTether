@@ -80,3 +80,21 @@ arXiv:2605.15338 与 PoisonRecall 的攻击分类学）。
 2. **supersession 是法证工具**——不校验 corrector 身份，"覆盖式投毒"实际会发生，防御仅在可审计性
 3. **retire 对运行时即抹除**——"不删除"仅指 SQLite 行；检索层（向量/FTS/active）全部移除，历史保护≠可用性保护
 对应证明与负例见 `tests/test_poisoning_defense.py`。
+
+
+## Feedback-loop defense (verified 2026-11-02)
+
+A memory recalled by one agent and re-ingested by another must not become a
+second active row — otherwise retrieval feeds on itself (memoripy calls this
+"refusing to re-ingest retrieved memory as fresh evidence").
+
+The write path now blocks the cross-source exact-echo: re-ingesting content
+that already exists as an active row under a *different* source returns the
+original uid with `op: noop_echo` and the original source named, and records
+a `remember_echo` audit entry. Content that *differs* between sources still
+correctly becomes a conflict candidate (conflict-detection pipeline, not an
+echo gate).
+
+Tested end-to-end on a demo DB: write (agent-a) → recall → re-ingest
+(agent-b) → `op: noop_echo, original_source=agent-a`, **1 active row**.
+Before the gate: 2 active duplicate rows.
