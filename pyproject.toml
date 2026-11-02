@@ -30,7 +30,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "memtether"
-version = "0.1.0a83"
+version = "0.1.0a84"
 description = "Cross-client memory hub for AI agents — one physical memory, many clients"
 readme = "README.md"
 license = {text = "Apache-2.0"}
@@ -88,7 +88,7 @@ memtether-connect = "tether_connect:main"
 # ★不写 packages = ["memtether"]：那会指向一个不存在的包（空壳已删）。
 # clients = 客户端适配器包（tether_connect 用），必须在这里登记，
 #   否则 `pip install` 出来的包**不带** clients/，工具一跑就 ImportError。
-packages = ["scripts", "clients", "integrations", "memtether_assets"]
+packages = ["scripts", "clients", "integrations", "memtether_assets", "skills"]
 include-package-data = false
 
 py-modules = [
