@@ -4,13 +4,27 @@ Every headline number in the merged paper maps to a data artifact or a command b
 
 ## Environment
 
+**Verified 2026-11-02** (clean venv, Python 3.10.11):
+
+```
+python -m venv venv
+venv\Scripts\pip install memtether          # v0.1.0a84 from PyPI
+venv\Scripts\python -c "import memtether"   # OK, version 0.1.0a84
+venv\Scripts\memtether stats                 # OK
+venv\Scripts\memtether remember "test" --source test  # OK, returns uid
+venv\Scripts\memtether search "test"         # OK, keyword fallback works
+```
+
+Note: vector search requires `pip install memtether[vector]` (chromadb); without it the system degrades gracefully to keyword-only with a clear warning. If pypi.org is blocked in your network, use `--index-url https://pypi.tuna.tsinghua.edu.cn/simple`.
+
+Pinned: Python >= 3.10, SQLite >= 3.39 (WAL mode), bge-m3 (int8) via sentence-transformers.
+
+From source:
 ```
 git clone https://github.com/MemTether/MemTether
 cd MemTether
 pip install -e ".[dev]"
 ```
-
-Pinned: Python >= 3.10, SQLite >= 3.39 (WAL mode), bge-m3 (int8) via sentence-transformers.
 
 ## 1. LongMemEval-500: 62.4% strict / 68.8% judge
 
