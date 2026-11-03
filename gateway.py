@@ -616,6 +616,19 @@ def remember(content, type='fact', source=DEFAULT_SOURCE, scope='shared', subjec
         否则查"09-12 系统认为什么为真"会得出错误结论。
     """
     source = _guard_source(source)
+    # ★2026-11-03: auto verify_at for env facts (paths/exes/versions) -> 30d staleness
+    try:
+        if type in ('fact', 'environment') and (
+                re.search(r'[A-Z]:[/\\\\]', content)
+                or re.search(r'\\.(exe|py|bat|ps1|db|json)\\b', content)
+                or re.search(r'\\bv?\\d+\\.\\d+\\.\\d+\\b', content)):
+            from datetime import datetime, timedelta
+            _vf = valid_from if valid_from else now()
+            _verify = (datetime.strptime(_vf[:10], '%Y-%m-%d') + timedelta(days=30)).strftime('%Y-%m-%d')
+            if _verify not in (tags or ''):
+                tags = (tags + ' ' if tags else '') + 'verify:' + _verify
+    except Exception:
+        pass
     # ★P0-07 (2026-09-24)：写入侧 TTL 提醒——状态类结论（“当前/最新/余额/可用…”）
     #   会随时间失效，却没有复核截止日 → 后继会话会把旧结论当当前答案（已实际发生）。
     #   ★刻意只 warning 不拒写：拒写会打断生产写入；提示到 stderr 足以让人补 ttl。

@@ -170,6 +170,22 @@ def store_entities(conn, uid, content, source='', ts='', valid_from='', valid_to
 
     与 store_predicate 不同：store_predicate 存 JSON 到 facts.predicate 列，
     store_entities 存**独立行**到 fact_entities 表——使 SQL 确定性查询成为可能。
+
+    ★2026-11-03 修复（P0，写入全挂）：生产库 fact_entities 是另一种结构——
+        fact_uid TEXT NOT NULL,
+        entity_name TEXT NOT NULL,      -- NOT NULL 且【无默认值】
+        entity, attr, value, source, ts, valid_from,
+        PRIMARY KEY (fact_uid, entity_name)
+      本函数原来只写 entity 不写 entity_name，于是每次 add_memories 都抛
+      `IntegrityError: NOT NULL constraint failed: fact_entities.entity_name`，
+      MCP 写入 100% 失败、只能退回 CLI。gateway 里的 self-heal 救不了——
+      列已存在，只是缺默认值，而 SQLite 无法给已有列补 DEFAULT。
+
+      修法：显式提供 entity_name（取 entity 同值），并改用 INSERT OR IGNORE
+      吸收主键冲突——主键是 (fact_uid, entity_name)，同一条记忆里同名实体
+      出现两次时第二行会撞键，不该让整条写入失败。
+      fact_entities 本身是派生索引（entity_graph.build_entity_graph 会
+      整表重建），跳行不影响真源。
     """
     preds = extract_predicates(content)
     if not preds:
@@ -177,9 +193,16 @@ def store_entities(conn, uid, content, source='', ts='', valid_from='', valid_to
     ts_val = ts or __import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     vf = valid_from or ts_val
     for p in preds:
-        conn.execute(
-            "INSERT INTO fact_entities (entity, attr, value, fact_uid, source, ts, valid_from) VALUES (?,?,?,?,?,?,?)",
-            (p['e'], p['a'], content[:200], uid, source, ts_val, vf))
+        safe_e = (p.get('e') or '').strip() or 'legacy'
+        try:
+            conn.execute(
+                "INSERT OR IGNORE INTO fact_entities "
+                "(fact_uid, entity_name, entity, attr, value, source, ts, valid_from) "
+                "VALUES (?,?,?,?,?,?,?,?)",
+                (uid, safe_e, safe_e, p.get('a') or '', content[:200], source, ts_val, vf))
+        except Exception:
+            # 索引行写不进去也绝不能拖垮整条记忆落库
+            pass
     return preds
 
 

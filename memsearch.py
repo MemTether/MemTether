@@ -394,7 +394,7 @@ def verify_active_consistency():
         conn = sqlite3.connect(DB)
         conn.row_factory = sqlite3.Row
         frows = conn.execute(
-"SELECT uid, content, type, source, scope FROM facts WHERE status='active'" + _scope_filter() + _tenant_filter()[0], (_tenant_filter()[1],)).fetchall()
+"SELECT uid, content, type, source, scope, verify_at FROM facts WHERE status='active'" + _scope_filter() + _tenant_filter()[0], (_tenant_filter()[1],)).fetchall()
         try:
             arows = conn.execute("SELECT * FROM tool_assets WHERE status='active'").fetchall()
         except Exception:
@@ -586,7 +586,7 @@ def rebuild_vector_index(verbose=True, reclaim=True, reuse=False):
         conn = sqlite3.connect(DB)
         conn.row_factory = sqlite3.Row
         rows = conn.execute(
-"SELECT uid, content, type, source, scope FROM facts WHERE status='active'" + _scope_filter() + _tenant_filter()[0], (_tenant_filter()[1],)).fetchall()
+"SELECT uid, content, type, source, scope, verify_at FROM facts WHERE status='active'" + _scope_filter() + _tenant_filter()[0], (_tenant_filter()[1],)).fetchall()
         try:
             arows = conn.execute(
                 "SELECT * FROM tool_assets WHERE status='active'").fetchall()
@@ -1101,7 +1101,7 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
         # ★2026-09-17（升级 1）：候选池补取 q_value —— 检索末尾的 Q-Value 加权要用它。
         #   不加这一列，加权就只能全用默认 0.5，升级等于空转。
         active = {r['uid']: dict(r) for r in conn.execute(
-            "SELECT uid, content, type, source, scope, updated_at, q_value, tags, valid_to, superseded_by"
+            "SELECT uid, content, type, source, scope, updated_at, q_value, tags, valid_to, superseded_by, verify_at"
     " FROM facts WHERE status='active'" + _scope_filter() + _tenant_filter()[0], (_tenant_filter()[1],))}
         # ★2026-09-15：资产一并入候选池（kind='tool'），否则「XX装在哪」永远查不到
         assets = {}
@@ -1331,6 +1331,8 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
                     'updated_at': f.get('updated_at') or '',
                     # P0-07：把复核截止日带进结果，供降权与标注
                     'ttl': _parse_ttl(f.get('tags'), f.get('valid_to'), f.get('content')),
+                    # 2026-11-03: verify_at for env fact staleness
+                    'verify_at': f.get('verify_at') or '',
                     'reason': reason}
         # M2（2026-09-24）：技能接进检索结果 —— 资产条目带 skill_hint。
         #   动机：调用方（agent）看到「ComfyUI | E:\ComfyUI\...」只知道"有这个东西"，
@@ -1593,6 +1595,18 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
 
     # P0-07：把过期条数带出去（审计：这次答案里有几条可能已过期）
     _diag['ttl_expired_n'] = _ttl_expired
+
+    # 2026-11-03: verify_at staleness annotation
+    # If a fact has verify_at in the past, mark it as potentially stale
+    import datetime as _dt_mod
+    _today = _dt_mod.date.today().isoformat()
+    _stale_n = 0
+    for _vr in out:
+        _va = _vr.get("verify_at")
+        if _va and _va < _today:
+            _vr["stale_warning"] = f"verify_at={_va} has passed - this env fact may be outdated"
+            _stale_n += 1
+    _diag["verify_stale_n"] = _stale_n
 
     # P3 multi-hop expansion (2026-09-24): resolve superseded_by chains to latest
     # For any result that is superseded, automatically follow the chain to the final active version
