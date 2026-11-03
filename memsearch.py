@@ -661,18 +661,31 @@ def rebuild_vector_index(verbose=True, reclaim=True, reuse=False):
             pass
         col = client.create_collection(COLLECTION, metadata=_meta)
 
-    vecs = []
+    # 2026-11-03 fix (real incident): a 4k-doc rebuild used to emit nothing for
+    # 15+ minutes, so operators assumed it hung and killed it mid-flight; the
+    # next background rebuild then raced the dead collection and emptied it.
+    # Now embed+add per chunk with a heartbeat so:
+    #   1) operators see liveness (never a silent 15-minute gap),
+    #   2) a kill loses at most the tail chunk, and a rerun is idempotent,
+    #   3) verify_active_consistency remains the only "done" signal (printed
+    #      by --rebuild's post-check).
     B = 20
-    for i in range(0, len(kept), B):
-        batch = [r['content'] for r in kept[i:i + B]]
-        vecs.extend(_embed(batch))
-        time.sleep(0.2)
-    if kept:
-        col.add(ids=[r['uid'] for r in kept], embeddings=vecs,
-                documents=[r['content'] for r in kept],
+    _t0 = time.time()
+    _total = len(kept)
+    for _i in range(0, _total, B):
+        _rows = kept[_i:_i + B]
+        _embeds = _embed([r['content'] for r in _rows])
+        col.add(ids=[r['uid'] for r in _rows], embeddings=_embeds,
+                documents=[r['content'] for r in _rows],
                 metadatas=[{'uid': r['uid'], 'type': r['type'] or 'fact',
                             'source': r['source'] or '',
-                            'kind': ('tool' if r['type'] == 'tool' else 'fact')} for r in kept])
+                            'kind': ('tool' if r['type'] == 'tool' else 'fact')} for r in _rows])
+        time.sleep(0.2)
+        if verbose and (_i // B) % 25 == 0:
+            _done = min(_i + B, _total)
+            print('[rebuild] %d/%d docs (%.1fs elapsed)' % (_done, _total, time.time() - _t0))
+    if verbose and _total:
+        print('[rebuild] done: %d docs in %.1fs' % (_total, time.time() - _t0))
     if verbose:
         print('向量索引重建完成：facts %d 条 + 资产 %d 条，入索引 %d 条，隔离垃圾 %d 条'
               % (len(rows), len(assets), len(kept), len(quarantined)))
@@ -2212,7 +2225,13 @@ if __name__ == '__main__':
                     help='P0-04 验收：向量条数 == SQLite active 条数')
     a = ap.parse_args()
     if a.rebuild:
-        print(json.dumps(rebuild_vector_index(), ensure_ascii=False))
+        # 2026-11-03: after every CLI rebuild, verify against SQLite. A rebuild
+        # without this check can look "done" while leaving a truncated index
+        # (real incident: 5/4035 vectors, ok=false discovered only by hand).
+        _rr = rebuild_vector_index(verbose=True, reclaim=False, reuse=True)
+        _vr = verify_active_consistency()
+        print(json.dumps({'rebuild': _rr, 'verify': _vr}, ensure_ascii=False))
+        sys.exit(0 if _vr.get('ok') else 1)
     if a.verify_consistency:
         _r = verify_active_consistency()
         print(json.dumps(_r, ensure_ascii=False, indent=2))
