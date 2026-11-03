@@ -9,6 +9,8 @@ This is inspired by reinforcement learning: reward what works.
 Run: python examples/qvalue_demo.py
 """
 import os, tempfile
+import sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # repo checkout without pip install
 os.environ["MEM_DB"] = os.path.join(tempfile.mkdtemp(), "qvalue.db")
 
 from gateway import remember, search, bump_qvalue

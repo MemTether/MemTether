@@ -418,7 +418,11 @@ def _ensure_columns(conn):
         have = {r[1] for r in conn.execute('PRAGMA table_info(facts)')}
     except sqlite3.Error:
         return
-    for name, typ, dflt in (('q_value', 'REAL', '0.5'), ('use_count', 'INTEGER', '0'), ('predicate', 'TEXT', None)):
+    # P0 (2026-11-03): verify_at must be self-healing too — release repo added
+    # the column for staleness tracking, but CREATE TABLE IF NOT EXISTS never
+    # upgrades an existing database. Without this, older installs break on the
+    # first remember() with "table facts has no column named verify_at".
+    for name, typ, dflt in (('q_value', 'REAL', '0.5'), ('use_count', 'INTEGER', '0'), ('predicate', 'TEXT', None), ('verify_at', 'TEXT', None)):
         if name in have:
             continue
         try:
@@ -589,6 +593,61 @@ def _vec_delete(uid):
         return {'error': str(e)[:120]}
 
 
+# ★P4 (2026-11-03): Incident cooldown helpers.
+# Kept outside remember() so they are unit-testable and so the cooldown logic
+# can run before the generic dedup paths without duplicating SQL blocks.
+_INCIDENT_COOLDOWN_WINDOW_H = int(os.environ.get('MEM_INCIDENT_COOLDOWN_H', '24'))
+_INCIDENT_FATAL_KEYWORDS = (
+    '数据丢失', '删库', 'security', '泄露', 'corrupt', 'security incident',
+    '写入失败', '写入通道', 'integrityerror', 'not null constraint',
+    'fatal incident',
+)
+
+
+def _is_fatal_incident(content):
+    """Fatal incidents keep type=incident; everything else is experience noise."""
+    c = (content or '').lower()
+    return any(kw in c for kw in _INCIDENT_FATAL_KEYWORDS)
+
+
+def _incident_cooldown(conn, content, source, ts):
+    """Collapse a same-signature incident retry into its existing row.
+
+    Returns the cooldown result dict, or None when this is a new incident.
+    The 24h window starts from *now* (not local midnight): a retry at 23:50
+    and another at 00:05 are still the same operational event.
+    """
+    import datetime as _dt
+    _sig = (content or '').strip()[:40]
+    if not _sig:
+        return None
+    _cutoff = (_dt.datetime.now() - _dt.timedelta(hours=_INCIDENT_COOLDOWN_WINDOW_H))\
+        .strftime('%Y-%m-%d %H:%M:%S')
+    _recent = conn.execute(
+        "SELECT uid, tags FROM facts WHERE type='incident' AND status='active' "
+        "AND substr(content, 1, 40)=? AND created_at > ? LIMIT 1",
+        (_sig, _cutoff)).fetchone()
+    if not _recent:
+        return None
+    _old_tags = _recent['tags'] or ''
+    _count = 1
+    for _t in _old_tags.split():
+        if _t.startswith('hit:'):
+            try:
+                _count = int(_t[4:]) + 1
+            except ValueError:
+                _count = 2
+    _new_tags = ' '.join(t for t in _old_tags.split() if not t.startswith('hit:'))
+    _new_tags = (_new_tags + ' ' if _new_tags else '') + 'hit:%d' % _count
+    conn.execute("UPDATE facts SET tags=?, updated_at=? WHERE uid=?",
+                 (_new_tags, ts, _recent['uid']))
+    audit(conn, 'incident_cooldown', _recent['uid'], source,
+          'cooldown hit:%d sig=%s' % (_count, _sig[:30]))
+    conn.commit()
+    return {'ok': True, 'uid': _recent['uid'], 'op': 'cooldown_increment',
+            'count': _count, 'vec': {'skipped': 'cooldown'}}
+
+
 def remember(content, type='fact', source=DEFAULT_SOURCE, scope='shared', subject='user',
              confidence=0.8, tags='', status='active', mem0=False, valid_from=None):
     # --- Input validation (security hardening) ---
@@ -644,6 +703,14 @@ def remember(content, type='fact', source=DEFAULT_SOURCE, scope='shared', subjec
     conn = get_conn()
     try:
         uid = _uid('fact', content + source)
+        # ★P4-fix (2026-11-03): incident cooldown must run BEFORE all dedup
+        # gates. Exact dup and near-dup both hide retries behind noop_dup /
+        # noop_near_dup, so a cooldown placed after dedup can never fire and
+        # repeated real-world incidents silently lose their hit counters.
+        if type == 'incident':
+            _cooldown = _incident_cooldown(conn, content, source, now())
+            if _cooldown is not None:
+                return _cooldown
         # 查重：相同 source + 高度相似内容
         existing = conn.execute(
             "SELECT uid FROM facts WHERE source=? AND status='active' AND content=?",
@@ -720,6 +787,15 @@ def remember(content, type='fact', source=DEFAULT_SOURCE, scope='shared', subjec
                 if _t.startswith('verify:'):
                     _vat = _t[7:]
                     break
+
+        # ★P4 (2026-11-03): Incident severity tiering.
+        # Cooldown matching already ran before dedup; only newly inserted
+        # incidents reach this point. Non-fatal incidents are downgraded to
+        # experience so they stop crowding out genuinely fatal incident rows.
+        if type == 'incident':
+            if not _is_fatal_incident(content):
+                type = 'experience'
+
         conn.execute(
             """INSERT INTO facts (uid,type,subject,content,status,source,scope,confidence,tags,
                                   created_at,updated_at,valid_from,recorded_at,temporal_source,tenant_id,verify_at)

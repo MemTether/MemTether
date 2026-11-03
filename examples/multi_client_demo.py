@@ -6,6 +6,8 @@ This is the core value proposition of MemTether.
 Run: python examples/multi_client_demo.py
 """
 import os, tempfile, sqlite3
+import sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # repo checkout without pip install
 
 # Shared DB (simulates what junction/symlink does in production)
 shared_db = os.path.join(tempfile.mkdtemp(), "shared_memory.db")

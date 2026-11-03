@@ -4,6 +4,8 @@ Run: python examples/basic_usage.py
 Requires: pip install memtether
 """
 import os, tempfile, sqlite3
+import sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # repo checkout without pip install
 
 # Use a temp DB so we don't touch any real data
 os.environ["MEM_DB"] = os.path.join(tempfile.mkdtemp(), "demo.db")

@@ -393,8 +393,10 @@ def verify_active_consistency():
     try:
         conn = sqlite3.connect(DB)
         conn.row_factory = sqlite3.Row
+        _cols_f = {r[1] for r in conn.execute('PRAGMA table_info(facts)')}
+        _vf_sql = ', verify_at' if 'verify_at' in _cols_f else ''
         frows = conn.execute(
-"SELECT uid, content, type, source, scope, verify_at FROM facts WHERE status='active'" + _scope_filter() + _tenant_filter()[0], (_tenant_filter()[1],)).fetchall()
+"SELECT uid, content, type, source, scope%s FROM facts WHERE status='active'" % _vf_sql + _scope_filter() + _tenant_filter()[0], (_tenant_filter()[1],)).fetchall()
         try:
             arows = conn.execute("SELECT * FROM tool_assets WHERE status='active'").fetchall()
         except Exception:
@@ -585,8 +587,10 @@ def rebuild_vector_index(verbose=True, reclaim=True, reuse=False):
     try:
         conn = sqlite3.connect(DB)
         conn.row_factory = sqlite3.Row
+        _cols_r = {r[1] for r in conn.execute('PRAGMA table_info(facts)')}
+        _vf_sql = ', verify_at' if 'verify_at' in _cols_r else ''
         rows = conn.execute(
-"SELECT uid, content, type, source, scope, verify_at FROM facts WHERE status='active'" + _scope_filter() + _tenant_filter()[0], (_tenant_filter()[1],)).fetchall()
+"SELECT uid, content, type, source, scope%s FROM facts WHERE status='active'" % _vf_sql + _scope_filter() + _tenant_filter()[0], (_tenant_filter()[1],)).fetchall()
         try:
             arows = conn.execute(
                 "SELECT * FROM tool_assets WHERE status='active'").fetchall()
@@ -1100,9 +1104,17 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
         conn.row_factory = sqlite3.Row
         # ★2026-09-17（升级 1）：候选池补取 q_value —— 检索末尾的 Q-Value 加权要用它。
         #   不加这一列，加权就只能全用默认 0.5，升级等于空转。
+        # P0 (2026-11-03): verify_at may not exist on databases created before
+        # the staleness feature. Probe the schema once and keep a fallback SQL
+        # so a release upgrade never turns search into an OperationalError.
+        _cols = {r[1] for r in conn.execute('PRAGMA table_info(facts)')}
+        _has_verify = 'verify_at' in _cols
+        _active_sql = (
+            "SELECT uid, content, type, source, scope, updated_at, q_value, tags, valid_to, superseded_by%s"
+            " FROM facts WHERE status='active'" % (', verify_at' if _has_verify else '')
+        )
         active = {r['uid']: dict(r) for r in conn.execute(
-            "SELECT uid, content, type, source, scope, updated_at, q_value, tags, valid_to, superseded_by, verify_at"
-    " FROM facts WHERE status='active'" + _scope_filter() + _tenant_filter()[0], (_tenant_filter()[1],))}
+            _active_sql + _scope_filter() + _tenant_filter()[0], (_tenant_filter()[1],))}
         # ★2026-09-15：资产一并入候选池（kind='tool'），否则「XX装在哪」永远查不到
         assets = {}
         try:

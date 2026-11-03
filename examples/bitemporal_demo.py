@@ -10,6 +10,8 @@ which is different from "what was actually true on 2026-09-15?"
 Run: python examples/bitemporal_demo.py
 """
 import os, tempfile
+import sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # repo checkout without pip install
 os.environ["MEM_DB"] = os.path.join(tempfile.mkdtemp(), "bitemporal.db")
 
 from gateway import remember, as_of
