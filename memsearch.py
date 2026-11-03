@@ -692,10 +692,25 @@ def rebuild_vector_index(verbose=True, reclaim=True, reuse=False):
         for q in quarantined:
             print('  隔离: %s' % q['content'][:50])
     # ★2026-09-15 二修：把自己刚产生的孤儿 segment 收掉（否则每次 rebuild 漏 833KB）
+    # 2026-11-03 fix: reclaim must NEVER delete the collection we just wrote
+    # (race: another process still has it registered). Require the target
+    # collection's vector segment to exist in `registered` before deleting.
     rec = None
     if reclaim:
         try:
-            rec = reclaim_orphan_segments(dry_run=False, verbose=verbose)
+            import sqlite3 as _sq3
+            _seg_conn = _sq3.connect(os.path.join(CHROMA_PATH, 'chroma.sqlite3'))
+            _vec_segs = {r[0] for r in _seg_conn.execute(
+                "SELECT id FROM segments WHERE collection=? AND type LIKE '%vector%'", (col.id,))}
+            _seg_conn.close()
+            _coll_dir_exists = any(
+                os.path.isdir(os.path.join(CHROMA_PATH, s)) for s in _vec_segs)
+            if not _coll_dir_exists:
+                if verbose:
+                    print('[reclaim] skip: own vector segment dir missing (concurrent rebuild?)')
+                rec = {'ok': False, 'skipped': 'own_segment_missing'}
+            else:
+                rec = reclaim_orphan_segments(dry_run=False, verbose=verbose)
         except Exception as e:
             if verbose:
                 print('  [warn] 孤儿回收失败（不影响索引）:', str(e)[:70])
