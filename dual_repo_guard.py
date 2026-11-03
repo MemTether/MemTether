@@ -155,6 +155,10 @@ BODY_WATCH = {
         'init_db',          # schema owner
         'get_conn',
         'rebuild',          # projection writer
+        # 2026-11-03: incident cooldown/severity write-path logic. These were
+        # mirrored into hub; keep them watched so a one-sided edit alarms.
+        '_incident_cooldown',
+        '_is_fatal_incident',
     },
 }
 
@@ -199,17 +203,9 @@ WHITELIST = {
                                '_bg_nrem', '_bg_rebuild_with_lock', '_release_gate_lock',
                                'capture_signal', 'capture_from_user_message',
                                'capture_from_tool_result', 'get_recent_signals',
-                               '_ensure_signal_table',
-                               # 2026-11-03: incident cooldown/severity helpers are
-                               # release-repo P4 work; hub still needs its own mirror
-                               # before it can share the write-path behavior.
-                               '_incident_cooldown', '_is_fatal_incident'},
+                               '_ensure_signal_table'},
     ('gateway', 'fn', 'mt'): {'_hg_write', '_init_fts_triggers', '_proj_targets',
-                              '_tenant_filter',
-                              # 2026-11-03: incident cooldown/severity helpers are
-                              # release-repo P4 work; hub still needs its own mirror
-                              # before it can share the write-path behavior.
-                              '_incident_cooldown', '_is_fatal_incident'},
+                              '_tenant_filter'},
     ('memsearch', 'fn', 'hub'): set(),
     ('memsearch', 'fn', 'mt'): {'_chroma_path', '_scope_filter', '_tenant_filter',
                                 'extract_answer_hints'},
