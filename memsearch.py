@@ -1597,18 +1597,7 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
     # P0-07：把过期条数带出去（审计：这次答案里有几条可能已过期）
     _diag['ttl_expired_n'] = _ttl_expired
 
-    # 2026-11-03: verify_at staleness annotation
-    # If a fact has verify_at in the past, mark it as potentially stale
-    import datetime as _dt_mod
-    _today = _dt_mod.date.today().isoformat()
-    _stale_n = 0
-    for _vr in out:
-        _va = _vr.get("verify_at")
-        if _va and _va < _today:
-            _vr["stale_warning"] = f"verify_at={_va} has passed - this env fact may be outdated"
-            _stale_n += 1
-    _diag["verify_stale_n"] = _stale_n
-
+    # 
     # P3 multi-hop expansion (2026-09-24): resolve superseded_by chains to latest
     # For any result that is superseded, automatically follow the chain to the final active version
     try:
@@ -2115,6 +2104,46 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
     #   ⇒ 与旧行为逐字节一致，不破坏任何现有调用方与测试。
     _out = apply_layers(_kept[:limit], layer=layer, l1_sentences=l1_sentences)
     _diag['layer'] = layer
+
+    # ★P1 (2026-11-03): verify_at staleness + JIT path verification
+    # Both operate on _out (the FINAL result dicts that get returned to callers).
+    # Previously these were on `out` but apply_layers() copies dicts → changes lost.
+    import datetime as _dt_mod
+    _today_str = _dt_mod.date.today().isoformat()
+    _today = _dt_mod.date.today()
+    _stale_n = 0
+    _jit_checked = 0
+    _jit_stale = 0
+    for _vr in _out:
+        # verify_at staleness check
+        _va = _vr.get("verify_at")
+        if _va and _va < _today_str:
+            _vr["stale_warning"] = f"verify_at={_va} has passed - this env fact may be outdated"
+            _stale_n += 1
+        # JIT path verification (mcp-verified-repo-memory pattern)
+        _jcontent = _vr.get("content", "")
+        _jpaths = re.findall(r'[A-Z]:[/\\][^\s,，。;;\)\)\]】]+', _jcontent)
+        if _jpaths:
+            _missing = []
+            for _jp in _jpaths:
+                _jp_clean = _jp.rstrip('.,:;)]】\\')
+                try:
+                    if not os.path.exists(_jp_clean):
+                        _missing.append(_jp_clean)
+                except (OSError, ValueError):
+                    pass
+            if _missing:
+                _vr["jit_path_check"] = {
+                    "checked": len(_jpaths),
+                    "missing": len(_missing),
+                    "missing_paths": _missing[:3],
+                    "warning": f"JIT: {len(_missing)}/{len(_jpaths)} 路径已不存在"
+                }
+                _jit_stale += 1
+            _jit_checked += 1
+    _diag["verify_stale_n"] = _stale_n
+    _diag["jit_path_checked"] = _jit_checked
+    _diag["jit_path_stale"] = _jit_stale
     if mode == 'paths':
         _out = [{'uid': r.get('uid', ''),
                  'abstract': r.get('layers', {}).get('L0', r.get('content', ''))[:160],
@@ -2123,6 +2152,35 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
                  'source': r.get('source', ''),
                  'court': 'memtether court %s' % r.get('uid', '')}
                 for r in _out]
+    # P0-1 (2026-11-03): Retrieval auto-renewal of verify_at
+    # If a fact with verify_at is hit by search, extend its verify_at by 30 days
+    # from today. This prevents frequently-used facts from expiring.
+    # (mcp-verified-repo-memory pattern: JIT renewal on successful retrieval)
+    try:
+        import datetime as _dt
+        _today = _dt.date.today()
+        _new_verify = (_today + _dt.timedelta(days=30)).isoformat()
+        _renewed = 0
+        _renew_conn = sqlite3.connect(DB)  # fresh connection (old one closed at L1124)
+        try:
+            for _rv in _out:
+                _ruid = _rv.get('uid', '')
+                _rva = _rv.get('verify_at', '')
+                if _ruid and _rva and _rva < _today.isoformat():
+                    _renew_conn.execute("UPDATE facts SET verify_at=?, last_verified_at=? WHERE uid=? AND status='active'",
+                                 (_new_verify, _today.isoformat(), _ruid))
+                    _rv['verify_at'] = _new_verify
+                    # Don't remove stale_warning - let the caller see it was stale
+                    # (the renewal is for NEXT time, not to hide this time's warning)
+                    _renewed += 1
+            if _renewed:
+                _renew_conn.commit()
+                _diag['verify_renewed'] = _renewed
+        finally:
+            _renew_conn.close()
+    except Exception:
+        pass  # renewal is best-effort, never block search results
+
     # 2026-11-03: expose degraded flag so callers can label results
     _degraded = _diag.get('degraded', False)
     return {'query': q, 'results': _out, 'diag': _diag, 'degraded': _degraded}
