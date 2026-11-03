@@ -1144,7 +1144,12 @@ def search(query, limit=10, mem0=False, layer='L2', l1_sentences=3):
         r = memsearch.search_hybrid(query, limit=limit, layer=layer,
                                     l1_sentences=l1_sentences)
         if r.get('results'):
-            return {'ok': True, 'query': r['query'], 'results': r['results'], 'semantic': r['results'], 'engine': 'hybrid', 'all_unanswered': r.get('all_unanswered', False)}
+            _eng = 'hybrid-degraded' if r.get('degraded') else 'hybrid'
+            _stale_n = sum(1 for _x in r['results'] if _x.get('stale_warning'))
+            _hint = ''
+            if _stale_n > 0:
+                _hint = f'{_stale_n}/{len(r["results"])} 条可能已过期（含路径/版本），引用前请复核'
+            return {'ok': True, 'query': r['query'], 'results': r['results'], 'semantic': r['results'], 'engine': _eng, 'all_unanswered': r.get('all_unanswered', False), 'degraded': r.get('degraded', False), 'stale_count': _stale_n, 'stale_hint': _hint}
         #    ——不是抛异常。旧实现把空结果直接当结果返回，调用方会误判「中枢里没有这条记忆」。
         #    只要 hybrid 没给出结果，一律退化到 LIKE 兜底。
         _why = 'hybrid 返回空（向量库不可用？）'

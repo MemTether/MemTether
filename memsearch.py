@@ -1158,11 +1158,12 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
         raise
     except Exception as e:
         _diag['vec_err'] = '%s: %s' % (type(e).__name__, str(e)[:100])
-        if not getattr(search_hybrid, '_warned', False):
-            search_hybrid._warned = True
-            print('[warn] 向量检索失败（将降级为纯关键词，召回会明显变差）:', str(e)[:80],
-                  file=sys.stderr)
-            print('[warn] 正确解释器: %s' % VENV_PY, file=sys.stderr)
+        _diag['degraded'] = True
+        print('[!!! 降级 !!!] 向量检索失败，已降级为纯关键词匹配 —— 结果质量大幅下降',
+              file=sys.stderr)
+        print(f'[!!! 降级 !!!] 原因: {type(e).__name__}: {str(e)[:100]}', file=sys.stderr)
+        print('[!!! 降级 !!!] 正确解释器: E:/RUANJIAN/memory_hub/.venv-memory/Scripts/python.exe',
+              file=sys.stderr)
 
     # 2) 关键词路：查询词覆盖率 x IDF（专有名词命中权重更高）
     q_terms = _terms(q)
@@ -2122,7 +2123,9 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
                  'source': r.get('source', ''),
                  'court': 'memtether court %s' % r.get('uid', '')}
                 for r in _out]
-    return {'query': q, 'results': _out, 'diag': _diag}
+    # 2026-11-03: expose degraded flag so callers can label results
+    _degraded = _diag.get('degraded', False)
+    return {'query': q, 'results': _out, 'diag': _diag, 'degraded': _degraded}
 
 
 if __name__ == '__main__':
