@@ -619,8 +619,8 @@ def remember(content, type='fact', source=DEFAULT_SOURCE, scope='shared', subjec
     # ★2026-11-03: auto verify_at for env facts (paths/exes/versions) -> 30d staleness
     try:
         if type in ('fact', 'environment') and (
-                re.search(r'[A-Z]:[/\\\\]', content)
-                or re.search(r'\\.(exe|py|bat|ps1|db|json)\\b', content)
+                re.search(r'[A-Z]:[/\\]', content)
+                or re.search(r'\.(exe|py|bat|ps1|db|json)\b', content)
                 or re.search(r'\\bv?\\d+\\.\\d+\\.\\d+\\b', content)):
             from datetime import datetime, timedelta
             _vf = valid_from if valid_from else now()
@@ -713,12 +713,19 @@ def remember(content, type='fact', source=DEFAULT_SOURCE, scope='shared', subjec
             pass
 
         ts = now()
+        # 2026-11-03: extract verify_at from tags for column value
+        _vat = None
+        if tags:
+            for _t in tags.split():
+                if _t.startswith('verify:'):
+                    _vat = _t[7:]
+                    break
         conn.execute(
             """INSERT INTO facts (uid,type,subject,content,status,source,scope,confidence,tags,
-                                  created_at,updated_at,valid_from,recorded_at,temporal_source,tenant_id)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                                  created_at,updated_at,valid_from,recorded_at,temporal_source,tenant_id,verify_at)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (uid, type, subject, content, status, source, scope, confidence, tags,
-             ts, ts, valid_from or ts, ts, 'native', os.environ.get('MEM_TENANT_ID', 'default')))
+             ts, ts, valid_from or ts, ts, 'native', os.environ.get('MEM_TENANT_ID', 'default'), _vat))
         # ★十三修：写入时自动抽取谓词（entity→attr 对）存入 predicate 列
         try:
             from predicates import store_predicate, store_entities

@@ -99,6 +99,20 @@ def _norm_entity(e):
     return e
 
 
+
+# ★2026-11-03: English "X is Y" pattern - captures solid ASCII entities
+_ENGLISH_IS = re.compile(
+    r'(?P<entity>[A-Za-z][A-Za-z0-9._\-]{1,30})'
+    r'\s+is\s+(?:the\s+|a\s+|an\s+)?'
+    r'(?P<attr>[A-Za-z][A-Za-z0-9._\- ]{2,30})')
+
+# ★2026-11-03: English "X supports Y" - fix _SUPPORT_ASCII to include 'supports'  
+_SUPPORT_EN = re.compile(
+    r'(?P<entity>[A-Za-z][A-Za-z0-9._\-]{1,30})'
+    r'\s+(?:supports?|provides?|handles?|manages?)\s+'
+    r'(?P<attr>[A-Za-z0-9\u4e00-\u9fff._\-]{2,30})')
+
+
 def extract_predicates(content):
     """从 content 抽取 (entity, attr) 对，返回 list[dict]。
 
@@ -142,6 +156,16 @@ def extract_predicates(content):
         e = m.group('entity')
         if not any(ch in _FUNCT_WORDS for ch in e):
             _add(e, m.group('attr'))
+    # 3.5) ★2026-11-03: English "X is Y" and "X supports Y" patterns
+    for m in _ENGLISH_IS.finditer(t):
+        e = m.group('entity')
+        if _is_solid_entity(e):
+            _add(e, m.group('attr').strip())
+    for m in _SUPPORT_EN.finditer(t):
+        e = m.group('entity')
+        if _is_solid_entity(e):
+            _add(e, m.group('attr'))
+
     # 4) 动作/完成句式（保留原逻辑：首段作为 __status__ 实体）
     if _ACTION_KEYWORDS.search(t):
         _first = re.split(r'[（(。；，,\n]', t)[0].strip()
