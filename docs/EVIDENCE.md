@@ -17,6 +17,32 @@ guard (which locks README numbers to code reality mechanically).
 | CI | 9 jobs green (3 OS × 2 py + lint + build + docker) | 2026-11-01 | GitHub Actions on main |
 | OpenSSF Best Practices | badge active (project 15441) | 2026-11-01 | https://www.bestpractices.dev/projects/15441 |
 
+## Core coverage baseline (2026-11-04)
+
+| Scope | Coverage |
+|---|---|
+| 6 core test files vs gateway/memsearch/governance/memory_court/hubguard | 34% (Windows, py3.13, full-suite modules only) |
+
+CI gate set to `--cov-fail-under=28` on the same scope (ratchet floor; raise as
+coverage grows). Do NOT quote 34% as project coverage - it is a 5-module subset
+under 6 test files.
+
+## Auto-anchor latency (prod-scale copy, 2026-11-04)
+
+| batch size | maybe_anchor latency |
+|---|---|
+| 1 row | 0.3 ms |
+| 10 rows | 1.0 ms |
+| 100 rows | 2.0 ms |
+| 1000 rows | 5.7 ms |
+
+Measured on a byte-copy of the 120 MB production DB (477k audit rows, 752
+anchors) via `memory_court.maybe_anchor(conn)`; anchoring is append-only and
+verified by `court --verify` afterwards. Write-path overhead per remember()
+call is therefore sub-millisecond at any realistic batch size.
+
+Reproduce: insert N rows into a DB copy, call `maybe_anchor`, time it.
+
 ## Latency (microbenchmark, local SQLite, n=200)
 
 | Claim | p50 | p95 | Date | Reproduce |

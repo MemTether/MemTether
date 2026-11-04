@@ -107,3 +107,13 @@ to the original row with `op: feedback_loop`, the original row is tagged
 `feedback_loop`, and a `feedback_loop_cross_source` audit entry records the
 original source and similarity score. Same-source near-dups continue to
 use the existing `noop_near_dup` path.
+
+
+## Known advisory watch (2026-11-04 review)
+
+| Dependency | Advisory | Our exposure | Action |
+|---|---|---|---|
+| numpy | GHSA-9fq2-x9r6-wfmf (critical, deserialization) | NOT affected - vulnerable range < 1.16.3; we require/ship modern numpy | none |
+| chromadb (optional extra, dev/semantic path only) | CVE-2026-45833 / GHSA-36p7-vc44-83pf (critical, code injection via UPDATE_COLLECTION) | Low: requires an authenticated attacker with collection-update permission on a chroma SERVER; MemTether uses an embedded local PersistentClient with no auth surface and never exposes a chroma server port. Not in the wheel's hard deps. | watch upstream for the patched release; upgrade when available; no action possible today (no fixed version exists as of 2026-11-04) |
+| onnxruntime | no open advisories | n/a | none |
+| fastapi/starlette (optional [server] extra) | CSRF / ReDoS / SSRF advisories | The API server binds 127.0.0.1 by default and is opt-in; review before any LAN/remote deployment | keep `[server]` extra opt-in; document that remote deployment needs an auth proxy |

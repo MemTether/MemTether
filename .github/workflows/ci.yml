@@ -44,6 +44,11 @@ jobs:
       - name: Run pytest tests
         run: pytest tests/ -v --tb=short
 
+      - name: Core coverage gate (ratchet, scope=6 core test files)
+        run: |
+          pip install pytest-cov
+          pytest tests/test_gateway_deep.py tests/test_memsearch.py tests/test_governance.py tests/test_memory_court.py tests/test_hubguard.py tests/test_core.py -q --tb=no --cov=gateway --cov=memsearch --cov=governance --cov=memory_court --cov=hubguard --cov-report=term --cov-fail-under=28
+
       - name: Test PII roundtrip
         run: python scripts/test_pii_roundtrip.py
 

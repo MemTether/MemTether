@@ -5,8 +5,9 @@ planned, in progress, and deliberately out of scope.
 
 ## Near-term (next minor release)
 
-- [ ] Auto-anchor performance benchmark (still unmeasured — the only remaining
-      near-term item; the three below moved to Completed in a82)
+- [x] Auto-anchor performance benchmark — measured 2026-11-04 on a prod-scale
+      DB copy (477k audit rows): 0.3 ms / 1 row, 5.7 ms / 1000 rows. Recorded in
+      docs/EVIDENCE.md. (The other three near-term items moved to Completed in a82.)
 - [ ] Hub-side test coverage for the remaining CLI surface
       (`mem.py cmd_search`/`cmd_asof`/`cmd_qvalue`/`cmd_distill`,
       `embed_local`, `skill_forge`) — hub suite went 0 → 125 tests this cycle
