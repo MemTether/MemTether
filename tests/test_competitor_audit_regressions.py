@@ -150,12 +150,14 @@ def test_sleep_apply_uses_governed_retire(tmp_path):
                        cwd=str(ROOT), env=env, capture_output=True, text=True,
                        encoding="utf-8", errors="replace", timeout=60)
     assert r.returncode == 0, r.stderr
+    import datetime as _dt
+    _recent = (_dt.datetime.now() - _dt.timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")
     conn = sqlite3.connect(env["MEM_DB"])
     for i in (1, 2):
         conn.execute("INSERT INTO facts (uid,type,content,status,source,recorded_at,created_at) "
                      "VALUES (?,?,?,?,?,?,?)",
                      ("u%d" % i, "fact", "same exact content", "active", "codex",
-                      "2026-11-04 00:00:00", "2026-11-04 00:00:00"))
+                      _recent, _recent))
     conn.commit(); conn.close()
     r = _run(["sleep", "--hours", "24", "--apply"], env)
     assert r.returncode == 0, r.stdout + r.stderr
