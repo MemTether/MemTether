@@ -43,18 +43,32 @@ if _HERE not in sys.path:
 # importlib.metadata reflects what pip actually installed (they can diverge
 # in a repo checkout, which is why __version__ drifted a30 vs a40 for 9 releases).
 try:
-    # repo checkout: pyproject.toml sits next to this file and is the freshest
-    # truth; installed wheel: no pyproject next to it → importlib.metadata.
-    _pp = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pyproject.toml")
-    if os.path.exists(_pp):
-        import tomllib
-        with open(_pp, "rb") as _pf:
-            __version__ = tomllib.load(_pf)["project"]["version"]
-    else:
-        from importlib.metadata import version as _meta_version
-        __version__ = _meta_version("memtether")
+    # importlib.metadata is ALWAYS correct for installed packages and
+    # respects the actual dist-info version. pyproject.toml is only
+    # checked when importlib.metadata fails (e.g., running from source
+    # without pip install).
+    from importlib.metadata import version as _meta_version
+    __version__ = _meta_version("memtether")
 except Exception:
-    __version__ = "0.1.0a81"
+    # Fallback: read pyproject.toml directly (source checkout without install)
+    try:
+        _pp = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pyproject.toml")
+        if os.path.exists(_pp):
+            try:
+                import tomllib
+                with open(_pp, "rb") as _pf:
+                    __version__ = tomllib.load(_pf)["project"]["version"]
+            except ImportError:
+                try:
+                    import tomli
+                    with open(_pp, "rb") as _pf:
+                        __version__ = tomli.load(_pf)["project"]["version"]
+                except ImportError:
+                    raise ValueError("need tomllib (3.11+) or tomli backport")
+        else:
+            raise FileNotFoundError("no pyproject.toml or installed metadata")
+    except Exception:
+        __version__ = "0.1.0a85"
 
 DATA_DIR = os.environ.get("MEMTETHER_HOME") or os.path.join(
     os.path.expanduser("~"), ".memtether")
