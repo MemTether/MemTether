@@ -495,6 +495,14 @@ def _init_fts_triggers():
         CREATE TRIGGER IF NOT EXISTS facts_fts_insert AFTER INSERT ON facts BEGIN INSERT INTO facts_fts(uid, content) VALUES (NEW.uid, NEW.content); END;
         CREATE TRIGGER IF NOT EXISTS facts_fts_delete AFTER DELETE ON facts BEGIN DELETE FROM facts_fts WHERE uid = OLD.uid; END;
         CREATE TRIGGER IF NOT EXISTS facts_fts_retire AFTER UPDATE OF status ON facts WHEN NEW.status != 'active' BEGIN DELETE FROM facts_fts WHERE uid = NEW.uid; END;
+        -- 2026-11-04: resurrect path. retire removes from FTS, but nothing
+        -- re-added rows that went back to active (found via the nrem rollback:
+        -- 40 restored rows were invisible to full-text search until repaired).
+        CREATE TRIGGER IF NOT EXISTS facts_fts_resurrect AFTER UPDATE OF status ON facts WHEN NEW.status = 'active' BEGIN
+            INSERT INTO facts_fts(uid, content)
+            SELECT NEW.uid, NEW.content
+            WHERE NOT EXISTS (SELECT 1 FROM facts_fts WHERE uid = NEW.uid);
+        END;
     """)
     conn.commit()
     conn.close()
