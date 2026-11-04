@@ -272,6 +272,12 @@ def retrieve_answer(item, k=12, variant='s'):
     import memsearch
     n = build_scratch_db(item)
     q = item['question']
+    # Fix-1 (2026-11-03): docstring promised question_date injection but code never
+    # did it — temporal "days ago" questions were mathematically unanswerable.
+    # Inject the anchor date into the query text so hybrid retrieval can use it.
+    _qdate = (item.get('question_date') or '').strip()
+    if _qdate:
+        q = '%s (context date: %s)' % (q, _qdate[:10])
 
     # ★三件套一起切：SQLite、Chroma 目录、集合名
     _saved = (memsearch.DB, memsearch.CHROMA_PATH, memsearch.COLLECTION)
@@ -450,7 +456,7 @@ def _pick_judge_channel():
     return None
 
 
-def generate_answer(question, evidence, model=None, question_type=None):
+def generate_answer(question, evidence, model=None, question_type=None, question_date=None):
     """★2026-09-15 新增：把**检索证据**生成成**答案**，再交给 judge 判分。
 
     为什么必须有这一步（血泪）：
@@ -470,18 +476,25 @@ def generate_answer(question, evidence, model=None, question_type=None):
         return None, 'no available channel'
     envn, base, mdl, key = ch
     if question_type and 'preference' in question_type:
+        _anchor = ''
+        if question_date:
+            _anchor = "Current date: %s\n" % str(question_date)[:10]
         prompt = (
             "Based on the CONVERSATION below, describe what the user would PREFER in response to the question. "
             "Describe the user's demonstrated preferences, not a direct answer to the question. "
             "Format: 'The user would prefer responses that...'\n\n"
-            "CONVERSATION:\n%s\n\nQUESTION: %s\nUSER PREFERENCE:" % (evidence, question)
+            "%sCONVERSATION:\n%s\n\nQUESTION: %s\nUSER PREFERENCE:" % (_anchor, evidence, question)
         )
     else:
+        _anchor = ''
+        if question_date:
+            _anchor = "Current date: %s\n" % str(question_date)[:10]
         prompt = (
             "Answer the QUESTION using ONLY the CONTEXT below. "
             "Be concise — give the direct answer, no explanation.\n"
+            "%s"
             "If the context does not contain the answer, reply exactly: NOT ENOUGH INFO\n\n"
-            "CONTEXT:\n%s\n\nQUESTION: %s\nANSWER:" % (evidence, question)
+            "CONTEXT:\n%s\n\nQUESTION: %s\nANSWER:" % (_anchor, evidence, question)
         )
     try:
         r = requests.post(base.rstrip('/') + '/chat/completions',
@@ -598,7 +611,12 @@ def run(sample=60, variant='oracle', use_llm=True, k=12, all_items=False, verbos
             continue
         try:
             res, nturn = retrieve_answer(it, k=k, variant=variant)
-            pred = ' | '.join((x.get('content') or '')[:400] for x in res[:k])
+            # Fix-1 (2026-11-03): prefix each evidence chunk with its session date
+            # so the generation model can do date arithmetic.
+            pred = ' | '.join(
+                ('[date: %s] %s' % ((x.get('updated_at') or '')[:10], (x.get('content') or '')[:400]))
+                if (x.get('updated_at') or '') else (x.get('content') or '')[:400]
+                for x in res[:k])
             s = judge_strict(pred, it['answer'])
             t = it['question_type']
             per_type[t]['n'] += 1
@@ -622,7 +640,7 @@ def run(sample=60, variant='oracle', use_llm=True, k=12, all_items=False, verbos
                 #   根因不是 judge 模型弱（对照测试里所有模型对明确答案都判对），
                 #   而是**任务本身定义错了**：记忆系统返回的是"证据"不是"答案"。
                 #   → 补一次 generate：用同一套检索证据让模型作答，再拿答案去判分。
-                ans, gerr = generate_answer(it['question'], pred, question_type=it.get('question_type',''))
+                ans, gerr = generate_answer(it['question'], pred, question_type=it.get('question_type',''), question_date=it.get('question_date'))
                 if ans is None:
                     errs.append('gen: %s' % gerr)
                     llm_skipped += 1
