@@ -1,0 +1,13 @@
+{
+ "ts": "2026-11-04 09:36:59",
+ "variant": "oracle+date-injection",
+ "n_temporal": 133,
+ "judge_scored": 132,
+ "judge_hits": 91,
+ "judge_pct": 68.9,
+ "strict_applicable": 84,
+ "strict_hits": 56,
+ "gen_fail": 1,
+ "errors": 0,
+ "elapsed_s": 2656
+}
