@@ -423,6 +423,10 @@ if not os.environ.get('WB2API_KEY'):
     except Exception:
         pass
 JUDGE_CHANNELS = [
+    # 2026-11-04 (user directive): loomy pool is now the primary judge channel.
+    # Local loomy2api on :17890 (weighted pool, GLM-5.3-Flash default). No key required
+    # (server accepts empty Bearer), but we pass a placeholder for the 4-tuple contract.
+    ('LOOMY_KEY', 'http://127.0.0.1:17890/v1', 'GLM-5.3-Flash'),
     ('WB2API_KEY', 'http://127.0.0.1:7874/v1', 'cn:deepseek-v4-flash'),
     ('GPTX_ASTRA_KEY', 'https://api.gptx.cc/v1', 'gpt-6-astra'),
     ('SILICON_KEY', 'https://api.siliconflow.cn/v1', 'Qwen/Qwen2.5-7B-Instruct'),
@@ -431,12 +435,17 @@ _JUDGE_PICK = None      # 缓存首次探活成功的通道，避免每题都试
 
 
 def _pick_judge_channel():
-    """探活并选定 judge 通道（带缓存）。返回 (env_name, base, model, key) 或 None。"""
+    """探活并选定 judge 通道（带缓存）。返回 (env_name, base, model, key) 或 None。
+
+    2026-11-04: loomy2api accepts empty Bearer; we probe with whatever env var
+    (LOOMY_KEY defaults to empty string) and treat HTTP 200/429 as alive.
+    """
     global _JUDGE_PICK
     if _JUDGE_PICK is not None:
         return _JUDGE_PICK
     import requests
     _load_cred()
+    os.environ.setdefault('LOOMY_KEY', 'loomy-local')
     for envn, base, model in JUDGE_CHANNELS:
         key = os.environ.get(envn) or ''
         if not key:
@@ -448,7 +457,7 @@ def _pick_judge_channel():
                               json={'model': model, 'max_tokens': 8, 'temperature': 0,
                                     'messages': [{'role': 'user', 'content': 'reply OK'}]},
                               timeout=20)
-            if r.status_code == 200:
+            if r.status_code in (200, 429):
                 _JUDGE_PICK = (envn, base, model, key)
                 return _JUDGE_PICK
         except Exception:
