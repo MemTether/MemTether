@@ -240,7 +240,8 @@ SCHEMA = """
   created_at TEXT,
   updated_at TEXT,
   q_value REAL DEFAULT 0.5,   -- ★升级 1：被采纳的价值分（0~1，中性 0.5）
-  use_count INTEGER DEFAULT 0 -- ★升级 1：被采纳次数（纯计数，不参与打分）
+  use_count INTEGER DEFAULT 0,-- ★升级 1：被采纳次数（纯计数，不参与打分）
+  last_verified_at TEXT       -- ★2026-11-04: verify_at renewal timestamp for facts
 );
 
 CREATE TABLE IF NOT EXISTS tool_assets (
@@ -422,7 +423,13 @@ def _ensure_columns(conn):
     # the column for staleness tracking, but CREATE TABLE IF NOT EXISTS never
     # upgrades an existing database. Without this, older installs break on the
     # first remember() with "table facts has no column named verify_at".
-    for name, typ, dflt in (('q_value', 'REAL', '0.5'), ('use_count', 'INTEGER', '0'), ('predicate', 'TEXT', None), ('verify_at', 'TEXT', None)):
+    # 2026-11-04 competitor-audit fix: a brand-new DB had verify_at but NOT
+    # last_verified_at, so memsearch's renewal UPDATE raised "no such column"
+    # and its bare except made the whole freshness mechanism a silent no-op.
+    # Production DBs had the column added manually, hiding the gap in testing.
+    for name, typ, dflt in (('q_value', 'REAL', '0.5'), ('use_count', 'INTEGER', '0'),
+                            ('predicate', 'TEXT', None), ('verify_at', 'TEXT', None),
+                            ('last_verified_at', 'TEXT', None)):
         if name in have:
             continue
         try:

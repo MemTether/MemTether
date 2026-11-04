@@ -2182,16 +2182,27 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
                 _jit_stale += 1
             _jit_checked += 1
     _diag["verify_stale_n"] = _stale_n
+    _full_for_renewal = list(_out)  # snapshot before paths projection
     _diag["jit_path_checked"] = _jit_checked
     _diag["jit_path_stale"] = _jit_stale
     if mode == 'paths':
-        _out = [{'uid': r.get('uid', ''),
-                 'abstract': r.get('layers', {}).get('L0', r.get('content', ''))[:160],
-                 'score': r.get('score', 0),
-                 'type': r.get('type', ''),
-                 'source': r.get('source', ''),
-                 'court': 'memtether court %s' % r.get('uid', '')}
-                for r in _out]
+        # 2026-11-04 competitor-audit fix: keep the governance/warning fields
+        # that downstream automation needs. Defining paths as a projection must
+        # NOT silently disable verify_at renewal or hide staleness evidence.
+        # (agent-memory teaches L0 hits should stay evidence-carrying handles.)
+        _paths_out = []
+        for r in _out:
+            hit = {'uid': r.get('uid', ''),
+                   'abstract': r.get('layers', {}).get('L0', r.get('content', ''))[:160],
+                   'score': r.get('score', 0),
+                   'type': r.get('type', ''),
+                   'source': r.get('source', ''),
+                   'court': 'memtether court %s' % r.get('uid', '')}
+            for k in ('verify_at', 'stale_warning', 'jit_path_check', 'degraded'):
+                if r.get(k) is not None:
+                    hit[k] = r[k]
+            _paths_out.append(hit)
+        _out = _paths_out
     # P0-1 (2026-11-03): Retrieval auto-renewal of verify_at
     # If a fact with verify_at is hit by search, extend its verify_at by 30 days
     # from today. This prevents frequently-used facts from expiring.
@@ -2201,15 +2212,24 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
         _today = _dt.date.today()
         _new_verify = (_today + _dt.timedelta(days=30)).isoformat()
         _renewed = 0
+        # Renew from the FULL result payload, not the L0 projection: paths
+        # mode drops verify_at from what callers see, so scanning `_out` here
+        # used to skip every renewal without any error (silent no-op).
+        _renew_source = _full_for_renewal if mode == 'paths' else _out
         _renew_conn = sqlite3.connect(DB)  # fresh connection (old one closed at L1124)
         try:
-            for _rv in _out:
+            for _rv in _renew_source:
                 _ruid = _rv.get('uid', '')
                 _rva = _rv.get('verify_at', '')
                 if _ruid and _rva and _rva < _today.isoformat():
                     _renew_conn.execute("UPDATE facts SET verify_at=?, last_verified_at=? WHERE uid=? AND status='active'",
                                  (_new_verify, _today.isoformat(), _ruid))
                     _rv['verify_at'] = _new_verify
+                    if mode == 'paths':
+                        for _hit in _out:
+                            if _hit.get('uid') == _ruid:
+                                _hit['verify_at'] = _new_verify
+                                _hit['verify_renewed'] = True
                     # Don't remove stale_warning - let the caller see it was stale
                     # (the renewal is for NEXT time, not to hide this time's warning)
                     _renewed += 1

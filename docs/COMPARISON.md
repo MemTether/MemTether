@@ -107,6 +107,35 @@ memtether.remember("fact", source="my-agent")
 ```
 
 
+## vs tigerless-labs/agent-memory (4.3K stars, the closest architectural rival)
+
+Last audited from source 2026-11-04 (full clone, 246 files / 2,074 functions /
+859 test functions read via AST + key files line-by-line; report:
+`workdocs/memtether/教材-agent-memory-20261104.md`).
+
+| Dimension | MemTether | agent-memory |
+|---|---|---|
+| Truth source | SQLite row = fact, SHA-256 row chain | Markdown file = fact, SQLite is a rebuildable cache |
+| Read model | hybrid retrieval (BM25+vector RRF + rerank + Q-Value + verify_at decay) | MEMORY.md injection + BM25 FTS5 + plain `ls/grep` tree (three tracks) |
+| Write model | every entry through `gateway.remember` (source guard / dedup / cross-source echo gate / incident cooldown / audit anchor) | every entry through `store.record` / `record_many` (validate → hash-diff → reproject), Manage rewrites share the same path |
+| Sleep-time | `nrem sleep`: deterministic exact-dup proposals, cap 20, **dry-run by default**, `--apply` goes through governed `retire` + audit chain | Manage: menu-bounded proposals (merge/split/supersede/delete), per-kind caps, DreamReport + auto git commit, claims with lease recovery |
+| Deletion | `retire` marks superseded/retired; rows preserved | `delete` ends the validity interval; file preserved; physical removal only via human `gc()` |
+| Freshness | `verify_at` staleness + JIT path existence check + search-time auto-renewal | none (valid_from/invalid_at intervals only) |
+| Conflict handling | human adjudication gate (`conflicts --accept/--discard`) wired to Q-Value | none (duplicate supersession only) |
+| Integrity proof | per-fact hash chain + `court --verify` + external anchors + exportable dossier | file bytes are the proof; no chain concept |
+| Packaging | PyPI stable 0.1.0 + GitHub Packages npm + MCP Registry | git clone + `uv sync` only; **no PyPI release** |
+| Benchmark evidence | `docs/EVIDENCE.md` registry: every number carries date/denominator/reproduce command; `test_docs_claims.py` mechanically locks README numbers | README quotes LongMemEval numbers; referenced `docs/experiments.md` / `experiments/` are **404 in the repo** |
+| Windows | maintainer's daily-driver OS; all tests run on Windows CI + locally | TODO admits Windows hooks unverified on live Codex install; long prompts can exceed Windows command-line limits |
+| Tests | 675 passed / 6 skipped (Python 3.10, Windows, 2026-11-04) | 859 test functions / 111 files, CI gate `--cov-fail-under=85`, mypy strict-ish |
+
+**Trade-off in one line:** agent-memory wins on human-auditable file trees and
+host-CLI write automation; MemTether wins on row-level tamper evidence,
+human conflict adjudication, freshness guarantees, and installable packaging.
+They share one belief: **unattended consolidation must be proposal-only** —
+we adopted that shape (and their single-write-path invariant) in the
+2026-11-04 audit; we did not adopt file-as-truth because it conflicts with
+the per-row audit chain.
+
 ## Governance has (at least) two routes
 
 As of 2026-11-02, "governed memory" is claimed by three different

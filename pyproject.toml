@@ -107,6 +107,7 @@ py-modules = [
     "memtether",
     "memtether_exchange",
     "memtether_paths",
+    "nrem_sleep",
     "memory_court",
     "predicates",
     "rerank",

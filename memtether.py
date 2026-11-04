@@ -285,89 +285,88 @@ def _cmd_conflicts(args):
 
 
 def _cmd_remember_batch(args):
-    """Batch write: read a JSON array of {content, type, source} objects and
-    insert them with a single commit + batch ChromaDB upsert.
+    """Batch write through the SINGLE governed write path (gateway.remember).
 
-    5000 facts: 7min (one-by-one) -> <60s (batch)."""
+    2026-11-04 competitor-audit fix: the old implementation issued a raw
+    `INSERT INTO facts`, bypassing source validation, dedup, cross-source
+    feedback-loop gate, incident cooldown, verify_at, entity extraction,
+    hubguard locking and the audit-chain anchor. agent-memory's Invariant 2
+    ("single write path") exists precisely to prevent truth/projection drift
+    caused by entries like this. Performance is preserved by setting
+    MEM_SKIP_VECTOR during the batch and doing one optional vector rebuild
+    afterwards; correctness is never traded for insert speed.
+    """
     import json as _json
-    import sqlite3
     import time as _t
-    db_path = os.environ.get("MEM_DB") or DEFAULT_DB
 
-    input_path = args.file
-    if not os.path.isfile(input_path):
-        print(f"✗ file not found: {input_path}")
+    if not os.path.isfile(args.file):
+        print(f"✗ file not found: {args.file}")
         return 1
-    with open(input_path, encoding="utf-8") as f:
+    with open(args.file, encoding="utf-8") as f:
         items = _json.load(f)
     if not isinstance(items, list):
         print("✗ input must be a JSON array")
         return 1
 
     import gateway
-    conn = gateway.get_conn()
-    conn.row_factory = sqlite3.Row
     gateway.init_db()
-
-    inserted = 0
-    deduped = 0
-    errors = 0
-    uids = []
-    vec_batch = []
-
+    prev_skip = os.environ.get("MEM_SKIP_VECTOR")
+    os.environ["MEM_SKIP_VECTOR"] = "1"
+    inserted = deduped = errors = 0
+    uids, vec_batch = [], []
     t0 = _t.perf_counter()
-    for i, item in enumerate(items):
-        content = item.get("content", "").strip()
-        if not content or len(content) > 10240:
-            errors += 1
-            continue
-        itype = item.get("type", "fact")
-        isource = item.get("source", "batch")
-        uid = gateway._uid("fact", content + isource)
-        # check for existing
-        existing = conn.execute(
-            "SELECT uid FROM facts WHERE uid=? AND status='active'", (uid,)).fetchone()
-        if existing:
-            deduped += 1
-            continue
-        try:
-            conn.execute(
-                """INSERT INTO facts (uid,type,subject,content,status,source,scope,confidence,tags,
-                                      created_at,updated_at,valid_from,recorded_at,temporal_source,tenant_id)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                (uid, itype, "user", content, "active", isource, "shared", 0.8, "",
-                 gateway.now(), gateway.now(), gateway.now(), gateway.now(), "native",
-                 os.environ.get("MEM_TENANT_ID", "default")))
-            gateway.audit(conn, "remember", uid, isource, content[:60])
-            uids.append(uid)
-            vec_batch.append(content)
-            inserted += 1
-        except Exception as e:
-            errors += 1
-            if errors <= 3:
-                print(f"  ⚠ item {i}: {e}")
+    try:
+        for i, item in enumerate(items):
+            if not isinstance(item, dict):
+                errors += 1
+                continue
+            try:
+                r = gateway.remember(
+                    item.get("content", ""),
+                    type=item.get("type", "fact"),
+                    source=item.get("source", "batch"),
+                    scope=item.get("scope", "shared"),
+                    subject=item.get("subject", "user"),
+                    confidence=item.get("confidence", 0.8),
+                    tags=item.get("tags", ""),
+                )
+                op = (r or {}).get("op", "")
+                if op == "insert":
+                    inserted += 1
+                    uids.append(r.get("uid", ""))
+                    vec_batch.append(item.get("content", ""))
+                else:
+                    deduped += 1
+            except Exception as e:
+                errors += 1
+                if errors <= 3:
+                    print(f"  ⚠ item {i}: {e}")
+    finally:
+        if prev_skip is None:
+            os.environ.pop("MEM_SKIP_VECTOR", None)
+        else:
+            os.environ["MEM_SKIP_VECTOR"] = prev_skip
 
-    conn.commit()
-
-    # batch vector upsert (single embed call for all)
+    # One optional batch vector upsert. Failure is LOUD but never loses SQLite truth.
     vec_ok = 0
-    if vec_batch:
+    if vec_batch and not os.environ.get("MEM_SKIP_VECTOR"):
         try:
             import memsearch
             col = memsearch._client().get_or_create_collection(
                 memsearch.COLLECTION, metadata={"hnsw:space": "cosine"})
             vecs = memsearch._embed(vec_batch)
-            col.upsert(ids=uids, embeddings=vecs, documents=vec_batch,
-                       metadatas=[{"uid": u, "type": "fact"} for u in uids])
-            vec_ok = len(uids)
+            col.upsert(ids=[u for u in uids if u], embeddings=vecs,
+                       documents=vec_batch,
+                       metadatas=[{"uid": u, "type": "fact"} for u in uids if u])
+            vec_ok = len(vec_batch)
         except Exception as e:
-            print(f"  ⚠ vector upsert failed (facts still in SQLite): {e}")
+            print(f"  ⚠ vector upsert failed (facts still in SQLite + audit chain): {e}")
+            print("  ⚠ run `memtether reconcile --apply` to rebuild the vector index")
 
     dt = _t.perf_counter() - t0
-    print(f"✓ batch: {inserted} inserted, {deduped} deduped, {errors} errors in {dt:.1f}s "
-          f"({inserted/dt:.0f}/sec)" if dt > 0 else "✓ batch complete")
-    print(f"  vectors: {vec_ok}/{len(uids)}")
-    conn.close()
+    rate = ("%d/sec" % (inserted / dt)) if dt > 0 else "n/a"
+    print(f"✓ batch: {inserted} inserted, {deduped} deduped/gated, {errors} errors in {dt:.1f}s ({rate})")
+    print(f"  vectors: {vec_ok}/{len(vec_batch)}")
     return 0
 
 
@@ -1074,6 +1073,22 @@ def _cmd_handoff(args):
     return 0
 
 
+def _yaml_scalar(value):
+    """Render one frontmatter value as a single-line, quote-safe YAML scalar.
+
+    agent-memory's regression suite (test_regression_frontmatter_injection.py)
+    shows why: a newline in a rendered field becomes a second frontmatter line
+    on the next read; keys such as `superseded_by` can then be forged. Our
+    export is one-way, but the files are greppable/git-able and may be
+    re-ingested, so refuse to emit a value that would change field structure.
+    """
+    import json
+    text = "" if value is None else str(value)
+    if any(ch in text for ch in ("\r", "\n")):
+        return json.dumps(text.replace("\r", " ").replace("\n", " "), ensure_ascii=False)
+    return json.dumps(text, ensure_ascii=False)
+
+
 def _cmd_export_md(args):
     """Export active memories as markdown files — portable, greppable, git-able."""
     import sqlite3, datetime
@@ -1093,15 +1108,15 @@ def _cmd_export_md(args):
         fn = f"{typ}_{uid}.md"  # P2-6: full uid (30-char prefix collides)
         fp = os.path.join(out_dir, fn)
         content = r['content'] or ''
-        frontmatter = f"""---
-uid: {uid}
-type: {typ}
-source: {r['source'] or 'unknown'}
-created: {ts}
-updated: {r['updated_at'] or ''}
----
-
-"""
+        frontmatter = (
+            "---\n"
+            + f"uid: {_yaml_scalar(uid)}\n"
+            + f"type: {_yaml_scalar(typ)}\n"
+            + f"source: {_yaml_scalar(r['source'] or 'unknown')}\n"
+            + f"created: {_yaml_scalar(ts)}\n"
+            + f"updated: {_yaml_scalar(r['updated_at'] or '')}\n"
+            + "---\n\n"
+        )
         with open(fp, 'w', encoding='utf-8') as f:
             f.write(frontmatter + content + chr(10))
         manifest.append({'file': fn, 'uid': uid, 'type': typ, 'source': r['source']})
@@ -1322,21 +1337,25 @@ def _cmd_sleep(args):
     """
     import subprocess, sys, os
     here = os.path.dirname(os.path.abspath(__file__))
-    nrem = os.path.join(here, "nrem_consolidate.py")
+    # 2026-11-04 INCIDENT ROOT-CAUSE FIX: the old fallback searched a sibling
+    # development checkout and could execute memory_hub/nrem_consolidate.py,
+    # which hardcodes its own DB path, ignores MEM_DB, bypasses the audit
+    # chain, and --apply mutates PRODUCTION from inside a unit test. That
+    # fallback is forbidden: only the shipped nrem_sleep.py (honours MEM_DB,
+    # proposal-only by default, governed writes) may run here.
+    nrem = os.path.join(here, "nrem_sleep.py")
     if not os.path.exists(nrem):
-        # try the hub
-        hub_nrem = os.path.join(os.path.dirname(here), "memory_hub", "nrem_consolidate.py")
-        if os.path.exists(hub_nrem):
-            nrem = hub_nrem
-        else:
-            print("nrem_consolidate.py not found")
-            return 1
+        print("nrem_sleep.py not found (install is incomplete)")
+        return 1
     py = sys.executable
     cmd = [py, nrem, "--hours", str(args.hours)]
-    if not args.dry_run:
+    # Safety shape learned from agent-memory's Manage: sleep is proposal-only,
+    # writing requires an explicit --apply. The legacy --dry-run flag remains
+    # accepted for backward compatibility but no longer inverts the default.
+    if args.apply:
         cmd.append("--apply")
     print("Running NREM consolidation (--hours %d%s)..." % (
-        args.hours, ", dry-run" if args.dry_run else ""))
+        args.hours, ", dry-run" if not args.apply else ", APPLY"))
     r = subprocess.run(cmd, timeout=300, cwd=here)
     return r.returncode
 
@@ -1372,7 +1391,10 @@ def main(argv=None):
 
     sp_sleep = sub.add_parser("sleep", help="Run a consolidation pass: cluster similar memories, distill conclusions, retire stale entries")
     sp_sleep.add_argument("--hours", type=int, default=24, help="Look-back window in hours")
-    sp_sleep.add_argument("--dry-run", action="store_true", help="Show proposals without applying")
+    sp_sleep.add_argument("--dry-run", action="store_true",
+                          help="Deprecated no-op: dry-run is already the default")
+    sp_sleep.add_argument("--apply", action="store_true",
+                          help="Explicitly apply proposals through governed writes")
     sp_sleep.set_defaults(func=_cmd_sleep)
     sp_ver = sub.add_parser("version", help="Print version information")
     sp_ver.add_argument("--json", action="store_true", help="Output version info in JSON format")
