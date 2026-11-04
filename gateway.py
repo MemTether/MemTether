@@ -1905,11 +1905,17 @@ def rebuild():
         # 绝大多数记忆永远进不了投影（实测 fact 45 vs 1022 = 95% 不可见）。
         # 动态规则 = max(静态基数, 该类型 active 数 × 5%)，保证配额随库增长。
         # MEM_PROJ_STATIC_QUOTA=1 可回退旧行为（评测对照用）。
+        # 2026-11-04 sync: hub build already includes procedure (base 5) and a
+        # today-rescue row set. The release build lacked both, so procedure
+        # could starve (observed live: "类型饿死：incident / procedure") and
+        # same-day facts were not protected under budget pressure. Mirror hub.
         if os.environ.get('MEM_PROJ_STATIC_QUOTA') == '1':
-            _QUOTA = (('decision', 40), ('incident', 20), ('fact', 45), ('experience', 25))
+            _QUOTA = (('decision', 40), ('incident', 20), ('fact', 45),
+                      ('experience', 25), ('procedure', 5))
         else:
             _QUOTA = []
-            for _typ, _base in (('decision', 40), ('incident', 20), ('fact', 45), ('experience', 25)):
+            for _typ, _base in (('decision', 40), ('incident', 20), ('fact', 45),
+                                ('experience', 25), ('procedure', 5)):
                 _n = conn.execute(
                     "SELECT COUNT(*) FROM facts WHERE status='active' AND type=?",
                     (_typ,)).fetchone()[0]
@@ -1944,6 +1950,25 @@ def rebuild():
             if _r['uid'] not in _have_uid:
                 _picked.append((_r['updated_at'] or _r['created_at'] or '',
                                 _r['type'] if _r['type'] in sink else 'fact', _r))
+        _picked.sort(key=lambda p: p[0], reverse=True)
+
+        # ★R-today (2026-11-04 sync from hub): same-day facts get a protected
+        # slot right after pins. Without this, a fact written today can be
+        # squeezed out under budget pressure in the release build while the
+        # hub build keeps it — divergent behaviour between maintainer and
+        # users. Mirrors hub gateway today_idx semantics.
+        import datetime as _dt_today
+        _today_str = _dt_today.datetime.now().strftime('%Y-%m-%d')
+        _today_rows = conn.execute(
+            "SELECT * FROM facts WHERE status='active' AND substr(COALESCE(created_at,''),1,10) = ? "
+            "ORDER BY created_at DESC LIMIT 5",
+            (_today_str,)).fetchall()
+        _have_uid = {p[2]['uid'] for p in _picked}
+        for _r in _today_rows:
+            if _r['uid'] not in _have_uid:
+                _picked.append((_r['updated_at'] or _r['created_at'] or '',
+                                _r['type'] if _r['type'] in sink else 'fact', _r))
+                _have_uid.add(_r['uid'])
         _picked.sort(key=lambda p: p[0], reverse=True)
 
         #    🔴 2026-09-14 再修：注入侧按体积截断，一条动辄 1500 字的"巨型事实"会把预算吃光
@@ -2075,11 +2100,16 @@ def rebuild():
         if len(_nrem_idx) > _NREM_CAP:
             _nrem_idx = _nrem_idx[:_NREM_CAP]  # 已按时间倒序，取最新
         _nrem_set = set(_nrem_idx)
-        _fill_order = [(i, _picked[i]) for i in _pin_idx]
-        # ★2026-10-19：floor 放在 today 之前——today+pin 可吃掉全部预算，
-        #   导致 incident/procedure 类型饿死（实测 floor 排在 today 后面时全部被跳过）
-        _fill_order += [(i, _picked[i]) for i in _floor_idx
+        # ★2026-11-04 reorder: floor BEFORE pins (mirror hub). Floor is the
+        # anti-starvation guarantee; pins remain unconditional right after.
+        _fill_order = [(i, _picked[i]) for i in _floor_idx
                         if i not in _pin_set]
+        _fill_order += [(i, _picked[i]) for i in _pin_idx]
+        # ★R-today: same-day rows follow pins, mirroring hub.
+        _today_idx = [i for i, p in enumerate(_picked)
+                      if str(p[2]['created_at'] or '')[:10] == _today_str]
+        _today_set = set(_today_idx)
+        _fill_order += [(i, _picked[i]) for i in _today_idx if i not in _pin_set]
         _fill_order += [(i, _picked[i]) for i in _nrem_idx if i not in _pin_set]
         # ★2026-09-23 十修（新闻带内短条优先）：纯全局短优会把类型比例打乱（实测 fact9/dec11），
         #   纯逐条短优则会丢掉最新条目（实测最新 2 条缺 2 条）。
@@ -2097,7 +2127,7 @@ def rebuild():
         _band = max(1, int(os.environ.get('MEM_PROJ_BAND', '25')))
         _rest_by_typ = {}
         for _i, _p in enumerate(_picked):
-            if _i in _pin_set or _i in _floor_set:
+            if _i in _pin_set or _i in _floor_set or _i in _today_set:
                 continue
             _rest_by_typ.setdefault(_p[1], []).append((_i, _p))
         _bucket = {}
@@ -2141,10 +2171,31 @@ def rebuild():
         _dropped_facts = 0
         _kept_pairs = []
         _type_kept = {}
+        # 2026-11-04: starvation is hard to debug from warnings alone; dump the
+        # skip decisions behind an opt-in env (zero cost when unset).
+        _dbg = bool(os.environ.get('MEM_PROJ_DEBUG'))
+        if _dbg:
+            sys.stderr.write('[proj-debug] fill_order=%d room0=%s\n' % (len(_fill_order), _room))
+        # 2026-11-04: pins must never starve the floor. 10 pins x 200-char leads
+        # ate the entire budget before floor items ran (prod trace: room=27 by the
+        # time floor items arrived -> every floor row skipped -> starved-type alarm).
+        # Bound each pin's lead so unconditional inclusion stays affordable.
+        _PIN_LEAD_CAP = int(os.environ.get('MEM_PROJ_PIN_LEAD_CAP', '140'))
+        _FLOOR_LEAD_CAP = int(os.environ.get('MEM_PROJ_FLOOR_LEAD_CAP', '90'))
         for _i, (_ts, _typ, _r) in _fill_order:
             _d = (_r['updated_at'] or _r['created_at'] or '')[:10] or '????-??-??'
-            _item = _hg_fact_line(_d, _typ, _r['source'], _lead(_r['content']))
+            _is_pin = _i in _pin_set
+            _is_floor = _i in _floor_set
+            _lead_txt = _lead(_r['content'])
+            if _is_pin and _PIN_LEAD_CAP and len(_lead_txt) > _PIN_LEAD_CAP:
+                _lead_txt = _lead_txt[:_PIN_LEAD_CAP].rstrip() + '…'
+            elif _is_floor and _FLOOR_LEAD_CAP and len(_lead_txt) > _FLOOR_LEAD_CAP:
+                _lead_txt = _lead_txt[:_FLOOR_LEAD_CAP].rstrip() + '…'
+            _item = _hg_fact_line(_d, _typ, _r['source'], _lead_txt)
             if len(_item) + 1 > _room:
+                if _dbg:
+                    sys.stderr.write('[proj-debug] SKIP %s len=%d room=%d :: %s\n'
+                                     % (_typ, len(_item)+1, _room, _item[:60]))
                 # ★2026-09-16 七修：**跳过**装不下的长条目，继续尝试后面的短条目。
                 #   旧实现是 break —— 一条 160 字的巨型事实就能让其后所有短条目全部作废，
                 #   实测 headroom 尚余 624 字符却只装进 15 条（预算白白浪费，
@@ -2313,7 +2364,16 @@ def rebuild():
                              % (_dropped_facts, len(_picked), _kept))
         if _dropped_assets:
             _warnings.append('预算不足：%d 条资产未进投影' % _dropped_assets)
-        _starved = [t for t, _q in _QUOTA if not _type_kept.get(t)]
+        # 2026-11-04: starvation is only meaningful when the type HAS active rows.
+        # A type with zero active rows (procedure often) was reported starved on
+        # every rebuild - a permanent false alarm that trains operators to
+        # ignore the warning channel (the exact "wolf!" failure the six-fix
+        # observability pass was meant to prevent).
+        _active_by_type = {t: conn.execute(
+            "SELECT COUNT(*) FROM facts WHERE status='active' AND type=?", (t,)).fetchone()[0]
+            for t, _q in _QUOTA}
+        _starved = [t for t, _q in _QUOTA
+                    if not _type_kept.get(t) and _active_by_type.get(t, 0) > 0]
         if _kept == 0:
             # ★预算小到一条事实都放不下时，报"类型饿死"是**误报** ——
             #   饿死的根因是预算太小，不是配额设计问题，照旧给"调低 _QUOTA"的建议会误导。
