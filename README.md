@@ -582,7 +582,7 @@ it imports the published `memtether` package (no local path injection), so
 
 | Test | Result |
 |---|---|
-| pytest | 567 passed, 4 skipped (CI runs full tests/ directory) |
+| pytest | 669 passed, 6 skipped (675 collected; CI runs full tests/ directory) |
 | hard_bench | 62/62 |
 | e2e_verify | 13/13 |
 | refuse_bench | 26/26 (wordform gate; 09-25 calibration; known blind spot: same-form-different-attribute) |

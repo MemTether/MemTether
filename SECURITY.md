@@ -98,3 +98,12 @@ echo gate).
 Tested end-to-end on a demo DB: write (agent-a) → recall → re-ingest
 (agent-b) → `op: noop_echo, original_source=agent-a`, **1 active row**.
 Before the gate: 2 active duplicate rows.
+
+**Cross-source paraphrase gate (2026-11-04, commit with Fix-1):**
+the near-dup check previously skipped different-source candidates entirely.
+Now it catches paraphrase re-ingestion too: if embedding similarity >= 0.92
+and the candidate's source differs from the writer, the write is attributed
+to the original row with `op: feedback_loop`, the original row is tagged
+`feedback_loop`, and a `feedback_loop_cross_source` audit entry records the
+original source and similarity score. Same-source near-dups continue to
+use the existing `noop_near_dup` path.

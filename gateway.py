@@ -756,7 +756,24 @@ def remember(content, type='fact', source=DEFAULT_SOURCE, scope='shared', subjec
                 _cand_meta = (got.get('metadatas') or [{}])[0] if got.get('metadatas') else {}
                 _cand_src = (_cand_meta.get('source') or '') if isinstance(_cand_meta, dict) else ''
                 if _cand_src and source and _cand_src != source:
-                    continue
+                    # W1.6-5 (2026-11-04): cross-source paraphrase feedback loop.
+                    # Previously we just skipped — a re-ingested paraphrase from a
+                    # different agent created a duplicate row. Now we flag it:
+                    # attribute to the ORIGINAL row (echo semantics), audit it,
+                    # and return without inserting. The caller sees op='feedback_loop'
+                    # and knows this was a re-ingestion, not new information.
+                    _fb_tags = 'feedback_loop'
+                    conn.execute(
+                        "UPDATE facts SET updated_at=?, tags=CASE WHEN tags IS NULL OR tags='' "
+                        "THEN ? ELSE tags || ' ' || ? END WHERE uid=?",
+                        (now(), _fb_tags, _fb_tags, did))
+                    audit(conn, 'feedback_loop_cross_source', did, source,
+                          'cross-source paraphrase re-ingestion (orig_src=%s sim=%.3f)'
+                          % (_cand_src, sim))
+                    conn.commit()
+                    return {'ok': True, 'uid': did, 'op': 'feedback_loop',
+                            'original_source': _cand_src, 'sim': round(sim, 3),
+                            'note': 'cross-source paraphrase caught by feedback-loop gate'}
                 # P1-2 (2026-10-05): ghost-vector guard.
                 # Vector store can outlive its facts DB (test isolation,
                 # supersede race). If uid is not an active row in THIS facts
