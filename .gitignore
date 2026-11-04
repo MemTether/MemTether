@@ -230,3 +230,5 @@ mt_*/
 qvalue_test_*/
 bench_data/lme_chroma/
 
+
+npm-client/.npmrc

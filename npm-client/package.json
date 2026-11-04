@@ -1,7 +1,7 @@
 {
   "name": "@memtether/client",
   "version": "0.1.0",
-  "description": "Thin REST client for MemTether \u2014 the governed AI agent memory with a tamper-evident audit chain",
+  "description": "Thin REST client for MemTether — the governed AI agent memory with a tamper-evident audit chain",
   "main": "index.js",
   "types": "index.d.ts",
   "scripts": {
@@ -31,5 +31,8 @@
     "index.js",
     "index.d.ts",
     "README.md"
-  ]
+  ],
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  }
 }
