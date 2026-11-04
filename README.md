@@ -531,6 +531,15 @@ memtether dashboard                    # Web UI
 | single-session-user | 70 | 86.4% | 85.7% |
 | temporal-reasoning | 133 | 60.7% | 40.5% |
 
+> **Temporal follow-up (2026-11-04):** the 40.5% temporal judge score above was
+> measured by a harness that never passed `question_date` to the answering model —
+> "How many days ago …" questions were mathematically unanswerable. After adding
+> the date anchor (query + evidence + prompt; commit 1b4fb9f), a full 133-question
+> temporal rerun scored **68.9% judge** (91/132, oracle variant, loomy judge;
+> [artifact](experiments/reproducibility/temporal133_withdate_result.json)).
+> The 40.5% number below is kept for reproducibility of that exact run, but
+> should not be cited as the engine's temporal capability.
+>
 > Results use our own harness. Not directly comparable with mem0's reported numbers.
 >
 > EAF (75.7%) is not a "we win" number — it is the retrieval variant that removes
