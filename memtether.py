@@ -68,7 +68,7 @@ except Exception:
         else:
             raise FileNotFoundError("no pyproject.toml or installed metadata")
     except Exception:
-        __version__ = "0.1.0a85"
+        __version__ = "0.1.0"
 
 DATA_DIR = os.environ.get("MEMTETHER_HOME") or os.path.join(
     os.path.expanduser("~"), ".memtether")
