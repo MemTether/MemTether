@@ -680,7 +680,7 @@ def remember(content, type='fact', source=DEFAULT_SOURCE, scope='shared', subjec
         if type in ('fact', 'environment') and (
                 re.search(r'[A-Z]:[/\\]', content)
                 or re.search(r'\.(exe|py|bat|ps1|db|json)\b', content)
-                or re.search(r'\\bv?\\d+\\.\\d+\\.\\d+\\b', content)):
+                or re.search(r'\bv?\d+\.\d+\.\d+\b', content)):
             from datetime import datetime, timedelta
             _vf = valid_from if valid_from else now()
             _verify = (datetime.strptime(_vf[:10], '%Y-%m-%d') + timedelta(days=30)).strftime('%Y-%m-%d')
