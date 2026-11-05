@@ -19,9 +19,14 @@ except ImportError:
 import gateway
 if HAS_FASTAPI:
     gateway.init_db()
-    from api_server import app
-    # isolated TestClient: the shared limiter is per-app; other modules
-    # (rate-limit tests) can exhaust it module-order-dependently
+    # 2026-11-05: the limiter is process-wide in-memory and shared across ALL
+    # api_server tests in one pytest session; a suite that hammers /remember
+    # exhausts the 60/min default before this file runs (real product behavior,
+    # bad test isolation). Rebuild the app with a huge limit for this module.
+    os.environ["MEM_RATE_LIMIT"] = "1000000/minute"
+    import importlib, api_server as _api
+    importlib.reload(_api)
+    app = _api.app
     client = TestClient(app)
 
 requires_fastapi = pytest.mark.skipif(not HAS_FASTAPI, reason="fastapi not installed")

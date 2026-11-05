@@ -29,7 +29,10 @@ class _NoopLimiter:
 try:
     from slowapi import Limiter, _rate_limit_exceeded_handler
     from slowapi.util import get_remote_address
-    _limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
+    # 2026-11-05: make the limit operator-tunable (and test-isolation-friendly).
+    # Default stays 60/min; MEM_RATE_LIMIT accepts slowapi syntax e.g. "600/minute".
+    _rate = os.environ.get("MEM_RATE_LIMIT", "60/minute").strip() or "60/minute"
+    _limiter = Limiter(key_func=get_remote_address, default_limits=[_rate])
     app.state.limiter = _limiter
     app.add_exception_handler(429, _rate_limit_exceeded_handler)
 except ImportError:

@@ -5,6 +5,7 @@ from unittest.mock import patch, MagicMock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.environ["MEM_DB"] = os.path.join(__import__('tempfile').mkdtemp(prefix='mt_api_test_'), 'test.db')  # P1-2: file DB (was :memory:, leaked env broke other tests)
+os.environ.setdefault("MEM_RATE_LIMIT", "100000/minute")  # 2026-11-05: suite-wide API hammering must not trip the 60/min limiter
 
 try:
     from fastapi.testclient import TestClient
