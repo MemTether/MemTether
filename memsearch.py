@@ -16,6 +16,7 @@ import json
 import math
 import time
 import sqlite3
+import hashlib
 import datetime
 import urllib.request
 
@@ -395,8 +396,12 @@ def verify_active_consistency():
         conn.row_factory = sqlite3.Row
         _cols_f = {r[1] for r in conn.execute('PRAGMA table_info(facts)')}
         _vf_sql = ', verify_at' if 'verify_at' in _cols_f else ''
+        # 2026-11-05 (arXiv 2610.36308 obsolete-facts split): fetch superseded_by
+        # so diag can separate "retrieval missed the newest version" from
+        # "agent got the newest but an obsolete sibling too".
+        _sb_sql = ', superseded_by' if 'superseded_by' in _cols_f else ''
         frows = conn.execute(
-"SELECT uid, content, type, source, scope%s FROM facts WHERE status='active'" % _vf_sql + _scope_filter() + _tenant_filter()[0], (_tenant_filter()[1],)).fetchall()
+"SELECT uid, content, type, source, scope, superseded_by%s FROM facts WHERE status='active'" % (_sb_sql + _vf_sql) + _scope_filter() + _tenant_filter()[0], (_tenant_filter()[1],)).fetchall()
         try:
             arows = conn.execute("SELECT * FROM tool_assets WHERE status='active'").fetchall()
         except Exception:
@@ -1374,6 +1379,9 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
                     'ttl': _parse_ttl(f.get('tags'), f.get('valid_to'), f.get('content')),
                     # 2026-11-03: verify_at for env fact staleness
                     'verify_at': f.get('verify_at') or '',
+                    # 2026-11-05: superseded_by flows into hits so diag can
+                    # detect obsolete-family collisions (2610.36308 split).
+                    'superseded_by': f.get('superseded_by') or '',
                     'reason': reason}
         # M2（2026-09-24）：技能接进检索结果 —— 资产条目带 skill_hint。
         #   动机：调用方（agent）看到「ComfyUI | E:\ComfyUI\...」只知道"有这个东西"，
@@ -2240,6 +2248,78 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
             _renew_conn.close()
     except Exception:
         pass  # renewal is best-effort, never block search results
+
+    # 2026-11-05 (arXiv 2610.36308): obsolete-facts observability.
+    # R7 layer-1 dedup removes superseded predecessors before here, so the
+    # healthy state is obsolete_removed_n>0 (retrieval handled the stale
+    # sibling) and obsolete_family_n==0. obsolete_family_n>0 = invariant
+    # violation (dedup failed) - surfaced loudly in diag.
+    try:
+        _fam = {}
+        _obsolete_family = 0
+        _sup_map = {}
+        for _r0 in _out:
+            _sb = _r0.get('superseded_by')
+            if _sb:
+                _sup_map[_r0.get('uid')] = _sb
+        _uids_out = {r0.get('uid') for r0 in _out}
+        for _u, _sb in _sup_map.items():
+            if _sb in _uids_out and _sb != _u:
+                _obsolete_family += 1
+        _diag['obsolete_family_n'] = _obsolete_family
+        _diag['stale_annotated_n'] = sum(
+            1 for _r0 in _out if _r0.get('stale_warning'))
+    except Exception:
+        _diag.setdefault('obsolete_family_n', 0)
+        _diag.setdefault('stale_annotated_n', 0)
+
+    # 2026-11-05 (ROADMAP mid-term: read-side audit; arXiv 2610.25707 owner
+    # attribution motivates knowing WHO READ WHAT). Opt-in via MEM_READ_LOG=1:
+    # log returned uids + caller source into read_log, then feed the audit
+    # hash chain (maybe_anchor is sub-ms at prod scale - measured 2026-11-04).
+    if os.environ.get('MEM_READ_LOG') == '1' and _round == 0:
+        try:
+            import datetime as _dt_read
+            _rl_conn = sqlite3.connect(DB)
+            try:
+                _rl_conn.execute(
+                    "CREATE TABLE IF NOT EXISTS read_log ("
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT, uid TEXT, agent TEXT, "
+                    "query_digest TEXT, ts TEXT)")
+                _agent = os.environ.get('MEM_READ_AGENT', 'unknown')
+                _qdigest = hashlib.sha256(q.encode('utf-8')).hexdigest()[:16] if q else ''
+                _ts = _dt_read.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                _rl_conn.execute(
+                    "CREATE TABLE IF NOT EXISTS audit_log ("
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT, op TEXT, target TEXT, "
+                    "agent TEXT, detail TEXT, ts TEXT)")
+                _seen = set()
+                for _r0 in _out:
+                    _u = _r0.get('uid') or ''
+                    if _u and _u not in _seen:
+                        _seen.add(_u)
+                        _rl_conn.execute(
+                            "INSERT INTO read_log (uid, agent, query_digest, ts) "
+                            "VALUES (?,?,?,?)", (_u, _agent, _qdigest, _ts))
+                        # Same event into the hash-chained audit surface so
+                        # court --verify covers reads, not just writes.
+                        _rl_conn.execute(
+                            "INSERT INTO audit_log (op, target, agent, detail, ts) "
+                            "VALUES ('read', ?, ?, ?, ?)",
+                            (_u, _agent, 'query=%s' % _qdigest, _ts))
+                _rl_conn.commit()
+                try:
+                    import memory_court as _mc2
+                    _mc2.maybe_anchor(_rl_conn, force=True)
+                except Exception:
+                    pass
+            finally:
+                _rl_conn.close()
+        except Exception as _rl_err:
+            # 2026-11-05: silent except here cost an hour of debugging (hub
+            # recursion bug was invisible). LOUD when MEM_PROJ_DEBUG=1.
+            if os.environ.get('MEM_PROJ_DEBUG'):
+                sys.stderr.write('[read-log] disabled by error: %r\n' % (_rl_err,))
 
     # 2026-11-03: expose degraded flag so callers can label results
     _degraded = _diag.get('degraded', False)
