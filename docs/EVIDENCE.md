@@ -27,6 +27,12 @@ CI gate set to `--cov-fail-under=28` on the same scope (ratchet floor; raise as
 coverage grows). Do NOT quote 34% as project coverage - it is a 5-module subset
 under 6 test files.
 
+## Type-check baseline (2026-11-05)
+
+mypy (`--ignore-missing-imports --no-strict-optional`) on the 10 engine modules:
+**0 errors** (was 7 var-annotation gaps + 1 union-attr, all fixed same day).
+CI gate added (`Type check (mypy, 10 engine modules)` job step).
+
 ## Auto-anchor latency (prod-scale copy, 2026-11-04)
 
 | batch size | maybe_anchor latency |

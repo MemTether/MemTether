@@ -60,7 +60,7 @@ CHROMA_PATH = os.environ.get('MEM_STORE') or os.path.join(os.path.dirname(DB), '
 if not os.path.isabs(CHROMA_PATH):
     CHROMA_PATH = os.path.join(HUB, CHROMA_PATH)
 COLLECTION = 'facts_active'
-LAST_EMBED_INFO = {}  # diagnostic: record last embed call params
+LAST_EMBED_INFO: dict = {}  # diagnostic: record last embed call params
 EMBED_BACKEND_DEFAULT = os.environ.get('MEM_EMBED_BACKEND_DEFAULT', 'local')
 EMBED_MODEL = 'embedding-3'
 

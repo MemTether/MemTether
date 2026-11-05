@@ -164,7 +164,10 @@ def reset_cache():
 if __name__ == "__main__":
     os.environ["MEM_DB"] = r"E:\RUANJIAN\memory_hub\memory.db"
     import random, string
-    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    # 2026-11-05: mypy union-attr guard (TextIO may lack reconfigure on some
+    # wrappers); hasattr check preserves runtime behavior on real stdout.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     tests = [
         ("帮我看一下 packy 通道的状态", True),
         ("check memtether gateway.py", True),

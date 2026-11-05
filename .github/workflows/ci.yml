@@ -44,6 +44,11 @@ jobs:
       - name: Run pytest tests
         run: pytest tests/ -v --tb=short
 
+      - name: Type check (mypy, 10 engine modules)
+        run: |
+          pip install mypy
+          mypy --ignore-missing-imports --no-strict-optional --python-version 3.10 gateway.py memsearch.py governance.py memory_court.py hubguard.py nrem_sleep.py trigger_detector.py predicates.py tool_audit.py rerank.py
+
       - name: Core coverage gate (ratchet, scope=6 core test files)
         run: |
           pip install pytest-cov

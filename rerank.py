@@ -36,8 +36,8 @@ MODELS = {
 #     加载快 1.75 倍**，不是"它更准"。别把噪声讲成结论（同 embedding 那次）。
 DEFAULT_MODEL = os.environ.get('MEM_RERANK_MODEL') or 'bge-int8'
 
-_cache = {}
-_load_sec = {}
+_cache: dict = {}
+_load_sec: dict = {}
 
 
 def _paths(model):

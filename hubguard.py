@@ -64,7 +64,7 @@ HUB = os.path.dirname(os.path.abspath(__file__))
 # 路径与配置
 # ============================================================================
 
-_DB_CACHE = {}
+_DB_CACHE: dict = {}
 
 
 # --- DB path discovery (moved to hubguard_local.py for local development) ---
@@ -228,8 +228,8 @@ def _write_holder(lp, info):
 
 
 _MTX = threading.Lock()
-_HELD = {}          # lock_path -> {'fh', 'depth', 'token'}
-_RLOCKS = {}        # lock_path -> threading.RLock（同进程跨线程串行 + 同线程可重入）
+_HELD: dict = {}    # lock_path -> {'fh', 'depth', 'token'}
+_RLOCKS: dict = {}  # lock_path -> threading.RLock（同进程跨线程串行 + 同线程可重入）
 
 
 def _rlock_for(lp):
