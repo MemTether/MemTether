@@ -1382,6 +1382,10 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
                     # 2026-11-05: superseded_by flows into hits so diag can
                     # detect obsolete-family collisions (2610.36308 split).
                     'superseded_by': f.get('superseded_by') or '',
+                    # 2026-11-05 round-6 fix: pinned-forced budget branch reads
+                    # hit['tags']; hits never carried tags so the branch was
+                    # dead code (pin rows were silently truncated with the rest).
+                    'tags': f.get('tags') or '',
                     'reason': reason}
         # M2（2026-09-24）：技能接进检索结果 —— 资产条目带 skill_hint。
         #   动机：调用方（agent）看到「ComfyUI | E:\ComfyUI\...」只知道"有这个东西"，
