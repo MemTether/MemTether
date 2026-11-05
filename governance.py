@@ -284,7 +284,21 @@ def _row_conflicts(rows, cutoff, min_shared=1, max_per_uid=3):
                 'why': '同一实体相反极性',
                 'weight': n_id * 10 + len(clashes),
             })
+    # 2026-11-05: enforce the documented max_per_uid cap (docstring promised it;
+    # implementation never had it - exposed by line-level test round 4). Cap per
+    # uid AFTER weight sort so the strongest pairs survive.
     out.sort(key=lambda x: -x['weight'])
+    if max_per_uid and max_per_uid > 0:
+        _cnt = {}
+        _capped = []
+        for x in out:
+            ka, kb = x['a']['uid'], x['b']['uid']
+            if _cnt.get(ka, 0) >= max_per_uid or _cnt.get(kb, 0) >= max_per_uid:
+                continue
+            _capped.append(x)
+            _cnt[ka] = _cnt.get(ka, 0) + 1
+            _cnt[kb] = _cnt.get(kb, 0) + 1
+        out = _capped
     return out
 
 
