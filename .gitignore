@@ -233,3 +233,5 @@ bench_data/lme_chroma/
 
 npm-client/.npmrc
 coverage.json
+_r4.json
+coverage.json
