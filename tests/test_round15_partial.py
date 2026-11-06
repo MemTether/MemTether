@@ -67,6 +67,8 @@ class TestCompilePacketTruncation:
 
 # ------------------------------------------- hubguard.safe_append_bytes CRT
 class TestSafeAppend:
+    @pytest.mark.skipif(os.name != "nt",
+                        reason="CRT fallback is a Windows-only path; POSIX uses O_APPEND directly (atomic_append=True)")
     def test_crt_fallback_on_error(self, tmp_path, monkeypatch):
         """FILE_APPEND_DATA fails -> CRT O_APPEND fallback (non-atomic warning)."""
         f = tmp_path / "fb.log"
