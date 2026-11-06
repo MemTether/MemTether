@@ -146,3 +146,59 @@ class TestCorrectAuditReceipt:
         finally:
             conn.close()
         assert n >= 1, "correct must leave a provable audit receipt"
+
+# ---------------------------------------------------- P1: Persome follow-ups
+class TestPersomeP1:
+    """P1 batch (2026-11-07): corruption probe / schema fingerprint /
+    retrieval-stats carry-over."""
+
+    def test_corruption_probe_raises_at_connect(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("MEM_DB", str(tmp_path / "corrupt.db"))
+        (tmp_path / "corrupt.db").write_bytes(b"not a sqlite database at all" * 10)
+        import importlib
+        import gateway
+        importlib.reload(gateway)
+        try:
+            with pytest.raises(RuntimeError, match="corrupted"):
+                gateway.get_conn()
+        finally:
+            importlib.reload(gateway)
+
+    def test_schema_fingerprint_deterministic(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("MEM_DB", str(tmp_path / "fp.db"))
+        monkeypatch.setenv("MEM_SKIP_VECTOR", "1")
+        import importlib
+        import gateway
+        importlib.reload(gateway)
+        gateway.init_db()
+        fp1 = gateway._schema_fingerprint()
+        fp2 = gateway._schema_fingerprint()
+        assert fp1 and fp1 == fp2
+        # deterministic across a fresh init on the same db
+        gateway.init_db()
+        assert gateway._schema_fingerprint() == fp1
+
+    def test_correct_carries_use_count(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("MEM_DB", str(tmp_path / "carry.db"))
+        monkeypatch.setenv("MEM_SKIP_VECTOR", "1")
+        import importlib, sqlite3
+        import gateway
+        importlib.reload(gateway)
+        gateway.init_db()
+        r1 = gateway.remember("carry-over probe v1", source="codex")
+        uid1 = r1["uid"]
+        gateway.bump_qvalue(uid1, reward=1.0, agent="codex")  # use_count 0->1
+        r2 = gateway.correct(uid1, "carry-over probe v2", reason="update",
+                             by_agent="codex")
+        assert r2.get("ok"), r2
+        conn = sqlite3.connect(gateway.DB)
+        try:
+            old_n = conn.execute(
+                "SELECT use_count FROM facts WHERE uid=?", (uid1,)).fetchone()[0]
+            new_n = conn.execute(
+                "SELECT use_count FROM facts WHERE uid=?",
+                (r2["new_uid"],)).fetchone()[0]
+        finally:
+            conn.close()
+        assert new_n >= 1 and new_n >= old_n, (
+            f"supersede must carry earned use_count (old={old_n}, new={new_n})")

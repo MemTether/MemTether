@@ -68,6 +68,7 @@ except Exception:                       # pragma: no cover - 无 hubguard 时照
 # ---------------------------------------------------------------------------
 DEFAULT_SOURCE = os.environ.get('MEM_DEFAULT_SOURCE', 'local')
 _anchor_warned = False  # a75-r3: auto-anchor failure warned-once flag
+_schema_fp_warned = False  # 2026-11-07: schema-drift warned-once flag
 
 
 def _hg_fact_line(date10, typ, source, lead):
@@ -395,6 +396,18 @@ def get_conn():
         conn.execute('PRAGMA busy_timeout=5000')
     except Exception:
         pass
+    # 2026-11-07 (Persome P1#6): corruption probe — Persome's connect() runs a
+    # canary SELECT on every connection. SQLite happily hands out a connection
+    # to a corrupted db and only fails later mid-transaction; a probe here
+    # converts "works for a while then explodes" into "fails at connect time".
+    try:
+        conn.execute('SELECT 1 FROM sqlite_master LIMIT 1').fetchone()
+    except Exception as _probe_err:
+        conn.close()
+        raise RuntimeError(
+            'memory.db corrupted or unreadable (probed at connect): '
+            f'{type(_probe_err).__name__}: {str(_probe_err)[:120]}'
+        ) from _probe_err
     return conn
 
 
@@ -485,6 +498,47 @@ def init_db():
     conn.close()
 
     _init_fts_triggers()  # FTS + triggers
+    _verify_schema_fingerprint()
+
+
+def _schema_fingerprint(conn=None):
+    """Stable hash over (table -> sorted column names). Persome P1#7:
+    detects column drift that CREATE-IF-NOT-EXISTS + idempotent ALTERs can
+    both silently miss (e.g. a hand-edited or older db with renamed cols)."""
+    import hashlib as _hl
+    _own = conn is None
+    conn = conn or get_conn()
+    try:
+        rows = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
+        ).fetchall()
+        parts = []
+        for (tname,) in rows:
+            cols = [r[1] for r in conn.execute(f'PRAGMA table_info({tname})')]
+            parts.append(tname + ':' + ','.join(sorted(cols)))
+        return _hl.sha256(('|'.join(parts)).encode('utf-8')).hexdigest()[:16]
+    finally:
+        if _own:
+            conn.close()
+
+
+def _verify_schema_fingerprint():
+    """Warn-once (not raise): fingerprint changes are expected across versions,
+    so a hard raise would brick every legitimate upgrade. But drift must be
+    VISIBLE — silent divergence is exactly the Persome failure class."""
+    global _schema_fp_warned
+    try:
+        fp = _schema_fingerprint()
+    except Exception as e:
+        sys.stderr.write(f'[memtether] schema fingerprint unavailable: {e}\n')
+        return
+    expected = os.environ.get('MEM_SCHEMA_FP')
+    if expected and fp != expected:
+        if not _schema_fp_warned:
+            sys.stderr.write(
+                '[memtether] SCHEMA DRIFT: fingerprint ' + fp +
+                ' != expected ' + expected + ' (set MEM_SCHEMA_FP to silence)\n')
+            _schema_fp_warned = True
 
 
 def _init_fts_triggers():
@@ -1001,6 +1055,21 @@ def correct(old_uid, new_content, reason, by_agent=DEFAULT_SOURCE, valid_from=No
             bump_qvalue(old_uid, reward=0.0, agent=by_agent, detail='auto: corrected/superseded')
         except Exception:
             pass
+        # 2026-11-07 (Persome P1#8): retrieval-stats carry-over. use_count is
+        # earned attention; superseding must not leave the successor with less
+        # than the predecessor ended with. Runs AFTER the auto-bump so it sees
+        # the final old count (Persome entries.py L663-671 carry-over).
+        try:
+            _final_old = conn.execute(
+                "SELECT use_count FROM facts WHERE uid=?", (old_uid,)).fetchone()
+            _carry = int(_final_old[0] or 0) if _final_old else 0
+            if _carry > 0:
+                conn.execute(
+                    "UPDATE facts SET use_count = ? WHERE uid = ? AND (use_count IS NULL OR use_count < ?)",
+                    (_carry, new_uid, _carry))
+                conn.commit()
+        except Exception:
+            pass  # older schema without use_count — never block the correction
         return {'ok': True, 'old_uid': old_uid, 'new_uid': new_uid, 'op': 'supersede'}
     finally:
         conn.close()
