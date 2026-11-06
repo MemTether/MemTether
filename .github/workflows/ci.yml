@@ -42,7 +42,16 @@ jobs:
           pip install pytest
 
       - name: Run pytest tests
-        run: pytest tests/ -v --tb=long --log-cli-level=WARNING
+        run: |
+          pytest tests/ -v --tb=long --log-cli-level=WARNING 2>&1 | tee pytest_output.txt
+          exit ${PIPESTATUS[0]}
+      - name: Upload test output
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-output-${{ matrix.os }}-${{ matrix.python-version }}
+          path: pytest_output.txt
+          retention-days: 7
 
       - name: Type check (mypy, 10 engine modules)
         run: |
