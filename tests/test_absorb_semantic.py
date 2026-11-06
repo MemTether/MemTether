@@ -32,7 +32,14 @@ requires_fastapi = pytest.mark.skipif(not HAS_FASTAPI, reason="fastapi not insta
 def _embed_available():
     try:
         import embed_local
-        return embed_local.available()
+        if not embed_local.available():
+            return False
+        # available() only checks model files exist - actually encode to
+        # catch missing onnxruntime (CI extras may not include [vector]).
+        # 2026-11-06: CI ubuntu/macos failed here - files present (bundled
+        # in repo) but onnxruntime not installed via pip extras.
+        embed_local.encode(['ci probe'])
+        return True
     except Exception:
         return False
 
