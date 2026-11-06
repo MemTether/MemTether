@@ -42,7 +42,7 @@ jobs:
           pip install pytest
 
       - name: Run pytest tests
-        run: pytest tests/ -v --tb=short
+        run: pytest tests/ -v --tb=long --log-cli-level=WARNING
 
       - name: Type check (mypy, 10 engine modules)
         run: |
