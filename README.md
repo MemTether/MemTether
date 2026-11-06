@@ -490,7 +490,7 @@ memtether profile --subject user --json    # machine-readable
 ```
 
 Aggregates everything known about one subject (counts by type/source, time span,
-high-confidence facts, an L0 digest you can paste straight into a system prompt).
+high-confidence facts, an L0 digest you can paste straight into a system prompt). Every search hit carries `age_days` (how old this memory is) and `confidence` (0-1 Q-value) so the consuming agent can judge freshness without parsing ISO timestamps..
 Unlike supermemory's `get_profile` or honcho's `get_representation`, this runs
 **zero LLM calls** — the same DB always yields the same profile, and every line
 traces back to a `uid`.
@@ -636,6 +636,7 @@ framework.
 
 ## Security
 
+- **PII scrub (12 patterns)**: every `remember()` and `correct()` is checked against 12 regex patterns covering API keys, Bearer tokens, JWTs, passwords (en+zh), email, CN mobile numbers. Matches are rejected at the gate - secrets never reach durable memory.
 - **Poisoning defense**: `memtether_guard` detects prompt injection, code execution, sensitive info (OWASP LLM01/02/06), 12 rules
 - **Input validation**: content ≤10K, type whitelist, source format, confidence range, scope whitelist
 - **Scope isolation**: `shared` / `private` / `restricted`
