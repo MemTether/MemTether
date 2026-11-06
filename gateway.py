@@ -126,7 +126,10 @@ def _hg_write(path, text, before=None, on_conflict='abort', tag=''):
         if before is not None:
             return HG.commit_guarded(path, text, before,
                                      on_conflict=on_conflict, tag=tag)
-        return HG.atomic_write(path, text)
+        # 2026-11-07 (Persome P1#9): projections go through the two-phase
+        # transactional write (journal fsynced BEFORE the replace) so a crash
+        # mid-rebuild leaves an auditable intent record instead of silence.
+        return HG.transactional_write(path, text, op='projection.' + (tag or 'write'))
     with open(path, 'w', encoding='utf-8') as f:
         f.write(text)
     return {'ok': True, 'path': path, 'bytes': os.path.getsize(path), 'atomic': False}
@@ -2282,31 +2285,59 @@ def rebuild():
         # Bound each pin's lead so unconditional inclusion stays affordable.
         _PIN_LEAD_CAP = int(os.environ.get('MEM_PROJ_PIN_LEAD_CAP', '140'))
         _FLOOR_LEAD_CAP = int(os.environ.get('MEM_PROJ_FLOOR_LEAD_CAP', '90'))
-        for _i, (_ts, _typ, _r) in _fill_order:
-            _d = (_r['updated_at'] or _r['created_at'] or '')[:10] or '????-??-??'
-            _is_pin = _i in _pin_set
-            _is_floor = _i in _floor_set
-            _lead_txt = _lead(_r['content'])
-            if _is_pin and _PIN_LEAD_CAP and len(_lead_txt) > _PIN_LEAD_CAP:
-                _lead_txt = _lead_txt[:_PIN_LEAD_CAP].rstrip() + '…'
-            elif _is_floor and _FLOOR_LEAD_CAP and len(_lead_txt) > _FLOOR_LEAD_CAP:
-                _lead_txt = _lead_txt[:_FLOOR_LEAD_CAP].rstrip() + '…'
-            _item = _hg_fact_line(_d, _typ, _r['source'], _lead_txt)
-            if len(_item) + 1 > _room:
-                if _dbg:
-                    sys.stderr.write('[proj-debug] SKIP %s len=%d room=%d :: %s\n'
-                                     % (_typ, len(_item)+1, _room, _item[:60]))
-                # ★2026-09-16 七修：**跳过**装不下的长条目，继续尝试后面的短条目。
-                #   旧实现是 break —— 一条 160 字的巨型事实就能让其后所有短条目全部作废，
-                #   实测 headroom 尚余 624 字符却只装进 15 条（预算白白浪费，
-                #   且"谁被跳过"取决于 _fill_order 的偶然顺序，不可控）。
-                _skipped_facts += 1
-                continue
-            mem_lines.append(_item)
-            _kept_pairs.append((_i, _item))
-            _type_kept[_typ] = _type_kept.get(_typ, 0) + 1
-            _room -= len(_item) + 1
-            _kept += 1
+        # 2026-11-07 (Persome P1#10): render all candidate lines first, then
+        # bin-pack: with the old greedy "skip if it doesn't fit" walk, a huge
+        # candidate early in the order could leave headroom that later short
+        # candidates never reclaimed (prod trace: room=624 wasted). First-fit
+        # over pre-rendered lines = minimal fits chosen globally, not by luck
+        # of order. Opt-out: MEM_PROJ_GREEDY_FILL=1 restores the old walk.
+        if os.environ.get('MEM_PROJ_GREEDY_FILL') != '1':
+            _cand = []
+            for _i, (_ts, _typ, _r) in _fill_order:
+                _d = (_r['updated_at'] or _r['created_at'] or '')[:10] or '????-??-??'
+                _is_pin = _i in _pin_set
+                _is_floor = _i in _floor_set
+                _lead_txt = _lead(_r['content'])
+                if _is_pin and _PIN_LEAD_CAP and len(_lead_txt) > _PIN_LEAD_CAP:
+                    _lead_txt = _lead_txt[:_PIN_LEAD_CAP].rstrip() + '…'
+                elif _is_floor and _FLOOR_LEAD_CAP and len(_lead_txt) > _FLOOR_LEAD_CAP:
+                    _lead_txt = _lead_txt[:_FLOOR_LEAD_CAP].rstrip() + '…'
+                _item = _hg_fact_line(_d, _typ, _r['source'], _lead_txt)
+                _cand.append((_i, _typ, _item))
+            # shortest-first bin packing: globally minimal fits beat the greedy
+            # walk where a big early candidate wasted headroom (Persome P1#10)
+            _cand.sort(key=lambda c: len(c[2]))
+            for _i, _typ, _item in _cand:
+                if len(_item) + 1 > _room:
+                    _skipped_facts += 1
+                    continue
+                mem_lines.append(_item)
+                _kept_pairs.append((_i, _item))
+                _type_kept[_typ] = _type_kept.get(_typ, 0) + 1
+                _room -= len(_item) + 1
+                _kept += 1
+        else:
+            for _i, (_ts, _typ, _r) in _fill_order:
+                _d = (_r['updated_at'] or _r['created_at'] or '')[:10] or '????-??-??'
+                _is_pin = _i in _pin_set
+                _is_floor = _i in _floor_set
+                _lead_txt = _lead(_r['content'])
+                if _is_pin and _PIN_LEAD_CAP and len(_lead_txt) > _PIN_LEAD_CAP:
+                    _lead_txt = _lead_txt[:_PIN_LEAD_CAP].rstrip() + '…'
+                elif _is_floor and _FLOOR_LEAD_CAP and len(_lead_txt) > _FLOOR_LEAD_CAP:
+                    _lead_txt = _lead_txt[:_FLOOR_LEAD_CAP].rstrip() + '…'
+                _item = _hg_fact_line(_d, _typ, _r['source'], _lead_txt)
+                if len(_item) + 1 > _room:
+                    if _dbg:
+                        sys.stderr.write('[proj-debug] SKIP %s len=%d room=%d :: %s\n'
+                                         % (_typ, len(_item)+1, _room, _item[:60]))
+                    _skipped_facts += 1
+                    continue
+                mem_lines.append(_item)
+                _kept_pairs.append((_i, _item))
+                _type_kept[_typ] = _type_kept.get(_typ, 0) + 1
+                _room -= len(_item) + 1
+                _kept += 1
         _dropped_facts = len(_picked) - _kept
         # ★事实区没花完的额度转给资产区（避免"事实装不下、资产也空着"的双重浪费）
         _room_assets += _room

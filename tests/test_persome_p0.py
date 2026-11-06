@@ -202,3 +202,74 @@ class TestPersomeP1:
             conn.close()
         assert new_n >= 1 and new_n >= old_n, (
             f"supersede must carry earned use_count (old={old_n}, new={new_n})")
+
+class TestPersomeP1TxnWrite:
+    """P1#9: two-phase transactional write for projections."""
+
+    def test_txn_write_committed_and_journal_readable(self, tmp_path):
+        import hubguard
+        target = tmp_path / "MEMORY.md"
+        target.write_text("old", encoding="utf-8")
+        r = hubguard.transactional_write(str(target), "new content",
+                                         op="projection.test")
+        assert r["ok"] and r["txn_stage"] == "committed"
+        assert r["journal"] and target.read_text(encoding="utf-8") == "new content"
+        j = hubguard.read_txn_journal(str(target))
+        assert j["op"] == "projection.test"
+        assert j["stage"] == "committed"
+        assert j["expected"] is not None
+
+    def test_journal_written_before_replace(self, tmp_path):
+        import hubguard
+        target = tmp_path / "MEMORY2.md"
+        target.write_text("v1", encoding="utf-8")
+        r = hubguard.transactional_write(str(target), "v2")
+        assert r["txn_stage"] == "committed"
+        j = hubguard.read_txn_journal(str(target))
+        # expected hash must have been the PRE-write content hash
+        assert j["expected_size"] == 2, j
+
+class TestBinPackFill:
+    """P1#10: shortest-first bin packing beats greedy-skip on wasted headroom."""
+
+    def test_binpack_fits_more_than_greedy(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("MEM_DB", str(tmp_path / "bp.db"))
+        monkeypatch.setenv("MEM_SKIP_VECTOR", "1")
+        monkeypatch.setenv("MEM_SINK_PATH", str(tmp_path / "sink.json"))
+        monkeypatch.setenv("MEM_PROJ_PATH", str(tmp_path / "MEMORY.md"))
+        monkeypatch.setenv("MEM_PROJ_BUDGET", "900")
+        monkeypatch.setenv("MEM_PROJ_ASSET_MAX", "0")
+        monkeypatch.setenv("MEM_PROJ_ASSET_PRIO_MAX", "0")
+        monkeypatch.delenv("MEM_PROJ_GREEDY_FILL", raising=False)
+        import importlib
+        import gateway
+        importlib.reload(gateway)
+        gateway.HG = None
+        gateway.init_db()
+        # one huge candidate first (time order), then short ones
+        gateway.remember("huge candidate " + "x" * 250, source="codex")
+        for i in range(5):
+            gateway.remember("short %d" % i, source="codex")
+        r = gateway.rebuild()
+        md = open(os.environ["MEM_PROJ_PATH"], encoding="utf-8").read()
+        kept_short = sum(1 for i in range(5) if ("short %d" % i) in md)
+        # bin-packing must place most/all short rows despite the huge one
+        assert kept_short >= 3, (kept_short, r["facts_listed"], len(md))
+        assert len(md) <= 1100
+
+    def test_greedy_fallback_still_works(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("MEM_DB", str(tmp_path / "gr.db"))
+        monkeypatch.setenv("MEM_SKIP_VECTOR", "1")
+        monkeypatch.setenv("MEM_SINK_PATH", str(tmp_path / "sink.json"))
+        monkeypatch.setenv("MEM_PROJ_PATH", str(tmp_path / "MEMORY.md"))
+        monkeypatch.setenv("MEM_PROJ_BUDGET", "3980")
+        monkeypatch.setenv("MEM_PROJ_GREEDY_FILL", "1")
+        import importlib
+        import gateway
+        importlib.reload(gateway)
+        gateway.HG = None
+        gateway.init_db()
+        gateway.remember("greedy fallback probe", source="codex")
+        gateway.rebuild()
+        md = open(os.environ["MEM_PROJ_PATH"], encoding="utf-8").read()
+        assert "greedy fallback probe" in md

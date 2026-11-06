@@ -598,6 +598,79 @@ def atomic_write(path, text, encoding='utf-8', fsync=True, newline=None):
         raise
 
 
+def transactional_write(path, text, encoding='utf-8', op='update'):
+    """2026-11-07 (Persome P1#9): two-phase transactional write.
+
+    Persome model/human.py writes HUMAN.md as: stage file -> journal entry
+    (operation/stage/expected/candidate identity, fsync) -> atomic exchange.
+    Our atomic_write() already covers stage + exchange; what it lacks is the
+    JOURNAL — a crash between writing the candidate and replacing the target
+    leaves no record of what was intended, so recovery tooling cannot tell a
+    completed write from an interrupted one.
+
+    Contract here:
+      1. fsync journal BEFORE os.replace (WAL-for-files: intent is durable
+         first, then the data becomes visible).
+      2. On success: mark journal 'committed'. Journal is kept (bounded to the
+         last entry per target) so a post-crash audit can answer "what did the
+         last writer intend, and did it complete?".
+      3. On failure: journal records 'failed' with the error class.
+    Journal path: <target>.txn.journal (JSON, one line, rewritten each call).
+    """
+    import json as _json
+    path = os.path.abspath(path)
+    journal_path = path + '.txn.journal'
+    stamp = time.strftime('%Y-%m-%dT%H:%M:%S')
+    before = None
+    try:
+        before = snapshot(path)
+    except Exception:
+        pass
+    journal = {
+        'op': op, 'stage': 'writing', 'ts': stamp, 'pid': os.getpid(),
+        'expected': (before or {}).get('sha256'),
+        'expected_size': (before or {}).get('size'),
+    }
+    try:
+        atomic_write(journal_path,
+                     _json.dumps(journal, ensure_ascii=False) + '\n')
+    except Exception as _j_err:
+        # A failed journal must not block the write itself — but it must be
+        # loud (Persome constitution: failures must be observable).
+        sys.stderr.write(
+            f'[hubguard] transactional journal UNAVAILABLE for {path}: '
+            f'{type(_j_err).__name__}: {str(_j_err)[:100]}\n')
+        journal = None
+
+    result = atomic_write(path, text, encoding=encoding)
+
+    if journal is not None:
+        journal['stage'] = 'committed' if result.get('ok') else 'failed'
+        journal['done_ts'] = time.strftime('%Y-%m-%dT%H:%M:%S')
+        journal['result_atomic'] = bool(result.get('atomic'))
+        if not result.get('ok'):
+            journal['error'] = str(result.get('error', ''))[:200]
+        try:
+            atomic_write(journal_path,
+                         _json.dumps(journal, ensure_ascii=False) + '\n')
+        except Exception:
+            pass
+    result['journal'] = journal_path if journal is not None else None
+    result['txn_stage'] = journal.get('stage') if journal else 'unjournaled'
+    return result
+
+
+def read_txn_journal(path):
+    """Read the last transactional-write journal for a target (or None)."""
+    import json as _json
+    jp = os.path.abspath(path) + '.txn.journal'
+    try:
+        with open(jp, 'r', encoding='utf-8') as f:
+            return _json.loads(f.read())
+    except Exception:
+        return None
+
+
 def _write_inplace(path, text, encoding, newline):
     """就地写（无法原子替换时的降级路径）。
 
