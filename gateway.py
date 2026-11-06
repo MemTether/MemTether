@@ -2121,7 +2121,7 @@ def rebuild():
         _floor_set = set(_floor_idx)
         # ★pin 条目排在最前（先于类型保底）—— 它们是"必须一直在"的定义类结论。
         _pin_idx = [i for i, p in enumerate(_picked)
-                    if 'pin' in (p[2]['tags'] or '').lower()]
+                    if 'pin' in [x.strip().lower() for x in (p[2]['tags'] or '').split(',') if x.strip()]]
         _pin_set = set(_pin_idx)
         # ★E2：NREM summary 排在 pin 之后
         _nrem_idx = [i for i, p in enumerate(_picked)
