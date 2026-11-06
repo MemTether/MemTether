@@ -10,6 +10,10 @@ test_pii_roundtrip.py — R3 (2026-09-25)
 import sys, os, json, sqlite3, tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+# 2026-11-06 (CI fix): memtether_export imports memtether_paths which
+ # lives in the repo root, not scripts/. Linux/macOS CI failed here with
+ # ModuleNotFoundError because only scripts/ was on sys.path.
+sys.path.insert(0, os.path.dirname(HERE))
 
 from memtether_export import sanitize_snapshot
 from memtether_pipeline import PII_PATTERNS
