@@ -2304,9 +2304,12 @@ def rebuild():
                     _lead_txt = _lead_txt[:_FLOOR_LEAD_CAP].rstrip() + '…'
                 _item = _hg_fact_line(_d, _typ, _r['source'], _lead_txt)
                 _cand.append((_i, _typ, _item))
-            # shortest-first bin packing: globally minimal fits beat the greedy
-            # walk where a big early candidate wasted headroom (Persome P1#10)
-            _cand.sort(key=lambda c: len(c[2]))
+            # shortest-first bin packing, but FLOOR ROWS ALWAYS WIN first:
+            # pure length order let 10 long non-floor rows starve the 'floor'
+            # type guarantee (prod: procedure type zero). Floor-first keeps the
+            # anti-starvation contract; then shortest-first packs the rest
+            # (Persome P1#10).
+            _cand.sort(key=lambda c: (c[0] not in _floor_set, len(c[2])))
             for _i, _typ, _item in _cand:
                 if len(_item) + 1 > _room:
                     _skipped_facts += 1
