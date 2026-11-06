@@ -2310,6 +2310,36 @@ def rebuild():
             # anti-starvation contract; then shortest-first packs the rest
             # (Persome P1#10).
             _cand.sort(key=lambda c: (c[0] not in _floor_set, len(c[2])))
+            # type diversity after floor: reserve at least one more slot per
+            # type before letting one type hog the tail (prod: procedure starved
+            # again under pure length order even with floor=2)
+            _type_count = {}
+            _cand_sorted = []
+            _deferred = []
+            for _ci, (_i, _typ, _item) in enumerate(_cand):
+                if _i in _floor_set:
+                    _cand_sorted.append((_i, _typ, _item))
+                    _type_count[_typ] = _type_count.get(_typ, 0) + 1
+                else:
+                    _deferred.append((_i, _typ, _item))
+            _min_type = int(os.environ.get('MEM_PROJ_TYPE_MIN', '2'))
+            if _min_type > 1:
+                _promoted = []
+                _rest_deferred = []
+                for _d in _deferred:
+                    _i, _typ, _item = _d
+                    if _type_count.get(_typ, 0) < _min_type:
+                        _promoted.append(_d)
+                        _type_count[_typ] = _type_count.get(_typ, 0) + 1
+                    else:
+                        _rest_deferred.append(_d)
+                _rest_deferred.sort(key=lambda c: len(c[2]))
+                _cand_sorted.extend(_promoted)
+                _cand_sorted.extend(_rest_deferred)
+            else:
+                _deferred.sort(key=lambda c: len(c[2]))
+                _cand_sorted.extend(_deferred)
+            _cand = _cand_sorted
             for _i, _typ, _item in _cand:
                 if len(_item) + 1 > _room:
                     _skipped_facts += 1
