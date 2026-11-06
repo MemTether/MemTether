@@ -964,7 +964,7 @@ def correct(old_uid, new_content, reason, by_agent=DEFAULT_SOURCE, valid_from=No
         # Two concurrent correct() calls previously forked the chain (two
         # supersessions edges pointing to two active children).
         conn.execute("UPDATE facts SET status='superseded', superseded_by=?, valid_to=?, "
-                     "invalidated_at=?, updated_at=?, tags=(CASE WHEN lower(COALESCE(tags,'')) LIKE '%pin%' "
+                     "invalidated_at=?, updated_at=?, tags=(CASE WHEN (',' || lower(REPLACE(COALESCE(tags,''), ' ', ',')) || ',') LIKE '%,pin,%' "
                      "THEN trim(replace(replace(',' || tags || ',', ',pin,', ','), ',PIN,', ','), ',') ELSE tags END) "
                      "WHERE uid=? AND status='active'",
                      (new_uid, nvf, ts, ts, old_uid))
@@ -1018,7 +1018,7 @@ def retire(uid, reason, by_agent=DEFAULT_SOURCE):
         ts = now()
         # ★2026-09-24：退役时清掉 pin tag（同 memory_hub）
         conn.execute("UPDATE facts SET status='retired', valid_to=?, invalidated_at=?, "
-                     "updated_at=?, tags=(CASE WHEN lower(COALESCE(tags,'')) LIKE '%pin%' "
+                     "updated_at=?, tags=(CASE WHEN (',' || lower(REPLACE(COALESCE(tags,''), ' ', ',')) || ',') LIKE '%,pin,%' "
                      "THEN trim(replace(replace(',' || tags || ',', ',pin,', ','), ',PIN,', ','), ',') ELSE tags END) "
                      "WHERE uid=?",
                      (ts, ts, ts, uid))
@@ -1752,7 +1752,7 @@ def set_pin(uid=None, on=True):
         if not uid:
             rows = conn.execute(
                 "SELECT uid, type, substr(content,1,70) AS lead FROM facts "
-                "WHERE status='active' AND lower(tags) LIKE '%pin%' "
+                "WHERE status='active' AND (',' || lower(REPLACE(COALESCE(tags,''), ' ', ',')) || ',') LIKE '%,pin,%' "
                 "ORDER BY COALESCE(NULLIF(updated_at,''), created_at) DESC").fetchall()
             return {'ok': True, 'pinned_count': len(rows), 'items': [dict(r) for r in rows]}
         r = conn.execute("SELECT uid, type, tags, content FROM facts WHERE uid=?",
@@ -1974,7 +1974,7 @@ def rebuild():
         #     选取侧：先按配额捞，再把 pin 条目**补进**（防其因配额上限/时间序被排除）。
         #   注意：这里只负责"选中"，不负责"排在前面"—— 排序交给下方 _fill_order。
         _pin_rows = conn.execute(
-            "SELECT * FROM facts WHERE status='active' AND lower(tags) LIKE '%pin%'"
+            "SELECT * FROM facts WHERE status='active' AND (',' || lower(REPLACE(COALESCE(tags,''), ' ', ',')) || ',') LIKE '%,pin,%'"
         ).fetchall()
         _have_uid = {p[2]['uid'] for p in _picked}
         for _r in _pin_rows:
