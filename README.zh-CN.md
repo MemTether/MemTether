@@ -288,6 +288,7 @@ Gemini CLI ─────┤                  ├─── WorkBuddy
 | 治理 | Supersession + 双时间轴 + 冲突检测 | 永不删除 |
 | 并发 | Hubguard（文件锁 + 原子写） | 跨进程安全 |
 | 安全 | memtether_guard (OWASP LLM01/02/06) | 投毒防御 |
+| PII 闸门 | 12 类正则，remember/correct 双入口拦截 | 凭据拒写 |
 | API | FastAPI REST (14 端点) + MCP server (10 工具) | 任意语言 |
 | 打包 | PyPI + Docker + 23 客户端适配器 | pip install memtether |
 
@@ -356,7 +357,7 @@ memtether profile --subject user --json    # 机器可读
 高置信条数、按 q_value+recency 排序的 top facts，以及一段可直接粘进 system
 prompt 的 L0 摘要）。与 supermemory 的 `get_profile` / honcho 的
 `get_representation` 不同，这里**零 LLM 调用**——同一份库永远得到同一份结果，
-且每一行都能回溯到 uid。
+且每一行都能回溯到 uid。每次检索的 hit 都带 `age_days`（记忆多旧）和 `confidence`（0-1 Q 值），调用方无需解析时间戳即可判断新鲜度。
 
 ---
 

@@ -40,6 +40,26 @@
 - New topics: `audit-chain`, `human-in-the-loop` (GitHub search surface for
   the governance niche).
 
+### Changed / Fixed — 2026-11-06 batch (CI first fully green + Persome P0 + pin exact-match)
+
+- **Persome audit P0 batch** (`324e7fe`): sensitive-gate expanded 6 -> 12 patterns
+  (Bearer/JWT, en+zh password assignment, CN mobile, email) and `remember()` now
+  runs the gate too (previously only `correct()`/`record_tool()`); every search
+  hit carries `age_days` + `confidence`; MCP `initialize` returns routing
+  `instructions`; `rebuild()` fail-soft skip returns a `health` block;
+  `correct()` raises instead of returning `ok=true` when the audit receipt did
+  not persist. +12 regression tests (`tests/test_persome_p0.py`).
+- **Pin exact-match fix** (`17e5e61`, `64ee505`): `pin` detection used substring
+  matching in both SQL (`LIKE '%pin%'`) and projection ordering
+  (`'pin' in tags.lower()`), so tags like `stopping` were treated as pinned.
+  All detection is now comma-separated exact tag matching (verified on the
+  production DB: 9 true pins, false positives gone).
+- CI: first fully green run (`e5ce3ee`) — pinned `ubuntu-24.04` (`6c1a3fa`,
+  GitHub migrated `ubuntu-latest` to Ubuntu 26), long tracebacks + artifact
+  upload on failure (`cd5ee27`, `4a5be86`), POSIX-only tests skipped on
+  non-Windows (`619b8fb`, `e5ce3ee`), PII roundtrip sys.path (`4e3c464`),
+  absorb-semantic probe fixed (`0c4b8b4`).
+
 ## [0.1.0a83] — Documentation and registry surfaces aligned with reality
 
 ### Fixed
