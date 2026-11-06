@@ -95,6 +95,8 @@ class TestEnsureColumns:
 
 
 class TestVecUpsertLock:
+    @pytest.mark.skipif(sys.platform != "win32",
+                        reason="gate lock probe uses msvcrt (Windows-only)")
     def test_lock_held_skips(self, tmp_path, monkeypatch):
         gw = _gw(tmp_path, monkeypatch)
         # hold the gate lock in another thread -> _vec_upsert must skip
