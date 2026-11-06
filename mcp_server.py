@@ -70,6 +70,12 @@ _IMPORT_SECS = time.time() - _T_IMPORT
 PROTOCOL = "2024-11-05"
 SERVER_INFO = {"name": "memory-hub", "version": "1.0.0"}
 
+# 2026-11-06 (Persome audit P0#3): server instructions - the MCP routing
+# rules that Persome installs for every client. Without these, agents
+# guess when to query/write and the memory hub silently underperforms.
+SERVER_INSTRUCTIONS = """\
+# Memory-hub - cross-client shared memory\n\nQuery before asking the user to repeat context or guessing:\n\n- "did we already...", "previously", "last time", any mention of prior work -> search_memory first\n- before saying "I don't know" when context may exist outside this chat -> search_memory\n- learned a durable fact/decision/incident -> add_memories (self-contained first sentence;\n  include the source client name so attribution is correct)\n- user says something in memory is WRONG -> correct_memory (never silently re-add)\n- entries with verify_at/stale_warning may be outdated - state them as past or verify first\n\nA missed lookup is worse than an extra one: tools are local and cheap;\nan empty result is still information. Write the conclusion in the FIRST sentence -\nthe projection only keeps opening lines."""
+
 # ★默认来源：可被 MEM_DEFAULT_SOURCE 覆盖（2026-09-19）。
 #   背景：gateway/mcp_server 原先都把默认来源硬编码成 "workbuddy"，
 #   导致**不显式传 source 的写入全被记成国内版**（国际版写的也记成 workbuddy）
@@ -938,7 +944,8 @@ def handle(req):
         return {"jsonrpc": "2.0", "id": mid,
                 "result": {"protocolVersion": PROTOCOL,
                             "capabilities": {"tools": {}},
-                            "serverInfo": SERVER_INFO}}
+                            "serverInfo": SERVER_INFO,
+                            "instructions": SERVER_INSTRUCTIONS}}
     if method == "tools/list":
         return {"jsonrpc": "2.0", "id": mid, "result": {"tools": TOOLS}}
     if method == "tools/call":

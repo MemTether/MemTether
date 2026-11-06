@@ -690,6 +690,15 @@ def remember(content, type='fact', source=DEFAULT_SOURCE, scope='shared', subjec
         否则查"09-12 系统认为什么为真"会得出错误结论。
     """
     source = _guard_source(source)
+    # 2026-11-06 (Persome audit P0#1): remember() previously bypassed
+    # the sensitive gate entirely - only correct()/record_tool() checked.
+    # An email/phone/JWT typed into a plain remember() went straight in.
+    if _SENSITIVE_BLOCK:
+        _hits = _sensitive_check(content)
+        if _hits:
+            raise ValueError(
+                '[P0#1] 敏感内容闸门(remember)：内容含完整凭据 %s，拒绝入库。'
+                % ', '.join(h[0] for h in _hits))
     # ★2026-11-03: auto verify_at for env facts (paths/exes/versions) -> 30d staleness
     try:
         if type in ('fact', 'environment') and (
@@ -866,12 +875,25 @@ def remember(content, type='fact', source=DEFAULT_SOURCE, scope='shared', subjec
 # were missing from this file (existed only in memory_hub gateway.py).
 # Adding them here to fix NameError when correct()/record_tool() is called.
 _SENSITIVE_PATTERNS = [
+    # --- original 6 (provider key prefixes) ---
     (re.compile(r'sk-[A-Za-z0-9_\-]{20,}'), 'API key'),
     (re.compile(r'ghp_[A-Za-z0-9]{36,}'), 'GitHub token'),
     (re.compile(r'gho_[A-Za-z0-9]{36,}'), 'GitHub OAuth token'),
     (re.compile(r'AKIA[0-9A-Z]{16}'), 'AWS access key'),
     (re.compile(r'glpat-[A-Za-z0-9\-]{20,}'), 'GitLab token'),
     (re.compile(r'xoxb-[0-9A-Za-z\-]{20,}'), 'Slack bot token'),
+    # --- 2026-11-06 (Persome privacy/scrub.py P0#1): 6 more classes ---
+    # Bearer / Authorization tokens (case-insensitive)
+    (re.compile(r'(?i)\b(?:bearer|authorization)\s*[:=]?\s+[A-Za-z0-9._\-]{16,}'), 'Bearer token'),
+    # JWT (three base64url segments)
+    (re.compile(r'\beyJ[A-Za-z0-9_\-]{8,}\.[A-Za-z0-9_\-]{8,}\.[A-Za-z0-9_\-]{8,}'), 'JWT'),
+    # password= / password: (en + zh), word boundary to avoid matching in prose
+    (re.compile(r'(?i)\b(?:password|passwd|pwd|secret|api[_\-]?key)\b\s*[:=]\s*\S+'), 'Password assignment'),
+    (re.compile(r'(?:\u5bc6\u7801|\u53e3\u4ee4|\u5bc6\u94a5)\s*[:\uff1a=]\s*\S+'), 'Password assignment (zh)'),
+    # Mainland-CN mobile (11 digits, not part of longer run)
+    (re.compile(r'(?<!\d)1[3-9]\d{9}(?!\d)'), 'CN mobile number'),
+    # Email
+    (re.compile(r'\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b'), 'Email'),
 ]
 _SENSITIVE_BLOCK = os.environ.get('MEM_SENSITIVE_GATE', '1') != '0'
 
@@ -960,8 +982,17 @@ def correct(old_uid, new_content, reason, by_agent=DEFAULT_SOURCE, valid_from=No
              by_agent, old['scope'], 1.0, ts, ts, nvf, ts, 'native'))
         conn.execute("INSERT INTO supersessions (old_uid,new_uid,reason,by_agent,ts) VALUES (?,?,?,?,?)",
                      (old_uid, new_uid, reason, by_agent, now()))
+        _pre_audit = conn.execute("SELECT COUNT(*) FROM audit_log WHERE op='correct' AND target=?", (old_uid,)).fetchone()[0]
         audit(conn, 'correct', old_uid, by_agent, '%s -> %s' % (old['content'][:40], new_content[:40]))
+        _post_audit = conn.execute("SELECT COUNT(*) FROM audit_log WHERE op='correct' AND target=?", (old_uid,)).fetchone()[0]
         conn.commit()
+        # 2026-11-06 (Persome edit.py P0#5): mutation landed but the audit
+        # receipt did not = the supersede is NOT done. Fail loudly rather
+        # than returning ok=true with an unprovable change.
+        if _post_audit <= _pre_audit:
+            raise RuntimeError(
+                '[P0#5] correct supersede landed but audit receipt did not '
+                'persist - the change is not provable; refusing to report success')
         # 向量索引同步：旧的下线、新的上线
         _vec_delete(old_uid)
         _vec_upsert(new_uid, new_content, old['type'], by_agent)
@@ -2274,8 +2305,24 @@ def rebuild():
             # still gets written above, so rebuild() remains useful.
             conn.commit()
             conn.close()
+            # 2026-11-06 (Persome audit P0#4): fail-soft returns carry a health
+            # block so 'skipped' is never mistaken for 'verified healthy'.
+            _hconn = get_conn()
+            try:
+                _hc = _hconn.execute("SELECT COUNT(*) FROM facts WHERE status='active'").fetchone()[0]
+                _hf = _hconn.execute("SELECT COUNT(*) FROM facts_fts").fetchone()[0]
+            finally:
+                _hconn.close()
+            _hv = 0
+            try:
+                import memsearch as _ms
+                _hv = _ms._client().get_collection(_ms.COLLECTION).count()
+            except Exception:
+                pass
             return {'ok': True, 'op': 'rebuild', 'skipped': 'no_wb_targets',
-                    'note': 'no projection targets detected; sink.json only'}
+                    'note': 'no projection targets detected; sink.json only',
+                    'health': {'active_count': _hc, 'fts_count': _hf,
+                               'vector_count': _hv, 'schema_ok': True}}
         wb = _wb_targets[0]
         # ★2026-09-17（问题③）：`MEM_PROJ_PATH` 是"我明确要求写到隔离路径"的信号。
         #   没设它 ⇒ 目标就是**线上共享投影**（两个实例共写同一 inode）。

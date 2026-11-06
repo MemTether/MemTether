@@ -1370,11 +1370,28 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
         if f.get('type') == 'procedure':
             sc *= 1.5
             reason.append('proc_boost')
+        # 2026-11-06 (Persome audit P0#2): age_days + confidence in every hit.
+        # Persome's _search() returns age_days (int) and confidence so the
+        # consuming agent can judge freshness without parsing ISO timestamps.
+        # We have q_value (0-1) - surface it as confidence. age_days computed
+        # from updated_at (UTC-naive SQLite format YYYY-MM-DD HH:MM:SS).
+        _age_days = None
+        _ua = f.get('updated_at') or ''
+        try:
+            import datetime as _age_dt
+            _udt = _age_dt.datetime.strptime(_ua[:19], '%Y-%m-%d %H:%M:%S')
+            _age_days = max(0, (_age_dt.datetime.now() - _udt).days)
+        except (ValueError, TypeError):
+            pass
+        _qv = f.get('q_value')
         _out = {'uid': uid, 'content': f['content'], 'type': f['type'],
                     'source': f['source'], 'score': round(sc, 5),
                     'semantic': vec_sim.get(uid, 0.0),
                     'scope': f.get('scope') or '',
                     'updated_at': f.get('updated_at') or '',
+                    # 2026-11-06 (Persome audit): age_days + confidence hit fields
+                    'age_days': _age_days,
+                    'confidence': round(_qv, 4) if isinstance(_qv, (int, float)) else None,
                     # P0-07：把复核截止日带进结果，供降权与标注
                     'ttl': _parse_ttl(f.get('tags'), f.get('valid_to'), f.get('content')),
                     # 2026-11-03: verify_at for env fact staleness
