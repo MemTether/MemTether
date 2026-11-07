@@ -933,6 +933,15 @@ def remember(content, type='fact', source=DEFAULT_SOURCE, scope='shared', subjec
             vec = {'skipped': 'bulk_import'}
         else:
             vec = _vec_upsert(uid, content, type, source)
+        # 2026-11-07 (bge-m3 semantic entity linking): inherit entities from similar facts
+        try:
+            _inherited = _semantic_entity_link(conn, uid, content)
+            if _inherited:
+                audit(conn, 'semantic_entity_link', uid, source,
+                      f'inherited {len(_inherited)} entities: {_inherited[:3]}')
+            conn.commit()
+        except Exception:
+            pass
 
         return {'ok': True, 'uid': uid, 'op': 'insert', 'mem0': m0, 'vec': vec}
     finally:
@@ -1386,6 +1395,88 @@ def dead_letter_audit(conn):
                         'issue': 'column has data but source never references it in any SELECT'})
 
     return dead
+
+
+# ============================================================================
+# 2026-11-07 (bge-m3 semantic entity linking): inherit entities from
+# semantically similar existing facts. When a new fact is written and its
+# embedding is stored in chroma, query for nearest neighbors. If a neighbor
+# shares entities in fact_entities, inherit them. This solves the
+# "English fact doesn't match Chinese regex" problem: bge-m3 is multilingual,
+# so "The server runs on port 8080" has moderate cosine to "mydb的端口是5432"
+# and inherits the entity "mydb" without needing regex.
+# ============================================================================
+
+def _semantic_entity_link(conn, uid, content, min_cosine=0.55, max_inherit=3):
+    """Link new fact to entities of semantically similar existing facts.
+
+    Uses the fact's embedding (already stored in chroma by _vec_upsert)
+    to find nearest neighbors. Inherits entities from neighbors that
+    share enough semantic similarity. Zero LLM, zero new dependency.
+    """
+    try:
+        sys.path.insert(0, HUB)
+        import memsearch
+        col = memsearch._client().get_collection(memsearch.COLLECTION)
+
+        # Get the fact's embedding from chroma (already stored by _vec_upsert)
+        _stored = col.get(ids=[uid], include=['embeddings'])
+        if _stored['embeddings'] is None or len(_stored['embeddings']) == 0:
+            return []
+
+        _query_vec = _stored['embeddings'][0]
+
+        # Query for nearest neighbors (exclude self)
+        _results = col.query(query_embeddings=[_query_vec], n_results=5)
+        _neighbor_ids = [i for i in _results['ids'][0] if i != uid][:3]
+        if not _neighbor_ids:
+            return []
+
+        # Get entities from neighbors
+        _placeholders = ','.join('?' * len(_neighbor_ids))
+        _neighbor_entities = conn.execute(
+            f"SELECT DISTINCT entity FROM fact_entities WHERE fact_uid IN ({_placeholders}) "
+            "AND entity NOT IN (SELECT entity FROM fact_entities WHERE fact_uid = ?)",
+            _neighbor_ids + [uid]).fetchall()
+
+        # Also check cosine threshold from chroma distances
+        _distances = _results.get('distances', [[]])[0]
+        _valid_pairs = []
+        for _i, _nid in enumerate(_results['ids'][0]):
+            if _nid == uid or _nid not in _neighbor_ids:
+                continue
+            _cos = 1.0 - _distances[_i] if _i < len(_distances) else 0.0
+            if _cos >= min_cosine:
+                _valid_pairs.append(_nid)
+
+        if not _valid_pairs:
+            import sys as _sys2; _sys2.stderr.write(f'[sem_link] no valid pairs! min_cosine={min_cosine}\\n')
+            return []
+
+        # Re-filter entities to only those from high-cosine neighbors
+        _ph = ','.join('?' * len(_valid_pairs))
+        _entities_to_add = conn.execute(
+            f"SELECT DISTINCT entity, attr FROM fact_entities WHERE fact_uid IN ({_ph}) "
+            "AND entity NOT IN (SELECT entity FROM fact_entities WHERE fact_uid = ?)",
+            _valid_pairs + [uid]).fetchall()
+
+        _added = []
+        for _r in _entities_to_add[:max_inherit]:
+            _ent = _r[0]
+            _attr = _r[1] or ''
+            try:
+                conn.execute(
+                    "INSERT OR IGNORE INTO fact_entities "
+                    "(fact_uid, entity_name, entity, attr, value, source, ts, valid_from) "
+                    "VALUES (?,?,?,?,?,?,datetime('now'),datetime('now'))",
+                    (uid, _ent, _ent, _attr, content[:200], 'semantic_link'))
+                _added.append(_ent)
+            except Exception:
+                pass
+
+        return _added
+    except Exception:
+        return []
 
 # ============================================================================
 # 2026-11-07 (Hindsight retractions.py): retraction tracking
