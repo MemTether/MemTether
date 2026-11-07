@@ -2449,6 +2449,25 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
             _diag['entity_trends'] = _top_trends
     except Exception:
         pass
+    # 2026-11-07 (Hindsight evidence grounding): attach evidence chain for top hits
+    try:
+        import gateway as _gw_ev
+        _ev_conn = sqlite3.connect(DB, timeout=3)
+        _ev_conn.row_factory = sqlite3.Row
+        _top_entities = {}
+        for _hit in _out[:5]:
+            _c = _hit.get('content') or ''
+            _ets = _gw_t.extract_entities_from_content(_ev_conn, _c) if hasattr(_gw_t, 'extract_entities_from_content') else []
+            for _e in _ets[:2]:
+                if _e not in _top_entities:
+                    _ev = _gw_ev.get_entity_evidence(_ev_conn, _e, limit=5)
+                    if _ev:
+                        _top_entities[_e] = _ev
+        _ev_conn.close()
+        if _top_entities:
+            _diag['evidence'] = _top_entities
+    except Exception:
+        pass
 
     # 2026-11-03: expose degraded flag so callers can label results
     _degraded = _diag.get('degraded', False)

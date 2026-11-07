@@ -1174,6 +1174,77 @@ def compute_entity_trends(conn, recent_days=30, old_days=90):
         }
     return trends
 
+
+# ============================================================================
+# 2026-11-07 (Hindsight evidence grounding): per-entity evidence chain
+# For any entity, return all active facts that reference it, with uid, content
+# snippet, timestamp and source. This is the "evidence" that would back an
+# observation — exactly what Hindsight stores in ObservationEvidence.
+# Zero LLM: pure SQL aggregation over fact_entities JOIN facts.
+# ============================================================================
+
+def get_entity_evidence(conn, entity, attr=None, limit=20):
+    """Return evidence chain for an entity: all active facts citing it.
+
+    Hindsight's ObservationEvidence has: memory_id, quote, relevance, timestamp.
+    Ours maps to: uid, content (truncated), source, created_at.
+    When attr is given, only facts tagged with that specific attribute are returned.
+
+    Returns list of dicts sorted by created_at DESC (most recent evidence first).
+    """
+    sql = ("SELECT fe.fact_uid, f.content, f.source, f.created_at, f.type, "
+           "fe.entity, fe.attr "
+           "FROM fact_entities fe "
+           "JOIN facts f ON f.uid = fe.fact_uid AND f.status = 'active' "
+           "WHERE fe.entity = ?")
+    params = [entity]
+    if attr:
+        sql += " AND fe.attr LIKE ?"
+        params.append(f'%{attr}%')
+    sql += " ORDER BY f.created_at DESC LIMIT ?"
+    params.append(limit)
+
+    try:
+        rows = conn.execute(sql, params).fetchall()
+    except Exception:
+        return []
+
+    evidence = []
+    for r in rows:
+        evidence.append({
+            'uid': r[0],
+            'quote': (r[1] or '')[:200],  # truncate to evidence-sized quote
+            'source': r[2],
+            'timestamp': r[3],
+            'type': r[4],
+            'entity': r[5],
+            'attr': r[6],
+        })
+    return evidence
+
+
+def extract_entities_from_content(conn, content):
+    """Extract entity names from content that exist in fact_entities.
+
+    Used by search to find which entities a hit's content references.
+    Zero LLM: matches against already-stored entity names.
+    """
+    try:
+        _all_entities = [r[0] for r in conn.execute(
+            "SELECT DISTINCT entity FROM fact_entities LIMIT 5000").fetchall()]
+    except Exception:
+        return []
+
+    if not _all_entities or not content:
+        return []
+
+    _content_lower = content.lower()
+    _matched = []
+    for _e in _all_entities:
+        if len(_e) >= 2 and _e.lower() in _content_lower:
+            _matched.append(_e)
+    return _matched[:10]
+
 # ============================================================================
 # 2026-11-07 (Hindsight retractions.py): retraction tracking
 # When a fact is superseded or retired, find all OTHER active facts that share
