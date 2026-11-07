@@ -764,7 +764,24 @@ def tool_search(args):
     # memsearch.search_hybrid R1 write-back (MEM_BUMP!=0, default on).
     # This block double-counted (+2 per MCP search) and bypassed the
     # explicit-bump audit contract (gateway.bump_qvalue).
+    # 2026-11-07 (Persome P2#12): bounded per-section byte budget. Agents pay
+    # context for every byte; search payloads must never serialize unbounded.
+    # Persome get_model_snapshot caps each section at 64 KiB hard budget -
+    # same shape here, env-tunable.
+    _SECTION_MAX = int(os.environ.get("MEM_MCP_SECTION_BYTES", str(64 * 1024)))
     payload = {"engine": r.get("engine"), "count": len(out), "results": out}
+    try:
+        _enc = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        if len(_enc) > _SECTION_MAX:
+            _keep = max(1, len(out) * _SECTION_MAX // max(1, len(_enc)))
+            payload = {"engine": r.get("engine"), "count": _keep,
+                       "results": out[:_keep], "truncated": True,
+                       "truncation_note": "section exceeded %dB; returned %d/%d results"
+                               % (_SECTION_MAX, _keep, len(out))}
+            _log("search section bounded: %dB -> kept %d/%d"
+                 % (len(_enc), _keep, len(out)))
+    except Exception as _b_e:
+        _log("section budget check skipped: %s" % _b_e)
     if r.get("auto_triggered"):
         payload["auto_context"] = r.get("auto_context")
         payload["auto_triggered"] = True
@@ -937,6 +954,44 @@ def tool_profile(args):
 
 
 
+# 2026-11-07 (Persome P2#13): stdio parent watchdog. A stdio server whose
+# parent (the MCP client) dies without closing stdin would otherwise idle
+# forever. Persome runs a daemon thread polling the parent PID and exits when
+# it disappears. Cheap (1 Hz getppid poll), stdlib only.
+_WATCHDOG_STARTED = False
+
+
+def _start_parent_watchdog(poll_s=1.0):
+    global _WATCHDOG_STARTED
+    if _WATCHDOG_STARTED:
+        return
+    if os.environ.get("MEM_MCP_WATCHDOG") == "0":
+        return
+    try:
+        _p_pid = os.getppid()
+    except Exception:
+        return
+    if not _p_pid or _p_pid <= 1:
+        return
+    import threading as _th
+
+    def _loop():
+        import time as _t
+        while True:
+            _t.sleep(poll_s)
+            try:
+                if os.getppid() != _p_pid:
+                    _log("parent watchdog: parent %s gone -> exit" % _p_pid)
+                    os._exit(0)
+            except Exception:
+                _log("parent watchdog: poll failed -> exit")
+                os._exit(0)
+
+    _th.Thread(target=_loop, daemon=True, name="parent-watchdog").start()
+    _WATCHDOG_STARTED = True
+    _log("parent watchdog started (ppid=%s, poll=%ss)" % (_p_pid, poll_s))
+
+
 def handle(req):
     mid = req.get("id")
     method = req.get("method")
@@ -972,6 +1027,8 @@ def handle(req):
 def main():
     _log("started pid=%d rpc_encoding=%s gateway_import=%.2fs" % (
         os.getpid(), getattr(_RPC_OUT, "encoding", "?"), _IMPORT_SECS))
+    _start_parent_watchdog()
+    _start_parent_watchdog()
     # ★★ 启动时机（2026-09-19 二次修订）：
     #    `_preload_heavy()` + 预热线程不再在进程启动时抢跑，改由 _ensure_started()
     #    在 **initialize 应答发出之后**触发 —— 客户端首个会话只给 2000ms prewait，

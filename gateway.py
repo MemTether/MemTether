@@ -951,6 +951,20 @@ _SENSITIVE_PATTERNS = [
     (re.compile(r'(?<!\d)1[3-9]\d{9}(?!\d)'), 'CN mobile number'),
     # Email
     (re.compile(r'\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b'), 'Email'),
+    # --- 2026-11-07 (Persome parity, P0 remainder): 5 more classes ---
+    # Google API key (AIza + 35 alnum)
+    (re.compile(r'\bAIza[0-9A-Za-z\-_]{35}\b'), 'Google API key'),
+    # International phone: + followed by 7-15 digits, not part of longer run
+    (re.compile(r'(?<![\dA-Za-z])\+\d{7,15}(?!\d)'), 'International phone'),
+    # Card / national ID: 13-19 digit run (BN boundaries; pure digits too broad
+    # alone -> require checksum-ish shape: no separators, common length window)
+    (re.compile(r'(?<!\d)\d{13,19}(?!\d)'), 'Card or ID number'),
+    # Home path exposure: /Users/<name> or /home/<name> (Persome #398: no
+    # trailing slash requirement, username segment excludes separators)
+    (re.compile(r'(?i)(?:/Users/|/home/)[A-Za-z0-9_.\- ]{1,40}(?=/|\s|$)'), 'Home path'),
+    # High-entropy string: 32+ mixed base64/hex (Persome #389-again: exclude
+    # - and _ from the class so package names never match)
+    (re.compile(r'\b(?=[A-Za-z0-9]*[A-Z])(?=[A-Za-z0-9]*[a-z])(?=[A-Za-z0-9]*\d)[A-Za-z0-9]{32,}\b'), 'High-entropy string'),
 ]
 _SENSITIVE_BLOCK = os.environ.get('MEM_SENSITIVE_GATE', '1') != '0'
 

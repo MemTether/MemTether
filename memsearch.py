@@ -2342,6 +2342,58 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
             if os.environ.get('MEM_PROJ_DEBUG'):
                 sys.stderr.write('[read-log] disabled by error: %r\n' % (_rl_err,))
 
+    # 2026-11-07 (Persome P2#14): MMR-style diversity on the final list.
+    # Greedy relevance sort can return N near-identical hits (same entity,
+    # same paraphrase); Persome's fts.py applies MMR over the candidate pool
+    # so the top-k covers more distinct evidence. We use a cheap token-Jaccard
+    # proxy for similarity (no embeddings needed, deterministic), applied AFTER
+    # all ranking/decay/Q-value steps so it only breaks ties in coverage.
+    # _lambda = relevance weight; 1-_lambda = diversity weight. Default 0.7
+    # (Persome uses ~0.7); MEM_MMR=0 restores pure relevance order.
+    _mmr_on = (os.environ.get('MEM_MMR') or '1').strip().lower() \
+        not in ('0', 'false', 'off', 'no')
+    if _mmr_on and len(_out) > 1:
+        try:
+            _lam = float(os.environ.get('MEM_MMR_LAMBDA', '0.7'))
+            _lam = max(0.0, min(1.0, _lam))
+
+            def _tokens(_txt):
+                import re as _re_mmr
+                return set(_re_mmr.findall(r'[a-z0-9_]{3,}|(?<![\u4e00-\u9fff])[\u4e00-\u9fff]{2,}',
+                                            (_txt or '').lower()))
+
+            _max_score = max((x.get('score', 0.0) for x in _out), default=0.0) or 1.0
+            _selected, _remaining = [], list(_out)
+            while _remaining and len(_selected) < len(_out):
+                _best, _best_val = None, -1e9
+                for _cand in _remaining:
+                    _rel = (_cand.get('score', 0.0) / _max_score)
+                    if _selected:
+                        _ct = _tokens(_cand.get('content'))
+                        _max_sim = 0.0
+                        for _s in _selected:
+                            _st = _s.get('_mmr_tokens')
+                            if _st is None:
+                                _st = _tokens(_s.get('content'))
+                                _s['_mmr_tokens'] = _st
+                            _inter = len(_ct & _st)
+                            _union = len(_ct | _st) or 1
+                            _max_sim = max(_max_sim, _inter / _union)
+                    else:
+                        _max_sim = 0.0
+                    _val = _lam * _rel - (1 - _lam) * _max_sim
+                    if _val > _best_val:
+                        _best_val, _best = _val, _cand
+                _best['_mmr_tokens'] = _tokens(_best.get('content'))
+                _selected.append(_best)
+                _remaining.remove(_best)
+            if _selected != _out:
+                _diag['mmr_reordered'] = True
+            _out = _selected
+            _diag['mmr_lambda'] = _lam
+        except Exception as _mmr_e:
+            _diag['mmr_err'] = str(_mmr_e)[:80]
+
     # 2026-11-03: expose degraded flag so callers can label results
     _degraded = _diag.get('degraded', False)
     return {'query': q, 'results': _out, 'diag': _diag, 'degraded': _degraded}

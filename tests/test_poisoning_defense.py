@@ -77,6 +77,9 @@ def test_C_unregistered_source_failopen_by_design(tmp_path, monkeypatch):
     that lacks the source, guard must NOT return the unknown name verbatim.
     """
     gw, _ = _setup(tmp_path)
+    # isolate from any developer-machine MEM_SOURCE_FALLBACK (soft-landing
+    # env override would turn the hard-reject assertion below into a warning)
+    monkeypatch.delenv('MEM_SOURCE_FALLBACK', raising=False)
     r = gw.remember('越权来源写入测试', source='ghost_agent_xyz')
     uid = r['uid']
     c = sqlite3.connect(os.environ['MEM_DB'])

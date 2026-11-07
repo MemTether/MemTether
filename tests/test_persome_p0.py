@@ -273,3 +273,134 @@ class TestBinPackFill:
         gateway.rebuild()
         md = open(os.environ["MEM_PROJ_PATH"], encoding="utf-8").read()
         assert "greedy fallback probe" in md
+
+class TestPiiParity17:
+    """Persome 17-pattern parity (P0 remainder, 2026-11-07)."""
+
+    def test_google_api_key(self):
+        key = 'AIza' + 'A' * 29 + 'a1B2c3'   # 35 after AIza (4+35=39)
+        assert len(key) == 39, len(key)
+        hits = gateway._sensitive_check(key)
+        assert any(h[0] == 'Google API key' for h in hits), hits
+
+    def test_international_phone(self):
+        hits = gateway._sensitive_check('call +441234567890 now')
+        assert any(h[0] == 'International phone' for h in hits), hits
+        # short / non-phone numbers must NOT match
+        assert gateway._sensitive_check('order +123') == []
+        assert gateway._sensitive_check('v1.2.3 build 4567890 ok') == []
+
+    def test_card_or_id(self):
+        hits = gateway._sensitive_check('card 6222021234567890123')
+        assert any(h[0] == 'Card or ID number' for h in hits), hits
+        # 12 digits = not in window -> no match
+        assert gateway._sensitive_check('id 123456789012') == []
+
+    def test_home_path(self):
+        hits = gateway._sensitive_check('lives at /Users/alice/docs')
+        assert any(h[0] == 'Home path' for h in hits), hits
+        # Persome #398: no trailing slash required
+        hits2 = gateway._sensitive_check('lives at /home/bob')
+        assert any(h[0] == 'Home path' for h in hits2), hits2
+        # Windows-style C:/Users/... still matches the /Users/ segment
+        # (Persome pattern is drive-letter agnostic; both are leaks)
+        hits3 = gateway._sensitive_check('use C:/Users/alice')
+        assert any(h[0] == 'Home path' for h in hits3), hits3
+
+    def test_high_entropy(self):
+        s = 'Ab1' + 'Ab1' * 10   # 40 chars, mixed case+digit
+        hits = gateway._sensitive_check(s)
+        assert any(h[0] == 'High-entropy string' for h in hits), hits
+        # Persome #389-again: package names (lowercase, no upper) never match
+        assert gateway._sensitive_check('pip install some-package-name-abc') == []
+
+    def test_remember_blocks_google_key(self):
+        with pytest.raises(ValueError):
+            gateway.remember('my key AIza' + 'A' * 35, type='fact',
+                             source='codex')
+
+class TestPersomeP2:
+    """P2 batch (2026-11-07): bounded MCP sections + parent watchdog."""
+
+    def test_search_section_bounded(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.setenv("MEM_DB", str(tmp_path / "sb.db"))
+        monkeypatch.setenv("MEM_SKIP_VECTOR", "1")
+        monkeypatch.setenv("MEM_MCP_SECTION_BYTES", "2048")
+        import importlib, json as _json
+        import gateway, memsearch
+        importlib.reload(gateway)
+        importlib.reload(memsearch)
+        memsearch.DB = gateway.DB
+        gateway.init_db()
+        for i in range(30):
+            gateway.remember("section bound filler %d " % i + "y" * 200,
+                             type="fact", source="codex")
+        import mcp_server
+        importlib.reload(mcp_server)
+        req = {"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+               "params": {"name": "search_memory",
+                          "arguments": {"query": "section bound filler",
+                                        "limit": 30}}}
+        resp = mcp_server.handle(req)
+        result = resp["result"]
+        txt = result["content"][0]["text"]
+        data = _json.loads(txt)
+        assert data.get("truncated") is True, txt[:300]
+        assert len(data["results"]) < 30
+
+    def test_watchdog_starts_and_flags(self, monkeypatch):
+        import mcp_server
+        monkeypatch.delenv("MEM_MCP_WATCHDOG", raising=False)
+        mcp_server._WATCHDOG_STARTED = False
+        mcp_server._start_parent_watchdog()
+        assert mcp_server._WATCHDOG_STARTED is True
+        # idempotent
+        mcp_server._start_parent_watchdog()
+        assert mcp_server._WATCHDOG_STARTED is True
+
+    def test_watchdog_env_off(self, monkeypatch):
+        import mcp_server
+        monkeypatch.setenv("MEM_MCP_WATCHDOG", "0")
+        mcp_server._WATCHDOG_STARTED = False
+        mcp_server._start_parent_watchdog()
+        assert mcp_server._WATCHDOG_STARTED is False
+
+class TestMmrDiversity:
+    """P2#14: MMR diversity on final results (token-Jaccard proxy)."""
+
+    def test_mmr_diversifies_duplicates(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("MEM_DB", str(tmp_path / "mmr.db"))
+        monkeypatch.setenv("MEM_SKIP_VECTOR", "1")
+        monkeypatch.delenv("MEM_MMR", raising=False)
+        monkeypatch.setenv("MEM_RECALL_BUDGET", "6000")
+        import importlib
+        import gateway, memsearch
+        importlib.reload(gateway)
+        importlib.reload(memsearch)
+        memsearch.DB = gateway.DB
+        gateway.init_db()
+        # two near-identical (distinct content strings, same query terms)
+        # + one distinct-topic doc, also matching query terms
+        gateway.remember("deploy port 9090 alpha", source="codex")
+        gateway.remember("deploy port 9090 alpha v2", source="codex")
+        gateway.remember("deploy backup port beta", source="codex")
+        r = memsearch.search_hybrid("deploy port", limit=3)
+        hits = r["results"]
+        assert len(hits) == 3, (len(hits), r["diag"].get("recall_budget"))
+        texts = [h.get("content", "") for h in hits]
+        assert any("beta" in tx for tx in texts), texts
+        assert r["diag"].get("mmr_lambda") == 0.7
+
+    def test_mmr_off_restores_pure_relevance(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("MEM_DB", str(tmp_path / "mmr0.db"))
+        monkeypatch.setenv("MEM_SKIP_VECTOR", "1")
+        monkeypatch.setenv("MEM_MMR", "0")
+        import importlib
+        import gateway, memsearch
+        importlib.reload(gateway)
+        importlib.reload(memsearch)
+        memsearch.DB = gateway.DB
+        gateway.init_db()
+        gateway.remember("mmr off probe", source="codex")
+        r = memsearch.search_hybrid("mmr off probe", limit=3)
+        assert "mmr_reordered" not in r["diag"]
