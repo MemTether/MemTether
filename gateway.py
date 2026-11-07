@@ -2182,6 +2182,11 @@ def stats():
             'tool_assets': conn.execute(
                 "SELECT COUNT(*) FROM tool_assets WHERE status='active'").fetchone()[0],
         }
+        # 2026-11-07 (EverOS dead-letter awareness): surface write-only data
+        try:
+            out['dead_letters'] = dead_letter_audit(conn)
+        except Exception:
+            out['dead_letters'] = []
         return out
     finally:
         conn.close()
