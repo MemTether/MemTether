@@ -912,38 +912,56 @@ def remember(content, type='fact', source=DEFAULT_SOURCE, scope='shared', subjec
             (uid, type, subject, content, status, source, scope, confidence, tags,
              ts, ts, valid_from or ts, ts, 'native', os.environ.get('MEM_TENANT_ID', 'default'), _vat, _expires))
         # ★十三修：写入时自动抽取谓词（entity→attr 对）存入 predicate 列
+        from predicates import store_predicate, store_entities
+        # 2026-11-07 (optional LLM): try LLM entity extraction before regex
+        _llm_entities = None
         try:
-            from predicates import store_predicate, store_entities
+            from llm_client import is_available as _llm_avail, extract_entities as _llm_extract
+            if _llm_avail():
+                _llm_entities = _llm_extract(content)
+        except Exception:
+            pass
+        if _llm_entities:
+            for _le in _llm_entities:
+                try:
+                    conn.execute(
+                        "INSERT OR IGNORE INTO fact_entities "
+                        "(fact_uid, entity_name, entity, attr, value, source, ts, valid_from) "
+                        "VALUES (?,?,?,?,?,?,datetime('now'),datetime('now'))",
+                        (uid, _le["entity"], _le["entity"], _le["attr"], content[:200], "llm"))
+                except Exception:
+                    pass
+            try:
+                _llm_preds = [{"e": _le["entity"], "a": _le["attr"]} for _le in _llm_entities]
+                conn.execute("UPDATE facts SET predicate=? WHERE uid=?",
+                             (json.dumps(_llm_preds, ensure_ascii=False), uid))
+            except Exception:
+                pass
+        else:
             store_predicate(conn, uid, content)
-            # SGM Phase 1: also write structured entities for SQL-deterministic queries
-            store_entities(conn, uid, content, source=source, ts=now())
-        except ImportError:
-            pass  # predicates.py 不存在时降级为旧行为
+            store_entities(conn, uid, content, source=source, ts=ts, valid_from=valid_from or ts)
+
         audit(conn, 'remember', uid, source, content[:80])
         conn.commit()
 
-        # 可选 Mem0 同步
+        # Optional Mem0 sync
         m0 = None
         if mem0:
             m0 = _mem0_add(content)
 
-        # 自动同步向量索引（2026-09-13：消除"新记忆需手动 rebuild_index"缺口）
-        # P-TB2 (2026-10-05): skip vector sync during bulk import (env-controlled)
+        # Vector upsert
         if os.environ.get('MEM_SKIP_VECTOR'):
             vec = {'skipped': 'bulk_import'}
         else:
             vec = _vec_upsert(uid, content, type, source)
-        # 2026-11-07 (bge-m3 semantic entity linking): inherit entities from similar facts
+        # Semantic entity linking
         try:
             _inherited = _semantic_entity_link(conn, uid, content)
             if _inherited:
-                audit(conn, 'semantic_entity_link', uid, source,
-                      f'inherited {len(_inherited)} entities: {_inherited[:3]}')
-            conn.commit()
+                conn.commit()
         except Exception:
             pass
-
-        return {'ok': True, 'uid': uid, 'op': 'insert', 'mem0': m0, 'vec': vec}
+        return {'ok': True, 'uid': uid, 'op': 'insert', 'mem0': None, 'vec': vec}
     finally:
         conn.close()
 
