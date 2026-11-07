@@ -896,7 +896,39 @@ def _cmd_stats(_args):
             print("%-16s %s" % (k, v))
     else:
         print(s)
+    _maybe_first_run_notice(s if isinstance(s, dict) else {})
     return 0
+
+
+def _maybe_first_run_notice(stats_dict):
+    """2026-11-07 (mem0 P2): first-run + growth notices after stats.
+
+    Shows a compact next-step block when the store is new (<10 facts).
+    Marks done via a flag file so it never shows again after the user
+    is up and running. Established users see zero noise."""
+    import memtether_paths as _mp
+    flag_file = _mp.default_db() + '.first_run_notice_done'
+    if os.path.exists(flag_file):
+        return
+    n_facts = stats_dict.get("active", 0) if isinstance(stats_dict, dict) else 0
+    if n_facts >= 10:
+        # established: mark done silently, no noise
+        try:
+            open(flag_file, 'w').close()
+        except Exception:
+            pass
+        return
+    print()
+    print("  Getting started:")
+    print("  1. memtether remember \"your fact here\" --source my-agent")
+    print("  2. memtether search \"your fact\"")
+    print("  3. memtether setup <client>     # wire into Claude Code, Cursor, etc.")
+    print("  4. memtether court --verify     # verify the audit chain")
+    print()
+    try:
+        open(flag_file, 'w').close()
+    except Exception:
+        pass
 
 
 

@@ -124,9 +124,25 @@ def extract_predicates(content):
     t = re.sub(r'^【[^】]*】', '', content.strip()).strip()
     preds, seen = [], set()
 
+    # 2026-11-07 (mem0 P1-3): generic-entity guard. Entities shorter than
+    # 3 CJK chars or matching a stopword list pollute the entity graph and
+    # cause false SGM SQL matches. mem0's extract_entities uses NER; we use
+    # a blocklist approach (zero LLM, deterministic).
+    _GENERIC_ENTITIES = {
+        '用户', '系统', '服务', '项目', '测试', '代码',
+        '文件', '数据', '运行', '安装', '配置', '设置',
+        '工具', '命令', '结果', '问题', '功能', '模块',
+    }
     def _add(e, a):
         e, a = e.strip(' ，。、和与；;'), a.strip(' ，。、和与；;')
         if len(e) < 2 or len(a) < 1:
+            return
+        # CJK entities: require >=3 chars OR not in generic list
+        if len(e) >= 2 and all('\u4e00' <= c <= '\u9fff' for c in e):
+            if len(e) < 3 and e in _GENERIC_ENTITIES:
+                return
+        # ASCII entities: require >=3 chars
+        if len(e) < 3 and not all('\u4e00' <= c <= '\u9fff' for c in e):
             return
         a = _ATTR_TRAIL_VERB.sub('', a) or a
         if len(a) < 1:

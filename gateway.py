@@ -2123,15 +2123,37 @@ def rebuild():
             t = _re.sub(r'^【[^】]*】', '', (txt or '').strip()).strip()
             m = _re.search(r'[。；;！!？?\n]', t)
             _eff = _cap if _cap else _LINE_CAP
+            # 2026-11-07 (mem0 P1-2): proper-noun protection. When trimming
+            # mid-sentence (no sentence end within cap), find the last safe
+            # cut point that does not land inside a quoted title, number,
+            # or CamelCase identifier. Mirrors mem0 prompt's "Preserve proper
+            # nouns and qualifiers" — a truncated proper noun is unfindable.
+            def _safe_cut(seg, _target):
+                """Walk back from _target to avoid cutting quoted/numeric/ident."""
+                _OPEN = ('\u201c', '"', '\u300a', "'", '(')
+                _CLOSE = ('\u201d', '"', '\u300b', "'", ')')
+                for _p in '。；，、：;:！？':
+                    _i = seg.rfind(_p, 0, _target)
+                    if _i <= 0:
+                        continue
+                    # check if cut point is inside an open quote/bracket
+                    _depth = 0
+                    for _ch in seg[:_i + 1]:
+                        if _ch in _OPEN:
+                            _depth += 1
+                        elif _ch in _CLOSE:
+                            _depth = max(0, _depth - 1)
+                    if _depth == 0:
+                        # also check next char isn't a digit continuation
+                        if _i + 1 < len(seg) and seg[_i + 1].isdigit() and _i > 0 and seg[_i - 1].isdigit():
+                            continue
+                        return _i
+                return _target  # no safe boundary found, hard cut
             if m and 0 < m.start() < _eff:
                 t = t[:m.start()].strip()
             elif len(t) > _eff:
                 _use_cap = (_cap or _LINE_CAP); seg = t[:_use_cap]
-                best = -1
-                for _p in '。；，、：;:！？':
-                    _i = seg.rfind(_p)
-                    if _i > best:
-                        best = _i
+                best = _safe_cut(seg, _use_cap)
                 if best > _use_cap * 0.5:
                     t = seg[:best + 1] + '…'
                 else:

@@ -1225,11 +1225,22 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
               file=sys.stderr)
 
     # 2) 关键词路：查询词覆盖率 x IDF（专有名词命中权重更高）
+    # 2026-11-07 (mem0 P1): query-length-adaptive coverage weight — short
+    # queries (≤3 terms) have high per-term precision, boost coverage; long
+    # queries (≥7) accumulate noise terms, penalise coverage. Mirrors mem0's
+    # get_bm25_params() adaptive sigmoid approach without needing BM25 raw.
     q_terms = _terms(q)
     kw_raw = {}
     kw_cov = {}
     if q_terms:
         N = max(len(active), 1)
+        _n_terms = len(q_terms)
+        if _n_terms <= 3:
+            _cov_w = 2.5       # short query: each hit term is precise
+        elif _n_terms <= 6:
+            _cov_w = 2.0       # default (unchanged)
+        else:
+            _cov_w = 1.5       # long query: noise terms dilute coverage
         df = {}
         for uid, f in active.items():
             c = (f['content'] or '').lower()
@@ -1245,7 +1256,7 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
                     hits += 1
                     s += math.log(1 + N / max(df.get(tm, 1), 1))
             if hits:
-                kw_raw[uid] = (hits / len(q_terms)) * 2.0 + s * 0.1
+                kw_raw[uid] = (hits / len(q_terms)) * _cov_w + s * 0.1
                 kw_cov[uid] = hits / len(q_terms)
     kw_rank = {u: i for i, u in enumerate(sorted(kw_raw, key=lambda u: -kw_raw[u]))}
 
