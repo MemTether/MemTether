@@ -1028,7 +1028,6 @@ def main():
     _log("started pid=%d rpc_encoding=%s gateway_import=%.2fs" % (
         os.getpid(), getattr(_RPC_OUT, "encoding", "?"), _IMPORT_SECS))
     _start_parent_watchdog()
-    _start_parent_watchdog()
     # ★★ 启动时机（2026-09-19 二次修订）：
     #    `_preload_heavy()` + 预热线程不再在进程启动时抢跑，改由 _ensure_started()
     #    在 **initialize 应答发出之后**触发 —— 客户端首个会话只给 2000ms prewait，

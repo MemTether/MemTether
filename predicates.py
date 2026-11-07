@@ -137,12 +137,13 @@ def extract_predicates(content):
         e, a = e.strip(' ，。、和与；;'), a.strip(' ，。、和与；;')
         if len(e) < 2 or len(a) < 1:
             return
-        # CJK entities: require >=3 chars OR not in generic list
+        # CJK entities: block generic 2-char words from _GENERIC_ENTITIES
         if len(e) >= 2 and all('\u4e00' <= c <= '\u9fff' for c in e):
-            if len(e) < 3 and e in _GENERIC_ENTITIES:
+            if e in _GENERIC_ENTITIES:
                 return
-        # ASCII entities: require >=3 chars
-        if len(e) < 3 and not all('\u4e00' <= c <= '\u9fff' for c in e):
+        # ASCII entities: require >=2 chars (allow short meaningful tokens like OK/Go)
+        # but block pure digits and single chars
+        if len(e) < 2 and not all('\u4e00' <= c <= '\u9fff' for c in e):
             return
         a = _ATTR_TRAIL_VERB.sub('', a) or a
         if len(a) < 1:

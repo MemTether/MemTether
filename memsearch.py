@@ -2401,7 +2401,7 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
 
             _max_score = max((x.get('score', 0.0) for x in _out), default=0.0) or 1.0
             _selected, _remaining = [], list(_out)
-            while _remaining and len(_selected) < len(_out):
+            while _remaining:
                 _best, _best_val = None, -1e9
                 for _cand in _remaining:
                     _rel = (_cand.get('score', 0.0) / _max_score)
