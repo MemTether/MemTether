@@ -1419,6 +1419,8 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
                     'confidence': round(_qv, 4) if isinstance(_qv, (int, float)) else None,
                     # P0-07：把复核截止日带进结果，供降权与标注
                     'ttl': _parse_ttl(f.get('tags'), f.get('valid_to'), f.get('content')),
+                    # 2026-11-07 (Hindsight retractions): surface retracted grounding
+                    'retracted_refs': [t.split(':',1)[1] for t in (f.get('tags') or '').split(',') if t.strip().startswith('retracted:')],
                     # 2026-11-03: verify_at for env fact staleness
                     'verify_at': f.get('verify_at') or '',
                     # 2026-11-05: superseded_by flows into hits so diag can

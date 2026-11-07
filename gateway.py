@@ -1096,9 +1096,89 @@ def correct(old_uid, new_content, reason, by_agent=DEFAULT_SOURCE, valid_from=No
                 conn.commit()
         except Exception:
             pass  # older schema without use_count — never block the correction
-        return {'ok': True, 'old_uid': old_uid, 'new_uid': new_uid, 'op': 'supersede'}
+        # 2026-11-07 (Hindsight retractions): propagate to sibling facts
+        _retracted = _propagate_retraction(conn, old_uid, 'superseded')
+        conn.commit()
+        return {'ok': True, 'old_uid': old_uid, 'new_uid': new_uid, 'op': 'supersede', 'retracted_siblings': len(_retracted)}
     finally:
         conn.close()
+
+
+
+# ============================================================================
+# 2026-11-07 (Hindsight retractions.py): retraction tracking
+# When a fact is superseded or retired, find all OTHER active facts that share
+# an entity with it (via fact_entities) and tag them with "retracted:<uid>".
+# This lets search and rebuild surface "the fact this referenced is now dead"
+# instead of silently serving stale cross-references.
+# ============================================================================
+
+def _propagate_retraction(conn, old_uid, action='superseded'):
+    """Find active facts sharing an entity with old_uid and tag them.
+
+    Hindsight's approach (retractions.py): when a fact dies, the documents
+    citing it should know "your grounding is gone". We do the equivalent:
+    facts that share an entity with a dead fact get a `retracted:<uid>` tag
+    so search/rebuild can annotate them.
+
+    This is deterministic (SQL only, zero LLM) and bounded (max 50 tags per
+    propagation to avoid runaway fan-out on common entities).
+    """
+    # 1. Get entities of the dead fact
+    try:
+        _dead_entities = [r[0] for r in conn.execute(
+            "SELECT DISTINCT entity FROM fact_entities WHERE fact_uid=?",
+            (old_uid,)).fetchall()]
+    except Exception:
+        return []  # fact_entities may not exist on fresh DBs
+
+    if not _dead_entities:
+        return []
+
+    # 2. Find active facts sharing any of those entities (not old_uid itself)
+    _placeholders = ','.join('?' * min(len(_dead_entities), 20))
+    _params = list(_dead_entities[:20]) + [old_uid]
+    try:
+        _affected = conn.execute(
+            "SELECT DISTINCT fe.fact_uid FROM fact_entities fe "
+            "JOIN facts f ON f.uid = fe.fact_uid "
+            "WHERE fe.entity IN ({}) "
+            "AND f.uid != ? AND f.status = 'active'".format(_placeholders),
+            _params).fetchall()
+    except Exception:
+        return []
+
+    _tagged = []
+    for _r in _affected[:50]:  # bounded fan-out
+        _target_uid = _r[0]
+        _tag = 'retracted:' + old_uid
+        try:
+            _cur_tags = conn.execute(
+                "SELECT tags FROM facts WHERE uid=?", (_target_uid,)).fetchone()
+            if _cur_tags and _cur_tags[0]:
+                _tags_list = [t.strip() for t in _cur_tags[0].split(',') if t.strip()]
+                if _tag not in _tags_list:
+                    _tags_list.append(_tag)
+                    conn.execute("UPDATE facts SET tags=? WHERE uid=?",
+                                 (','.join(_tags_list), _target_uid))
+                    _tagged.append(_target_uid)
+            else:
+                conn.execute("UPDATE facts SET tags=? WHERE uid=?",
+                             (_tag, _target_uid))
+                _tagged.append(_target_uid)
+        except Exception:
+            pass
+
+    # 3. Audit log the propagation
+    if _tagged:
+        try:
+            audit(conn, 'retraction_propagate', old_uid,
+                  'system',
+                  '{}: tagged {} facts with retracted:{}'.format(action, len(_tagged), old_uid))
+        except Exception:
+            pass
+
+    return _tagged
 
 
 def retire(uid, reason, by_agent=DEFAULT_SOURCE):
@@ -1127,7 +1207,10 @@ def retire(uid, reason, by_agent=DEFAULT_SOURCE):
             bump_qvalue(uid, reward=0.0, agent=by_agent, detail='auto: retired')
         except Exception:
             pass
-        return {'ok': True, 'uid': uid, 'op': 'retired'}
+        # 2026-11-07 (Hindsight retractions): propagate to sibling facts
+        _retracted = _propagate_retraction(conn, uid, 'retired')
+        conn.commit()
+        return {'ok': True, 'uid': uid, 'op': 'retired', 'retracted_siblings': len(_retracted)}
     finally:
         conn.close()
 
