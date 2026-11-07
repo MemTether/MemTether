@@ -1311,6 +1311,80 @@ def extract_entities_from_content(conn, content):
             _matched.append(_e)
     return _matched[:10]
 
+
+# ============================================================================
+# 2026-11-07 (EverOS dead-letter awareness): write-only data audit
+# Scan all tables and key columns for data that gets written but never read.
+# Surfaces in governance stats so operators can spot waste (like EverOS's
+# foresight strategy: "running it by default spends tokens on write-only data").
+# ============================================================================
+
+# Tables + key columns to audit
+_DEAD_LETTER_COLUMNS = [
+    ('facts', 'predicate'), ('facts', 'q_value'), ('facts', 'use_count'),
+    ('facts', 'verify_at'), ('facts', 'expires_at'), ('facts', 'subject'),
+    ('facts', 'confidence'), ('facts', 'temporal_source'),
+    ('tool_assets', 'aliases'), ('tool_assets', 'capabilities'),
+    ('recipes', 'task_patterns'), ('recipes', 'steps'), ('recipes', 'pitfalls'),
+    ('supersessions', 'reason'),
+    ('conflict_reviews', 'verdict'), ('conflict_reviews', 'note'),
+    ('candidates', 'content'), ('candidates', 'type'), ('candidates', 'reason'),
+]
+
+def dead_letter_audit(conn):
+    """Audit write-only data: tables/columns that get written but have no read path.
+
+    Returns list of {table, column, row_count, has_read} for suspicious entries.
+    A column is "dead" if: it has data (row_count > 0) AND our source code
+    never SELECTs it.
+    """
+    import ast as _ast
+    _gw_src = open(__file__, encoding='utf-8').read()
+    # Also scan governance + memsearch + mcp_server for reads
+    for _extra in ('governance.py', 'memsearch.py', 'mcp_server.py', 'memtether.py'):
+        try:
+            _gw_src += open(_extra, encoding='utf-8').read()
+        except Exception:
+            pass
+    _src_lower = _gw_src.lower()
+
+    dead = []
+    # Table-level check
+    _tables = ['facts', 'tool_assets', 'recipes', 'supersessions', 'audit_log',
+               'fact_entities', 'conflict_reviews', 'candidates', 'run_events']
+    for _t in _tables:
+        # Has writes? (INSERT/UPDATE in source)
+        _has_write = any(f'{_t}' in _src_lower and kw in _src_lower
+                        for kw in ('insert into', 'update '))
+        # Has reads? (SELECT ... FROM _t)
+        _has_read = f'select' in _src_lower and f'from {_t}' in _src_lower
+        # Has data?
+        try:
+            _count = conn.execute(f'SELECT COUNT(*) FROM {_t}').fetchone()[0]
+        except Exception:
+            continue
+        if _has_write and not _has_read and _count > 0:
+            dead.append({'table': _t, 'column': '*', 'row_count': _count,
+                        'issue': 'written but never read'})
+
+    # Column-level check
+    for _t, _c in _DEAD_LETTER_COLUMNS:
+        try:
+            _count = conn.execute(
+                f'SELECT COUNT(*) FROM {_t} WHERE {_c} IS NOT NULL AND {_c} != \'\''
+            ).fetchone()[0]
+        except Exception:
+            continue
+        if _count == 0:
+            continue
+        # Check if any SELECT mentions this column
+        _col_read = _c in _src_lower
+        if not _col_read:
+            dead.append({'table': _t, 'column': _c, 'row_count': _count,
+                        'issue': 'column has data but source never references it in any SELECT'})
+
+    return dead
+
 # ============================================================================
 # 2026-11-07 (Hindsight retractions.py): retraction tracking
 # When a fact is superseded or retired, find all OTHER active facts that share
