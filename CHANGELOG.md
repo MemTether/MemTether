@@ -1,4 +1,31 @@
-## [0.1.0a88] — Hindsight + EverOS learnings: entity intelligence, semantic linking, governance
+## [0.1.0a89] — entity_extractor (GLiNER + language-aware regex) + sys.path pollution fix
+
+### Added
+
+- **entity_extractor.py**: language-aware entity extraction pipeline.
+  Chinese → regex (predicates.extract_predicates); English → GLiNER
+  (`urchade/gliner_small-v2.1`, optional dep, lazy-loaded); mixed → both,
+  deduplicated. GLiNER not installed → clean fallback (English returns None
+  so gateway can try LLM before regex). (+20 tests: language detection,
+  Chinese regex, English GLiNER skipif, edge cases, gateway integration)
+- **gateway three-tier extraction**: remember() now uses
+  1. entity_extractor (smart) → 2. LLM (optional OpenAI-compatible) →
+  3. plain regex predicates. LLM entities only used when smart extraction
+  returns nothing (prevents overriding better results).
+
+### Fixed
+
+- **sys.path pollution O(N²)** (CRITICAL): `sys.path.insert(0, HUB)` ran on
+  every `_vec_upsert`/`_semantic_entity_link` call, growing sys.path by ~2
+  entries per write. At 1000 writes in one process this reached 3000+
+  duplicate entries, causing O(N) module resolution on every failed import
+  (chromadb/numpy in slim environments) and multi-second stalls per write.
+  Fixed with idempotent `_ensure_hub_path()` guard. Benchmark: 1000 writes
+  now 16.9s (was >180s timeout); sys.path stays at 9 entries (was 3000+).
+- **entity_extractor English fallback**: English text no longer falls to
+  Chinese-biased regex when GLiNER is absent (was producing pseudo-entities
+  like 'server' from prose). Returns None so gateway can try LLM first.
+
 
 ### Added
 

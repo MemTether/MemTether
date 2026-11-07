@@ -136,6 +136,17 @@ def _hg_write(path, text, before=None, on_conflict='abort', tag=''):
 
 
 HUB = os.path.dirname(os.path.abspath(__file__))
+def _ensure_hub_path():
+    """Idempotently ensure HUB is in sys.path without duplicating entries.
+
+    FIX (2026-11-07): the old `sys.path.insert(0, HUB)` pattern added a new
+    entry on EVERY call. At scale (1000+ writes in a single process), sys.path
+    grew to 3000+ duplicate entries, causing O(N) path resolution on every
+    failed module import (chromadb/numpy in slim environments) and eventually
+    multi-second stalls per write. This guard checks membership first.
+    """
+    if HUB not in sys.path:
+        sys.path.insert(0, HUB)
 # ★真源库路径可被 MEM_DB 覆盖（默认仍是 HUB/memory.db，不设环境变量时行为完全不变）。
 #   用途：仓库不发布真实 memory.db（含真名/学号/本机路径/密钥，见 .gitignore），
 #   但开源版需要「clone 下来就能跑」——指向合成演示库即可：
@@ -594,7 +605,7 @@ def audit(conn, op, target, agent, detail=''):
 def _mem0_add(content, user_id='wzj'):
     """可选：同步写入 Mem0（自动提取+冲突消解）。失败不阻塞主流程。"""
     try:
-        sys.path.insert(0, HUB)
+        _ensure_hub_path()
         from mem0 import Memory
         import mem0_config
         m = Memory.from_config(mem0_config.MEM0_CONFIG)
@@ -635,7 +646,7 @@ def _vec_upsert(uid, content, type_='fact', source=DEFAULT_SOURCE):
             sys.stderr.write(
                 '[vec_upsert] rebuild in progress, skipping uid=%s\n' % uid[:28])
             return {'skipped': 'rebuild_in_progress'}
-        sys.path.insert(0, HUB)
+        _ensure_hub_path()
         import memsearch
         if memsearch.is_generic_garbage(content):
             return {'skipped': 'generic_garbage'}
@@ -655,7 +666,7 @@ def _vec_upsert(uid, content, type_='fact', source=DEFAULT_SOURCE):
 def _vec_delete(uid):
     """从向量索引删除（supersede/retire 时）。失败不阻塞。"""
     try:
-        sys.path.insert(0, HUB)
+        _ensure_hub_path()
         import memsearch
         col = memsearch._client().get_collection(memsearch.COLLECTION)
         col.delete(ids=[uid])
@@ -824,7 +835,7 @@ def remember(content, type='fact', source=DEFAULT_SOURCE, scope='shared', subjec
 
         # 近义去重（2026-09-13）：向量相似度 + 文本相似度双确认，视为同一事实
         try:
-            sys.path.insert(0, HUB)
+            _ensure_hub_path()
             import memsearch
             col = memsearch._client().get_collection(memsearch.COLLECTION)
             qv = memsearch._embed([content])[0]
@@ -913,28 +924,49 @@ def remember(content, type='fact', source=DEFAULT_SOURCE, scope='shared', subjec
              ts, ts, valid_from or ts, ts, 'native', os.environ.get('MEM_TENANT_ID', 'default'), _vat, _expires))
         # ★十三修：写入时自动抽取谓词（entity→attr 对）存入 predicate 列
         from predicates import store_predicate, store_entities
-        # 2026-11-07 (optional LLM): try LLM entity extraction before regex
-        _llm_entities = None
+        # 2026-11-07 (entity_extractor): three-tier extraction
+        #   1. entity_extractor (GLiNER for English + predicates for Chinese)
+        #   2. LLM (user's OpenAI-compatible API) - only if smart extraction
+        #      returned nothing (e.g. GLiNER not installed and no regex match)
+        #   3. plain regex predicates (last-resort fallback)
+        _entities = None
+        _ent_source = None
         try:
-            from llm_client import is_available as _llm_avail, extract_entities as _llm_extract
-            if _llm_avail():
-                _llm_entities = _llm_extract(content)
+            from entity_extractor import extract as _smart_extract
+            _smart = _smart_extract(content)
+            if _smart:
+                _entities = _smart
+                _ent_source = "smart"
         except Exception:
-            pass
-        if _llm_entities:
-            for _le in _llm_entities:
+            pass  # entity_extractor failure -> fallback to LLM/regex
+
+        if not _entities:
+            try:
+                from llm_client import is_available as _llm_avail, extract_entities as _llm_extract
+                if _llm_avail():
+                    _llm = _llm_extract(content)
+                    if _llm:
+                        _entities = _llm
+                        _ent_source = "llm"
+            except Exception:
+                pass
+
+        if _entities:
+            _src_tag = _ent_source or "smart"
+            for _ent in _entities:
                 try:
+                    _src = _ent.get("source", _src_tag)
                     conn.execute(
                         "INSERT OR IGNORE INTO fact_entities "
                         "(fact_uid, entity_name, entity, attr, value, source, ts, valid_from) "
                         "VALUES (?,?,?,?,?,?,datetime('now'),datetime('now'))",
-                        (uid, _le["entity"], _le["entity"], _le["attr"], content[:200], "llm"))
+                        (uid, _ent["entity"], _ent["entity"], _ent["attr"], content[:200], _src))
                 except Exception:
                     pass
             try:
-                _llm_preds = [{"e": _le["entity"], "a": _le["attr"]} for _le in _llm_entities]
+                _preds = [{"e": _ent["entity"], "a": _ent["attr"]} for _ent in _entities]
                 conn.execute("UPDATE facts SET predicate=? WHERE uid=?",
-                             (json.dumps(_llm_preds, ensure_ascii=False), uid))
+                             (json.dumps(_preds, ensure_ascii=False), uid))
             except Exception:
                 pass
         else:
@@ -1433,7 +1465,7 @@ def _semantic_entity_link(conn, uid, content, min_cosine=0.55, max_inherit=3):
     share enough semantic similarity. Zero LLM, zero new dependency.
     """
     try:
-        sys.path.insert(0, HUB)
+        _ensure_hub_path()
         import memsearch
         col = memsearch._client().get_collection(memsearch.COLLECTION)
 
@@ -1693,7 +1725,7 @@ def profile(subject='user', scope=None, max_facts=200, include_retired=False):
         # L0 摘要：用 memsearch 的确定性分层，保证与检索侧同一把尺子
         l0s = []
         try:
-            sys.path.insert(0, HUB)
+            _ensure_hub_path()
             import memsearch as _ms
             for r in top:
                 l0s.append('- ' + _ms.content_layers(r['content'])['L0'])
@@ -1847,7 +1879,7 @@ def search(query, limit=10, mem0=False, layer='L2', l1_sentences=3):
       无论哪层，结果都带 layers={'L0','L1','L2_len'} 元数据，可再按需升级深度。
     """
     try:
-        sys.path.insert(0, HUB)
+        _ensure_hub_path()
         import memsearch
         r = memsearch.search_hybrid(query, limit=limit, layer=layer,
                                     l1_sentences=l1_sentences)
@@ -1883,7 +1915,7 @@ def search(query, limit=10, mem0=False, layer='L2', l1_sentences=3):
     #   合并会整体替换 r['results']，放在前面会被覆盖掉。
     if layer in ('L0', 'L1') and r.get('results'):
         try:
-            sys.path.insert(0, HUB)
+            _ensure_hub_path()
             import memsearch as _ms_fb
             r['results'] = _ms_fb.apply_layers(r['results'], layer=layer,
                                                l1_sentences=l1_sentences)
@@ -1928,7 +1960,7 @@ def _search_like_legacy(query, limit=10, mem0=False):
         mem0_hits = []
         if mem0:
             try:
-                sys.path.insert(0, HUB)
+                _ensure_hub_path()
                 from mem0 import Memory
                 import mem0_config
                 m = Memory.from_config(mem0_config.MEM0_CONFIG)
@@ -3360,7 +3392,7 @@ def main():
     elif a.cmd == 'on_miss':
         print(json.dumps(on_miss(a.query, a.task_type, a.answer_source, a.force), ensure_ascii=False))
     elif a.cmd == 'rebuild_index':
-        sys.path.insert(0, HUB)
+        _ensure_hub_path()
         import memsearch
         print(json.dumps(memsearch.rebuild_vector_index(), ensure_ascii=False))
     elif a.cmd == 'pin':
