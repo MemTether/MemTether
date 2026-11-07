@@ -752,11 +752,13 @@ def remember(content, type='fact', source=DEFAULT_SOURCE, scope='shared', subjec
     # the sensitive gate entirely - only correct()/record_tool() checked.
     # An email/phone/JWT typed into a plain remember() went straight in.
     if _SENSITIVE_BLOCK:
-        _hits = _sensitive_check(content)
-        if _hits:
+        _should_block, _blocked_labels, _redacted, _all_hits = _sensitive_check_with_policy(content)
+        if _should_block:
             raise ValueError(
                 '[P0#1] 敏感内容闸门(remember)：内容含完整凭据 %s，拒绝入库。'
-                % ', '.join(h[0] for h in _hits))
+                % ', '.join(_blocked_labels))
+        if _redacted != content:
+            content = _redacted
     # ★2026-11-03: auto verify_at for env facts (paths/exes/versions) -> 30d staleness
     try:
         if type in ('fact', 'environment') and (
@@ -976,6 +978,70 @@ _SENSITIVE_PATTERNS = [
     (re.compile(r'\b(?=[A-Za-z0-9]*[A-Z])(?=[A-Za-z0-9]*[a-z])(?=[A-Za-z0-9]*\d)[A-Za-z0-9]{32,}\b'), 'High-entropy string'),
 ]
 _SENSITIVE_BLOCK = os.environ.get('MEM_SENSITIVE_GATE', '1') != '0'
+
+
+# ============================================================================
+# 2026-11-07 (Hindsight memory_defense.py): configurable PII policy engine
+# Each pattern gets an action: "block" (reject write), "redact" (strip match,
+# write [REDACTED:type]), "allow" (log but pass through). Default: block.
+# Env MEM_PII_POLICY={"Email":"redact","High-entropy string":"allow"} overrides.
+# ============================================================================
+
+def _parse_pii_policy():
+    """Parse MEM_PII_POLICY env into {pattern_label: action_str}."""
+    import json as _json
+    _raw = os.environ.get('MEM_PII_POLICY', '')
+    if not _raw:
+        return {}
+    try:
+        _d = _json.loads(_raw)
+        return {str(k): str(v).lower() for k, v in _d.items()
+                if str(v).lower() in ('block', 'redact', 'allow')}
+    except Exception:
+        return {}
+
+def _pii_action_for(label, policy=None):
+    """Get action for a pattern label: policy override or default 'block'."""
+    if policy is None:
+        policy = _parse_pii_policy()
+    return policy.get(label, 'block')
+
+def _fingerprint_value(value):
+    """Redaction-identifiable preview of a matched value (Hindsight style)."""
+    n = len(value)
+    if n < 6:
+        return '[redacted]'
+    if n <= 15:
+        return f'{value[:2]}...{value[-2:]}'
+    return f'{value[:4]}...{value[-4:]}'
+
+def _sensitive_check_with_policy(content):
+    """Run _SENSITIVE_PATTERNS with per-pattern actions.
+
+    Returns (should_block, blocked_labels, redacted_content, all_hits).
+    """
+    if not _SENSITIVE_BLOCK:
+        return (False, [], content, [])
+
+    policy = _parse_pii_policy()
+    blocked = []
+    hits = []
+    redacted = content
+    for pat, label in _SENSITIVE_PATTERNS:
+        action = _pii_action_for(label, policy)
+        matches = pat.findall(content)
+        if not matches:
+            continue
+        for m in matches[:5]:
+            val = m if isinstance(m, str) else m[0] if m else ''
+            hits.append({'detector': label, 'preview': _fingerprint_value(val),
+                         'action': action})
+        if action == 'block':
+            blocked.append(label)
+        elif action == 'redact':
+            redacted = pat.sub(f'[REDACTED:{label}]', redacted)
+
+    return (len(blocked) > 0, blocked, redacted, hits)
 
 def _sensitive_check(content):
     hits = []
