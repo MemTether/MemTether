@@ -1,3 +1,48 @@
+## [0.1.0a88] — Hindsight + EverOS learnings: entity intelligence, semantic linking, governance
+
+### Added
+
+- **Retraction tracking** (`bade26d`): when a fact is superseded or retired,
+  sibling facts sharing an entity are tagged `retracted:<uid>` (bounded to 50
+  to prevent fan-out). Search results carry `retracted_refs` so agents know
+  their grounding is dead. (+5 tests)
+- **Entity trend computation** (`44faef4`): `compute_entity_trends()` computes
+  STABLE/STRENGTHENING/WEAKENING/NEW/STALE per entity from `fact_entities`
+  timestamps (zero LLM, pure SQL). Search diag carries `entity_trends`.
+  (+5 tests)
+- **Evidence chain** (`6a66f1b`): `get_entity_evidence()` returns all active
+  facts citing an entity (uid + quote + source + timestamp). Search diag
+  carries `evidence` for top hits. (+6 tests)
+- **Configurable PII policy** (`3c6b238`): `MEM_PII_POLICY` env enables
+  per-pattern actions (`block`/`redact`/`allow`). Redact replaces matches
+  with `[REDACTED:type]`; `_fingerprint_value()` provides safe previews that
+  never expose raw secrets. All three write paths (remember/correct/
+  record_tool) now use the policy engine. (+5 tests)
+- **Dead-letter audit** (`67345cb`): `dead_letter_audit()` scans tables and
+  columns for write-only data (written but never read). Wired into `stats()`.
+  (+4 tests)
+- **Semantic entity linking** (`26e7547`): `remember()` automatically
+  inherits entities from semantically similar existing facts via bge-m3
+  embedding + chroma nearest-neighbor (cosine > 0.55). Solves the
+  "English fact doesn't match Chinese regex" gap — bge-m3 is multilingual
+  so cross-language facts link to the same entity. (+2 tests, skipif
+  no chromadb)
+- **Safe-cut direct tests** (`67345cb`): quote preservation, number
+  integrity, sentence boundary — previously only indirectly covered.
+  (+3 tests)
+
+### Fixed
+
+- **correct()/record_tool() PII policy gap** (`4bf441a`): both were still
+  using the old `_sensitive_check()` instead of
+  `_sensitive_check_with_policy()`, meaning MEM_PII_POLICY had no effect
+  on these two write paths. Both now use the policy engine with redact
+  content replacement.
+- **dead_letter_audit never called** (`07e9843`): defined but not wired
+  into `stats()`. Now returns `dead_letters` in the stats output.
+- **record_tool NameError** (`4bf441a`): the policy migration introduced
+  a reference to variables from the wrong scope. Fixed with local names.
+
 ## [0.1.0a86] — Persome P0+P1: honest metadata, fail-visible projections, transactional writes
 
 ### Added
