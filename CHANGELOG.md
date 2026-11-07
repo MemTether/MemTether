@@ -1,3 +1,54 @@
+## [0.1.0a86] — Persome P0+P1: honest metadata, fail-visible projections, transactional writes
+
+### Added
+
+- **PII scrub expanded 6 -> 12 patterns** (`324e7fe`): Bearer/JWT tokens,
+  en+zh password assignments, CN mobile numbers, email; `remember()` now runs
+  the gate too (previously only `correct()`/`record_tool()` did).
+- **Honest search hits**: every hit carries `age_days` (int) and `confidence`
+  (0-1 Q-value) so consumers judge freshness without parsing ISO timestamps
+  (`324e7fe`).
+- **MCP routing instructions**: `initialize` response carries
+  `SERVER_INSTRUCTIONS` — query-before-guessing, first-sentence conclusions,
+  correct-don't-re-add, verify_at staleness (`324e7fe`).
+- **Fail-visible rebuild**: the `no_wb_targets` soft-skip return carries a
+  `health` block (active_count / fts_count / vector_count / schema_ok) so
+  "skipped" is never mistaken for "verified healthy" (`324e7fe`).
+- **Audit-fail-raise**: `correct()` raises instead of returning `ok=true` when
+  the supersede landed but the audit receipt did not persist (`324e7fe`).
+- **Corruption probe** (`180f898`): `get_conn()` runs a canary SELECT at
+  connect time — a corrupted DB fails immediately instead of exploding
+  mid-transaction.
+- **Runtime schema fingerprint** (`180f898`): stable hash over table columns;
+  set `MEM_SCHEMA_FP` to compare and warn once on drift.
+- **Retrieval-stats carry-over** (`180f898`): `use_count` carries forward on
+  supersede (after the auto-bump) so corrections never reset earned attention.
+- **Transactional projection writes** (`f465047`): `hubguard.transactional_write()`
+  fsyncs a `.txn.journal` (op/stage/expected hash/pid) BEFORE the atomic
+  replace; `_hg_write` projections now go through it, so a crash mid-rebuild
+  leaves an auditable intent record. `read_txn_journal()` for post-crash audit.
+- **Bin-pack projection fill** (`f465047`): rebuild renders all candidate lines
+  then packs shortest-first; floor rows always win first and every type gets a
+  minimum-2 diversity reserve (`bc0b7c7`) — pure length order was starving the
+  procedure type in production. `MEM_PROJ_GREEDY_FILL=1` restores the old walk.
+
+### Fixed
+
+- **Pin exact-match** (`17e5e61`, `64ee505`): pin detection used substring
+  matching (`LIKE '%pin%'` + `'pin' in tags.lower()`), so tags like `stopping`
+  counted as pinned. All detection is comma-separated exact tag matching.
+- **CI first fully green** (`e5ce3ee`): pinned `ubuntu-24.04` (`6c1a3fa`),
+  long tracebacks + failure artifacts (`cd5ee27`, `4a5be86`), POSIX-only skips
+  on non-Windows (`619b8fb`), PII roundtrip sys.path (`4e3c464`),
+  absorb-semantic probe (`0c4b8b4`).
+
+### Tests
+
++20 in `tests/test_persome_p0.py` (PII classes, hit metadata, MCP
+instructions, health block, audit receipt, corruption probe, fingerprint,
+carry-over, transactional write, bin-pack). Full suite: **882 passed / 13
+skipped** (Windows, Python 3.12).
+
 ## [Unreleased] — Wave 1.5: handoff + review + doctor + READY probe
 
 ### Added
