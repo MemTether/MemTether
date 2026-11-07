@@ -314,12 +314,24 @@ def _cmd_remember_batch(args):
     os.environ["MEM_SKIP_VECTOR"] = "1"
     inserted = deduped = errors = 0
     uids, vec_batch = [], []
+    # 2026-11-07 (mem0 P0-3): batch-internal hash dedup — within a single
+    # batch the same content appearing twice wastes a governed write cycle.
+    # Cross-batch dedup is already handled by gateway.remember's noop gates.
+    import hashlib as _hl
+    _seen_hashes = set()
     t0 = _t.perf_counter()
     try:
         for i, item in enumerate(items):
             if not isinstance(item, dict):
                 errors += 1
                 continue
+            _content = (item.get("content") or "").strip()
+            if _content:
+                _bh = _hl.md5(_content.encode("utf-8")).hexdigest()
+                if _bh in _seen_hashes:
+                    deduped += 1
+                    continue
+                _seen_hashes.add(_bh)
             try:
                 r = gateway.remember(
                     item.get("content", ""),

@@ -445,6 +445,7 @@ def _ensure_columns(conn):
     # Production DBs had the column added manually, hiding the gap in testing.
     for name, typ, dflt in (('q_value', 'REAL', '0.5'), ('use_count', 'INTEGER', '0'),
                             ('predicate', 'TEXT', None), ('verify_at', 'TEXT', None),
+                    ('expires_at', 'TEXT', None),
                             ('last_verified_at', 'TEXT', None)):
         if name in have:
             continue
@@ -885,6 +886,14 @@ def remember(content, type='fact', source=DEFAULT_SOURCE, scope='shared', subjec
                 if _t.startswith('verify:'):
                     _vat = _t[7:]
                     break
+        # 2026-11-07 (mem0 P0): extract expires: from tags — HARD expiry date.
+        # verify_at = "may be stale, check me"; expires: = "dead after date, hide me".
+        _expires = None
+        if tags:
+            for _t in tags.split():
+                if _t.startswith('expires:'):
+                    _expires = _t[8:]
+                    break
 
         # ★P4 (2026-11-03): Incident severity tiering.
         # Cooldown matching already ran before dedup; only newly inserted
@@ -896,10 +905,10 @@ def remember(content, type='fact', source=DEFAULT_SOURCE, scope='shared', subjec
 
         conn.execute(
             """INSERT INTO facts (uid,type,subject,content,status,source,scope,confidence,tags,
-                                  created_at,updated_at,valid_from,recorded_at,temporal_source,tenant_id,verify_at)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                                  created_at,updated_at,valid_from,recorded_at,temporal_source,tenant_id,verify_at,expires_at)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (uid, type, subject, content, status, source, scope, confidence, tags,
-             ts, ts, valid_from or ts, ts, 'native', os.environ.get('MEM_TENANT_ID', 'default'), _vat))
+             ts, ts, valid_from or ts, ts, 'native', os.environ.get('MEM_TENANT_ID', 'default'), _vat, _expires))
         # ★十三修：写入时自动抽取谓词（entity→attr 对）存入 predicate 列
         try:
             from predicates import store_predicate, store_entities

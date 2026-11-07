@@ -1142,12 +1142,26 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
         # so a release upgrade never turns search into an OperationalError.
         _cols = {r[1] for r in conn.execute('PRAGMA table_info(facts)')}
         _has_verify = 'verify_at' in _cols
+        _has_expires = 'expires_at' in _cols
         _active_sql = (
-            "SELECT uid, content, type, source, scope, updated_at, q_value, tags, valid_to, superseded_by%s"
-            " FROM facts WHERE status='active'" % (', verify_at' if _has_verify else '')
+            "SELECT uid, content, type, source, scope, updated_at, q_value, tags, valid_to, superseded_by%s%s"
+            " FROM facts WHERE status='active'" % (', verify_at' if _has_verify else '',
+                                                    ', expires_at' if _has_expires else '')
         )
         active = {r['uid']: dict(r) for r in conn.execute(
             _active_sql + _scope_filter() + _tenant_filter()[0], (_tenant_filter()[1],))}
+        # 2026-11-07 (mem0 P0): hard-expiry filter. expires: tag = "dead after
+        # this date" — exclude entirely (unlike verify_at which only downweights).
+        # Mirrors mem0's _payload_is_expired() filtering in search.
+        if _has_expires:
+            import datetime as _exp_dt
+            _today = _exp_dt.date.today().isoformat()
+            _expired_uids = {u for u, f in active.items()
+                             if f.get('expires_at') and f['expires_at'] < _today}
+            for _eu in _expired_uids:
+                del active[_eu]
+            if _expired_uids:
+                _diag['expired_filtered_n'] = len(_expired_uids)
         # ★2026-09-15：资产一并入候选池（kind='tool'），否则「XX装在哪」永远查不到
         assets = {}
         try:
@@ -1403,7 +1417,19 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
                     # hit['tags']; hits never carried tags so the branch was
                     # dead code (pin rows were silently truncated with the rest).
                     'tags': f.get('tags') or '',
-                    'reason': reason}
+                    'reason': reason,
+                    # 2026-11-07 (mem0 scoring.py P0): per-signal score breakdown
+                    # so agents can judge WHY this ranked here without guessing.
+                    # semantic = cosine sim; kw/bm25/literal are RRF contributions
+                    # (1.6/0.8/1.6 weights over K+rank); entity = PPR boost.
+                    'score_details': {
+                        'semantic': vec_sim.get(uid, 0.0),
+                        'kw_rank': kw_rank.get(uid),
+                        'bm25_rank': bm25_rank.get(uid),
+                        'literal_hit': uid in lit_hit,
+                        'entity_rank': entity_rank.get(uid),
+                        'rrf_raw': round(sc, 5),
+                    }}
         # M2（2026-09-24）：技能接进检索结果 —— 资产条目带 skill_hint。
         #   动机：调用方（agent）看到「ComfyUI | E:\ComfyUI\...」只知道"有这个东西"，
         #   不知道"怎么用"（入口/前置/坑）。skill_hint 从 tool_assets 原始行提取，

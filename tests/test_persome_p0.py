@@ -404,3 +404,102 @@ class TestMmrDiversity:
         gateway.remember("mmr off probe", source="codex")
         r = memsearch.search_hybrid("mmr off probe", limit=3)
         assert "mmr_reordered" not in r["diag"]
+
+class TestMem0Parity:
+    """mem0 audit P0 batch (2026-11-07): explain details / expires: tag / batch dedup."""
+
+    def test_hit_has_score_details(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("MEM_DB", str(tmp_path / "sd.db"))
+        monkeypatch.setenv("MEM_SKIP_VECTOR", "1")
+        import importlib
+        import gateway, memsearch
+        importlib.reload(gateway)
+        importlib.reload(memsearch)
+        memsearch.DB = gateway.DB
+        gateway.init_db()
+        gateway.remember("score details probe content alpha", type="fact", source="codex")
+        r = memsearch.search_hybrid("score details probe", limit=3)
+        hits = r["results"]
+        assert hits, "expected hits"
+        h = hits[0]
+        assert "score_details" in h
+        sd = h["score_details"]
+        assert "semantic" in sd
+        assert "kw_rank" in sd
+        assert "bm25_rank" in sd
+        assert "literal_hit" in sd
+        assert "entity_rank" in sd
+        assert "rrf_raw" in sd
+
+    def test_expires_tag_hides_from_search(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("MEM_DB", str(tmp_path / "exp.db"))
+        monkeypatch.setenv("MEM_SKIP_VECTOR", "1")
+        import importlib, sqlite3 as _sq3
+        from datetime import datetime, timedelta
+        import gateway, memsearch
+        importlib.reload(gateway)
+        importlib.reload(memsearch)
+        memsearch.DB = gateway.DB
+        gateway.init_db()
+        # live fact (expires tomorrow)
+        _tomorrow = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+        gateway.remember("live promo fact alpha", type="fact", source="codex",
+                         tags="expires:%s" % _tomorrow)
+        # expired fact (expires yesterday)
+        _yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+        gateway.remember("dead promo fact beta", type="fact", source="codex",
+                         tags="expires:%s" % _yesterday)
+        r = memsearch.search_hybrid("promo fact", limit=10)
+        texts = [x.get("content", "") for x in r["results"]]
+        assert any("alpha" in t for t in texts), "live fact must be searchable"
+        assert not any("beta" in t for t in texts), "expired fact must be hidden"
+        assert r["diag"].get("expired_filtered_n", 0) >= 1
+
+    def test_expired_fact_still_in_db(self, tmp_path, monkeypatch):
+        """Expired = hidden from search, NOT deleted. Verify DB row intact."""
+        monkeypatch.setenv("MEM_DB", str(tmp_path / "exp2.db"))
+        monkeypatch.setenv("MEM_SKIP_VECTOR", "1")
+        import importlib, sqlite3 as _sq3
+        from datetime import datetime, timedelta
+        import gateway, memsearch
+        importlib.reload(gateway)
+        importlib.reload(memsearch)
+        memsearch.DB = gateway.DB
+        gateway.init_db()
+        _yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+        r = gateway.remember("expired but not deleted gamma", type="fact", source="codex",
+                             tags="expires:%s" % _yesterday)
+        conn = _sq3.connect(gateway.DB)
+        row = conn.execute("SELECT status, expires_at FROM facts WHERE uid=?",
+                           (r["uid"],)).fetchone()
+        conn.close()
+        assert row[0] == "active", "expired facts stay active in DB (not deleted)"
+        assert row[1] == _yesterday
+
+    def test_batch_dedup_within_batch(self, tmp_path, monkeypatch, capsys):
+        """Same content twice in one JSON batch → second is deduped, not written."""
+        monkeypatch.setenv("MEM_DB", str(tmp_path / "bd.db"))
+        monkeypatch.setenv("MEM_SKIP_VECTOR", "1")
+        import importlib, json as _json
+        import gateway
+        importlib.reload(gateway)
+        gateway.init_db()
+        batch_file = tmp_path / "batch.json"
+        batch_file.write_text(_json.dumps([
+            {"content": "batch dup probe alpha", "source": "codex"},
+            {"content": "batch dup probe alpha", "source": "codex"},
+            {"content": "batch unique beta", "source": "codex"},
+        ]), encoding="utf-8")
+        import argparse
+        from memtether import _cmd_remember_batch
+        ns = argparse.Namespace(file=str(batch_file))
+        _cmd_remember_batch(ns)
+        import sqlite3 as _sq3
+        conn = _sq3.connect(gateway.DB)
+        n_alpha = conn.execute(
+            "SELECT COUNT(*) FROM facts WHERE content='batch dup probe alpha'").fetchone()[0]
+        n_beta = conn.execute(
+            "SELECT COUNT(*) FROM facts WHERE content='batch unique beta'").fetchone()[0]
+        conn.close()
+        assert n_alpha == 1, "duplicate in batch must not create second row"
+        assert n_beta == 1, "unique content must be written"
