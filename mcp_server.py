@@ -768,9 +768,9 @@ def tool_search(args):
     # context for every byte; search payloads must never serialize unbounded.
     # Persome get_model_snapshot caps each section at 64 KiB hard budget -
     # same shape here, env-tunable.
-    _SECTION_MAX = int(os.environ.get("MEM_MCP_SECTION_BYTES", str(64 * 1024)))
     payload = {"engine": r.get("engine"), "count": len(out), "results": out}
     try:
+        _SECTION_MAX = int(os.environ.get("MEM_MCP_SECTION_BYTES", str(64 * 1024)))
         _enc = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         if len(_enc) > _SECTION_MAX:
             _keep = max(1, len(out) * _SECTION_MAX // max(1, len(_enc)))

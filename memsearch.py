@@ -2424,8 +2424,13 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
                 _best['_mmr_tokens'] = _tokens(_best.get('content'))
                 _selected.append(_best)
                 _remaining.remove(_best)
-            if _selected != _out:
+            _out_uids = [x.get('uid') for x in _out]
+            _sel_uids = [x.get('uid') for x in _selected]
+            if _sel_uids != _out_uids:
                 _diag['mmr_reordered'] = True
+            # strip _mmr_tokens before returning (internal impl detail)
+            for _x in _selected:
+                _x.pop('_mmr_tokens', None)
             _out = _selected
             _diag['mmr_lambda'] = _lam
         except Exception as _mmr_e:
