@@ -1066,11 +1066,13 @@ def correct(old_uid, new_content, reason, by_agent=DEFAULT_SOURCE, valid_from=No
     # F7 fix (2026-10-13): P0-03 sensitive gate — correct() previously
     # bypassed _sensitive_check, letting full credentials in via new_content.
     if _SENSITIVE_BLOCK:
-        _hits = _sensitive_check(new_content)
-        if _hits:
+        _should_block_c, _blocked_c, _redacted_c, _hits_c = _sensitive_check_with_policy(new_content)
+        if _should_block_c:
             raise ValueError(
                 '[P0-03] 敏感内容闸门(correct)：新内容含完整凭据 %s，拒绝入库。'
-                % ', '.join(h[0] for h in _hits))
+                % ', '.join(_blocked_c))
+        if _redacted_c != new_content:
+            new_content = _redacted_c
     init_db()
     conn = get_conn()
     try:
@@ -1693,11 +1695,11 @@ def record_tool(name, path=None, entrypoint=None, aliases='', type='local_tool',
     # F7 fix (2026-10-13): sensitive gate on tool fields too.
     if _SENSITIVE_BLOCK:
         for _fld in (known_failures, entrypoint or '', prerequisites or ''):
-            _hits = _sensitive_check(_fld)
-            if _hits:
+            _sb_rt, _bl_rt, _rd_rt, _hh_rt = _sensitive_check_with_policy(_fld)
+            if _sb_rt:
                 raise ValueError(
                     '[P0-03] 敏感内容闸门(record_tool)：字段含完整凭据 %s，拒绝入库。'
-                    % ', '.join(h[0] for h in _hits))
+                    % ', '.join(_bl_rt))
     init_db()
     conn = get_conn()
     try:
