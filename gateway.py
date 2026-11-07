@@ -1105,6 +1105,75 @@ def correct(old_uid, new_content, reason, by_agent=DEFAULT_SOURCE, valid_from=No
 
 
 
+
+# ============================================================================
+# 2026-11-07 (Hindsight observations.py): entity trend computation
+# Pure math from fact timestamps. Zero LLM. For each entity, compare evidence
+# density in recent 30d vs older 90d to compute STABLE/STRENGTHENING/WEAKENING/
+# NEW/STALE. Surfaces in rebuild and search so agents know if a fact is
+# gaining or losing supporting evidence over time.
+# ============================================================================
+
+def compute_entity_trends(conn, recent_days=30, old_days=90):
+    """Compute temporal trend per entity from fact_entities timestamps.
+
+    Returns {entity: {'trend': str, 'proof_count': int, 'recent_n': int, 'old_n': int}}.
+    Zero LLM — deterministic from created_at timestamps alone.
+    """
+    import datetime as _dt
+    _now = _dt.datetime.now()
+    _recent_cut = (_now - _dt.timedelta(days=recent_days)).strftime('%Y-%m-%d')
+    _old_cut = (_now - _dt.timedelta(days=old_days)).strftime('%Y-%m-%d')
+
+    # Get per-entity evidence counts split by recency
+    try:
+        rows = conn.execute("""
+            SELECT fe.entity, COUNT(*) as total,
+                   SUM(CASE WHEN f.created_at > ? THEN 1 ELSE 0 END) as recent_n,
+                   SUM(CASE WHEN f.created_at < ? THEN 1 ELSE 0 END) as old_n,
+                   SUM(CASE WHEN f.created_at BETWEEN ? AND ? THEN 1 ELSE 0 END) as mid_n
+            FROM fact_entities fe
+            JOIN facts f ON f.uid = fe.fact_uid AND f.status = 'active'
+            GROUP BY fe.entity
+            HAVING COUNT(*) >= 2
+        """, (_recent_cut, _old_cut, _old_cut, _recent_cut)).fetchall()
+    except Exception:
+        return {}
+
+    trends = {}
+    for r in rows:
+        entity, total, recent_n, old_n, mid_n = r[0], r[1], r[2] or 0, r[3] or 0, r[4] or 0
+
+        # Hindsight's algorithm (observations.py compute_trend):
+        if recent_n == 0:
+            trend = 'STALE'
+        elif old_n == 0 and mid_n == 0:
+            trend = 'NEW'
+        else:
+            # Compare density (evidence per day)
+            recent_density = recent_n / recent_days if recent_days > 0 else 0
+            older_period = old_days - recent_days
+            older_density = (old_n + mid_n) / older_period if older_period > 0 else 0
+
+            if older_density == 0:
+                trend = 'NEW'
+            else:
+                ratio = recent_density / older_density
+                if ratio > 1.5:
+                    trend = 'STRENGTHENING'
+                elif ratio < 0.5:
+                    trend = 'WEAKENING'
+                else:
+                    trend = 'STABLE'
+
+        trends[entity] = {
+            'trend': trend,
+            'proof_count': total,
+            'recent_n': recent_n,
+            'old_n': old_n + mid_n,
+        }
+    return trends
+
 # ============================================================================
 # 2026-11-07 (Hindsight retractions.py): retraction tracking
 # When a fact is superseded or retired, find all OTHER active facts that share

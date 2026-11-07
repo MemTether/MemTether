@@ -2437,6 +2437,18 @@ def search_hybrid(query, limit=10, vec_k=60, use_rerank=True, rerank_k=None,
             _diag['mmr_lambda'] = _lam
         except Exception as _mmr_e:
             _diag['mmr_err'] = str(_mmr_e)[:80]
+    # 2026-11-07 (Hindsight observations.py): entity trend summary (top 10)
+    try:
+        import gateway as _gw_t
+        _trend_data = _gw_t.compute_entity_trends(
+            sqlite3.connect(DB, timeout=3))
+        _top_trends = dict(sorted(_trend_data.items(),
+                                  key=lambda x: x[1].get('proof_count', 0),
+                                  reverse=True)[:10])
+        if _top_trends:
+            _diag['entity_trends'] = _top_trends
+    except Exception:
+        pass
 
     # 2026-11-03: expose degraded flag so callers can label results
     _degraded = _diag.get('degraded', False)
