@@ -49,6 +49,48 @@ instructions, health block, audit receipt, corruption probe, fingerprint,
 carry-over, transactional write, bin-pack). Full suite: **882 passed / 13
 skipped** (Windows, Python 3.12).
 
+## [0.1.0a87] — Persome P2: PII 17-parity, bounded MCP sections, parent watchdog, MMR diversity
+
+### Added
+
+- **PII scrub 12 -> 17 patterns (Persome parity)** (`3df35e2`): Google API key
+  (`AIza`), international phone (`+` prefix, 7-15 digits), card/national ID
+  (13-19 digit run), home path (`/Users/`, `/home/`, no trailing slash needed
+  — their #398 fix applied), high-entropy strings (32+ mixed-case alnum;
+  `-`/`_` excluded from the class — their #389-again fix applied). Positive
+  and negative tests for each class (short numbers, package names, 12-digit
+  IDs must NOT match).
+- **Bounded MCP search sections** (`3df35e2`): `search_memory` results carry a
+  hard byte budget (default 64 KiB, `MEM_MCP_SECTION_BYTES` tunable). Over-budget
+  sections are truncated with `truncated: true` + `truncation_note` — same shape
+  as Persome's per-section hard budget in `get_model_snapshot`.
+- **stdio parent watchdog** (`3df35e2`): daemon thread polls `getppid` at 1 Hz;
+  when the parent (MCP client) disappears the server exits instead of idling
+  forever. `MEM_MCP_WATCHDOG=0` disables. Previously only parent *detection*
+  (for source attribution) existed — no watchdog.
+- **MMR diversity on final results** (`3df35e2`): greedy Maximal Marginal
+  Relevance selection with a token-Jaccard similarity proxy (deterministic,
+  zero dependencies), lambda 0.7 default (Persome's value). Prevents N
+  near-identical clones from filling the whole result window.
+  `MEM_MMR=0` / `MEM_MMR_LAMBDA` to tune.
+
+### Fixed
+
+- `test_C_unregistered_source_failopen_by_design` was order-dependent on a
+  developer-machine `MEM_SOURCE_FALLBACK` env var: now isolates it (`3df35e2`).
+
+### Note
+
+- **entity/relation head** judged already-covered: MemTether ships SGM
+  deterministic entity SQL routing + entity-graph PPR recall
+  (`MEM_GRAPH_RECALL=1`) + predicate relation extraction — equivalent to
+  Persome's scene/window/relation pool, so no fifth path was added.
+
+### Tests
+
++10 in `tests/test_persome_p0.py` (PII parity x6, section budget, watchdog
+states x2, MMR on/off). Full suite: **892 passed / 13 skipped**.
+
 ## [Unreleased] — Wave 1.5: handoff + review + doctor + READY probe
 
 ### Added
